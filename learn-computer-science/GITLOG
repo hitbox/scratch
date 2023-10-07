@@ -1,0 +1,109 @@
+commit c95120d81a9ad031295bb6822fdbf1a60be6d5a9
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Feb 26 04:36:48 2022 -0500
+
+    todo determinant of matrix
+
+commit af966431181bfd30bf6bc9afaf02149be67803e3
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Jan 31 13:17:23 2022 -0500
+
+    python reverse string without temp variable, using xor
+
+commit f2041125845ae83e11ad2be0269ad2f48c142995
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Jan 31 09:59:50 2022 -0500
+
+    much better dotproduct using list comprehensions, removed now unnecessary support funcs
+
+commit 269477167fcb6c3686524a30be9789a4afd7c8f9
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Jan 29 21:47:23 2022 -0500
+
+    rename multiply to dotproduct, add  operation, docs
+
+commit 877d8c8e7a4c9ba94594e2cf2696f4017e975bd0
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Jan 29 03:50:38 2022 -0500
+
+    add matrix multiplication and test
+
+commit a967ecb6e47434be30322a38b3af68e635c4d8c6
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Jan 25 05:55:46 2022 -0500
+
+    snapshot: started dijkstra algorithm
+
+commit 742f37c3908b3562deeee2b4f2af8e858ca3b76c
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Jan 25 05:55:15 2022 -0500
+
+    binary tree depth calculation, start insert method
+
+commit 2ba6ae8c1d72f54e67b4ef7fd3e5351e7486a9f5
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Jan 25 05:53:59 2022 -0500
+
+    adjaceny matrix demo code style
+
+commit 4d6e51802108a5bae83e709413eee5bad3bf0b12
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Jan 25 05:51:42 2022 -0500
+
+    ignore .session dir
+
+commit cdbcaefe928c49a4bc8df9e74756fb481f02f35c
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 31 02:08:51 2021 -0500
+
+    init binary tree representation as list
+
+commit aee6df9617325a4a32fa6cfc95bf23f523202dbc
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Dec 19 10:40:01 2021 -0500
+
+    adjacency matrix: quick/dirty add directed edge
+
+commit 730bdebb6606ab2aa0d82ca0a66449623d4e9e4a
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Dec 19 10:21:15 2021 -0500
+
+    adjacency matrix demo: more colorful, endless visitor after building
+
+commit 55afb60653ae32ae06b595dcbe2687e036921733
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Dec 19 07:56:04 2021 -0500
+
+    add demo of adjacency matrix
+
+commit 1d215ff24158eea66bf7856aeaabcd9502a3744a
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Dec 19 07:54:00 2021 -0500
+
+    adjacency matrix tests moved to own file
+
+commit a8c5d192f81048460514128551d460533f6ef56d
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Dec 19 07:51:51 2021 -0500
+
+    add .gitignore
+
+commit 709e4b1fc7aabc73edce6c5ef8c7c47da4537436
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Dec 19 01:44:51 2021 -0500
+
+    +todo
+
+commit 3d6f024b0a49b26acc634ef0b5afc2622a117a8c
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Dec 19 01:34:47 2021 -0500
+
+    tame markdown headers
+    
+    Signed-off-by: Carl Harris <elgoogemail2007@gmail.com>
+
+commit 5b5c7f778e67c62865f3bcdc00b5a625834d24bd
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Dec 19 01:32:14 2021 -0500
+
+    init: adjacency matrix graph

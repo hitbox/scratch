@@ -1,0 +1,65 @@
+commit 2a9d287a80219a762a6154ceb0473cae1638cee0
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Jan 9 10:45:35 2022 -0500
+
+    snapshot
+
+commit c6a84cae19fef502914447c90a1233fc9384f937
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Jan 9 05:46:23 2022 -0500
+
+    runnable again, styling lookup
+
+commit 4f88afd859954a6d368aedc250ba48366ffac618
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Jan 8 08:58:21 2022 -0500
+
+    snapshot: dissapointing. todo: wrap head around events
+
+commit 448941f411c63fb6cf1f900f815b9965c2029b08
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Jan 8 03:18:11 2022 -0500
+
+    ignore __pycache__
+
+commit 4295d5c4c9550e7c819f7fee3dc72129dc8d111b
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Jan 7 09:48:16 2022 -0500
+
+    playing with the engine loop
+
+commit 6b412651d1fbd7189545050a6b9bb37d62b79e31
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Jan 7 04:04:35 2022 -0500
+
+    organize Norvig files
+
+commit a1d8ef831b6872fddc326fa377a01fe17f3e287a
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Jan 7 04:03:26 2022 -0500
+
+    mention speed test in main README
+
+commit 959fb5fc3955ede7e75ed474474a34f7c886848d
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Jan 7 04:01:36 2022 -0500
+
+    add Norvig's files
+
+commit c24a6639bde5053fb942d521f141123771edb81f
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Jan 7 04:00:50 2022 -0500
+
+    add nest vs. flat speed test
+
+commit 530a5b850ed038ddc1ae0b2cb7e8b60e55d9d7f1
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Jan 7 04:00:18 2022 -0500
+
+    ignore session files
+
+commit b87cd05c6009758802c193eb05625d580f882e19
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Wed Nov 3 11:46:24 2021 -0400
+
+    init

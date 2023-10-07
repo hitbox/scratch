@@ -1,0 +1,89 @@
+commit bb817707e66d5142c91df1dbcdae5a40130405ed
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Nov 28 12:01:50 2021 -0500
+
+    snapshot: doc ideas
+
+commit f55c6afa6c2e7b6f022b2768c172866154069179
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Nov 28 05:54:34 2021 -0500
+
+    snapshot
+
+commit 4cfa39be93fab8b5d6fc4b128e4cb32c275b88b3
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Nov 8 05:20:10 2021 -0500
+
+    readline: added more move and kill commands
+
+commit e5532fab168939d2ef71bc31fdf928f69efa209b
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Nov 7 09:50:44 2021 -0500
+
+    fix for call from engine
+
+commit 78c500d8c65b6003f2a6ccaca10fe639a4d59cc4
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Nov 7 09:50:21 2021 -0500
+
+    add kill backward
+
+commit 08bc769805b06b096bd29ffc59eec4d9d5378642
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Oct 16 12:10:13 2021 -0400
+
+    dev: clicking minigame to work out design
+
+commit 942b7471822cbd84b45f72976d146d50d6ae552c
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Oct 16 12:09:13 2021 -0400
+
+    push events from engine loop allowing more than one consumer
+
+commit 3dd93b4bf73a05cdaeb06e5814f21e5c47fd4627
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Oct 16 12:08:31 2021 -0400
+
+    removed unused clock, fix delete ui_frame attr
+
+commit 444a0f01983047a9aeec26f0d58b25f109099dd9
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Oct 16 07:28:45 2021 -0400
+
+    separate readline renderer, sketching better key to callback strategy
+
+commit c3e497a92614f6c96ad58a0ba69a201e1ccbefbc
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Oct 16 07:28:00 2021 -0400
+
+    add readline tests and start kill_* methods
+
+commit 94e839099c1d8efa93683ed7d1fd4ab0d337e35b
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Oct 11 00:51:40 2021 -0400
+
+    add thought
+
+commit 4af5627a837e0de67362f7b864cb088d209c13be
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Oct 10 13:45:50 2021 -0400
+
+    fix closing parenthesis
+
+commit 4220482688269b509859a704741e76a3d50ab763
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Oct 10 11:44:37 2021 -0400
+
+    Update README.md
+
+commit 6476b806a073881e323e56ae1c2193abc5d13f21
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Oct 10 11:43:17 2021 -0400
+
+    add README and requirements
+
+commit edf7d1f5314bbb6d3381bf626c51fd7f83699fd7
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Oct 10 11:38:54 2021 -0400
+
+    init, heavy development

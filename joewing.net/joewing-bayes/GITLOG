@@ -1,0 +1,53 @@
+commit 880879b1f7e008f13ce868cb15ce0b8773e04af3
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 10 04:29:25 2023 -0400
+
+    markdown newlines
+
+commit 84ba1227464e639824b38a040dd7477bc963a8ae
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 10 04:27:37 2023 -0400
+
+    added readme
+
+commit 2ba8c14fe7344b5ec80a679f5b1f55302a27f843
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 10 04:24:05 2023 -0400
+
+    prefer f-string
+
+commit 22ffc6bc815572504a3a2fbbc48763b47e129338
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 10 04:19:35 2023 -0400
+
+    classes formatting
+
+commit 303b8f58d2c32f41db06a1fe4c7a3c760618a45c
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 10 04:15:59 2023 -0400
+
+    docstrings
+
+commit b158fe4dae60b377bf31972b281eeab23d9970f8
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 10 04:11:26 2023 -0400
+
+    simpler getListString
+
+commit baca0d9ea1e2255f69b460f90efd70aea88e94e3
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 10 04:08:52 2023 -0400
+
+    four space indent
+
+commit 48c13e1b443470023e647203f319d0322207c88d
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 10 03:39:30 2023 -0400
+
+    initial running py3
+
+commit 295c76066f7e7d06af2c5753bd7de361cd11bd8e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 10 03:33:26 2023 -0400
+
+    init py2 (apparently)

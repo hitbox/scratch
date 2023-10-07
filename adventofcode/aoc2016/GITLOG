@@ -1,0 +1,89 @@
+commit a35c609118ff2e020882de9b824702ef0ef73964
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 29 03:25:05 2016 -0500
+
+    DEV: nothing done, got tired
+
+commit 3486f91b42d4632e5a960bcd416382a42dfbca86
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Wed Dec 28 03:57:46 2016 -0500
+
+    DEV: hiatus day 11, day 12 done, part 1 of day 13 done
+
+commit ab84759b45e7fad15edbab3c5158d8b247bf579e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Dec 27 04:43:47 2016 -0500
+
+    DEV: Day 11 is kicking my butt
+
+commit 1007104316bbe4ed5983f865a83f53948a7fdf4e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 23 04:43:02 2016 -0500
+
+    DEV: added A* algo, debugging safe method
+
+commit 108bf474bb65116bbab6756b1b7bac8b8a71c958
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 22 04:12:14 2016 -0500
+
+    updated README with reminder of Python version
+
+commit d688cced14fe11a01c3f17e16be339bf3572a4ac
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 22 04:11:41 2016 -0500
+
+    DEV: working on day 11
+
+commit 1d27f0e221804d29daa389fadd5cc6713f41d97f
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Wed Dec 21 04:44:29 2016 -0500
+
+    Day 10 done
+
+commit 4e6e4190136a8142ba8920282f41e36cbce05910
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Dec 20 04:08:59 2016 -0500
+
+    unused import
+
+commit 8755771bbecaf23a965b671d97e44425e3a7f2a6
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Dec 20 04:02:27 2016 -0500
+
+    days 4 through 9 finished
+
+commit 1a27920c9f09cc73be1447ff043b32cf11c1f98e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Dec 19 03:53:36 2016 -0500
+
+    Day 4, part 1 done
+
+commit 82cef87f56f60468a960305710b3af97ab70f72c
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 15 03:24:06 2016 -0500
+
+    removed debugging comment
+
+commit a194086e47a620032908507ede4196971e73f849
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 15 03:22:18 2016 -0500
+
+    day 3 complete, added nwise function (needs cleanup)
+
+commit ae22e58ed791334ab53bef941b07f95753e7f59b
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 15 02:09:18 2016 -0500
+
+    day 2 complete
+
+commit 3a4e9cb4bae6f865167eadc27650d1e62fe3e0fa
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 15 01:13:03 2016 -0500
+
+    added README
+
+commit 719298970416ef0bae360515fa174b01e962d1e0
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 15 01:08:42 2016 -0500
+
+    init and day 1 complete

@@ -1,0 +1,257 @@
+commit 4972ab9627da50736a33c64362e6ae4cd126d916
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Feb 18 14:02:28 2023 -0500
+
+    easing and clean up
+
+commit 089c50f5a33ad20bdc03189127c0a08da375206e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Feb 14 08:38:09 2023 -0500
+
+    spiralsquare.py: added note
+
+commit ffc327d3adfaf101ab2644e7385030688510171e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Feb 14 08:34:51 2023 -0500
+
+    spiralsquare
+
+commit 7c2b5420fe9a52a75e50726fa005b0cfb8e7efa5
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Feb 12 03:40:35 2023 -0500
+
+    whitespace
+
+commit ee4179aa4b969c7fb3b57916029f74dd32aa8d5f
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Feb 11 22:47:20 2023 -0500
+
+    overlapping rects
+
+commit d73c56b5ca5120c6ffa9c1ba9d1f18ba1d6977c6
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Feb 11 10:36:41 2023 -0500
+
+    delete cubic_bezier.py
+
+commit f478b6b1da6968601c52206eea48844c99cc5adb
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Oct 4 11:19:09 2022 -0400
+
+    added cubic bezier with subdivision animation
+
+commit fe60e4954468fff927a4745392ab3cb2bbf574e2
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Oct 2 12:35:40 2022 -0400
+
+    added tab bar example
+
+commit 424d57ea1cb648bf01e7b56a798f2d737234fde3
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Sep 26 03:24:44 2022 -0400
+
+    rectcut: added join state
+
+commit 52ecd3a0f546734333dff34ed1ea16157cbdae97
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Sep 25 09:10:19 2022 -0400
+
+    rectcut: added todo
+
+commit 479d1ef0992110029690ed22ff844d3e82226f3a
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Sep 25 09:05:05 2022 -0400
+
+    rectcut: cleaning
+    
+    - removed frame output
+    - tried green-recorder
+
+commit 8fa1ebb98ffa68f10fea2b8ab97f9480c0ceff4c
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Sep 25 08:00:44 2022 -0400
+
+    rectcut: tiling window manager
+    
+    - switchable states
+    - cut and drag states
+    - color palettes
+
+commit 0cfa1b7907f1ddc82078edad2b6f2ad3921e3d4b
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Sep 24 13:11:08 2022 -0400
+
+    update readme with note
+
+commit 54efd0a56a05e0f835e2e3b6335846259ad95d4d
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Sep 24 13:08:07 2022 -0400
+
+    inventory: initial use of game states
+    
+    - state flow: intro -> inventory -> gameplay
+                  gameplay -> inventory
+                  gameplay -> outro -> quit
+    - much more simple engine loop
+    - everything is mostly separated
+    - lost frame saving for now
+
+commit 2335a35bd42fb3288209a020cf59d28091fbb650
+Merge: b1051ab 81a4b6a
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Sep 23 04:11:42 2022 -0400
+
+    Merge branch 'master' of github.com:hitbox/examples
+
+commit b1051ab6023638c5f3bdb4248a6b46e5f36f923b
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Sep 23 04:06:12 2022 -0400
+
+    inventory.py: reorganization and cleanup
+    
+    - remove unnecessary and unused
+    - add docs here and there
+    - rect specific remap func
+    - eventhandler decorator to register event handlers
+    - render_rect to handle drawing rects with alpha < 255 colors
+    - finish frame queue after game loop
+    - minimizing game loop (a little)
+    - how to inject "our" own state data into the events?
+    - notes and thoughts in TODO
+
+commit 81a4b6aa1fbde318b46196ee5cb625ef0af0a5f1
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Sep 23 04:06:12 2022 -0400
+
+    reorganization and cleanup
+    
+    - remove unnecessary and unused
+    - add docs here and there
+    - rect specific remap func
+    - eventhandler decorator to register event handlers
+    - render_rect to handle drawing rects with alpha < 255 colors
+    - finish frame queue after game loop
+    - minimizing game loop (a little)
+    - how to inject "our" own state data into the events?
+    - notes and thoughts in TODO
+
+commit ecc6359997538bcefb0b728f6672f39ca2019766
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Sep 18 05:22:18 2022 -0400
+
+    init readme
+
+commit 5d7200a6fbffcc4604c8f5f0bdfa328610898e5b
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Sep 18 05:08:19 2022 -0400
+
+    init rectcut
+
+commit 91fe1242400474aa00789f757404a79908f9e656
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Sep 16 03:10:50 2022 -0400
+
+    movement from pressed keys getter
+    
+    - possibly being too clever here
+    - tiny footprint where used
+    - makes a descriptive name from class instantiation
+
+commit 0e15abba4ff85bad161707cf685141a4fa48591f
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Sep 15 23:23:25 2022 -0400
+
+    added listbox example
+
+commit f3eb6cfa268404394ad44eb7a0d8fa02ab7925f4
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Wed Sep 14 03:48:19 2022 -0400
+
+    lift with perspective
+    
+    - find fractional position on grid and lerp onto a larger rect to
+      provide an elevated perspective illusion.
+    - drop on item lifts other item
+    - trying out rendering objects
+    - separated things into functions as much as possible so far
+    - added lerp and invlerp and tests
+    - changed drop shadow to remain inside grid cells
+    - deque to buffer frames for output
+    - rudimentary place_item function to put items in empty space
+
+commit b660234027bdd6ba48761d56209fff07aec8d2a8
+Merge: 8c25568 845d91f
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Sep 12 09:00:23 2022 -0400
+
+    Merge branch 'master' of github.com:hitbox/examples
+
+commit 8c255687c6c9fa888d77df1d539d4a3e063152a1
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Sep 12 08:51:27 2022 -0400
+
+    more random dev
+    
+    - show item name
+    - sorted draw items keeps held item on top
+    - optional overlay_image
+    - cleanup
+    - docs
+    - better grid drawing taking into account that grid rects do not overlap
+    - better cursor throbbing
+
+commit 845d91f303891a0f4e28706bd554aeb28ebc327a
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Sep 12 08:51:27 2022 -0400
+
+    more random dev
+    
+    - show item name
+    - sorted draw items keeps held item on top
+    - optional overlay_image
+    - cleanup
+    - docs
+
+commit 795d81087745dfe786c686afd312616c61cc52a5
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Sep 12 06:38:15 2022 -0400
+
+    add doc
+
+commit e81a209cfb19561b0802ac82e0a8a19e06cc2798
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Sep 12 04:55:13 2022 -0400
+
+    more accurate doc
+
+commit 2ac3388c7f24fc6f29c5d97c0b1b2720c7c3ec8f
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Sep 12 04:54:51 2022 -0400
+
+    add .gitignore
+
+commit cc81a89425577d0437d40197e2dbf7d6b329d756
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Sep 12 04:45:45 2022 -0400
+
+    init inventory movement
+
+commit 5b30357079da777159549801cb8ab0d4ab5a31b8
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Sep 10 13:26:55 2022 -0400
+
+    configurable +segments per food
+
+commit d219849dd1869d7ff043f278ba6fec9479e05152
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Sep 10 13:14:21 2022 -0400
+
+    draw overlap snake
+    
+    - consider chunks of snake in triplets and draw middle rect
+
+commit e9ae709f492337717cf389121ee058defadbf00f
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Sep 9 12:19:53 2022 -0400
+
+    init

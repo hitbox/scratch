@@ -1,0 +1,88 @@
+commit 934b1552e9a1b4881303a91555ee3486a47497e8
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Jun 19 03:59:26 2022 -0400
+
+    save point
+    
+    - tired of things not tracked by repo
+    - reframing what this project is
+    - thinking it should be a collection of stuff I think is working well
+      and useful.
+    - trying to avoid hundreds of little projects all over the place.
+
+commit ad34e3feea3d80669fc1f16643aa3ce35b47dab6
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Jun 19 03:04:34 2022 -0400
+
+    reorganize truchet tile renderer function
+
+commit 10c645d4007d38ef3df3b8f04f14efe5bf860b68
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Jun 18 13:34:37 2022 -0400
+
+    truchet + rectop
+    
+    - had a lot of fun whipping up truchet
+    - it was part of some changes to rectop, so those are included
+    - been feeling like locking some changes in (commit)
+
+commit 865027e98588d7b99bd16d1987ecef29e2388d15
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Jun 18 07:48:52 2022 -0400
+
+    remove old demo dir
+
+commit 90c7b0c009436e86b488925859b0ea319cf177fa
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue May 3 06:53:12 2022 -0400
+
+    update readme with todo
+
+commit 788721807a015801cda85e1d2b8b54c943ee149e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue May 3 06:44:28 2022 -0400
+
+    dev snapshot
+
+commit cb37fb3b01c33f15bdc8c64e1488a310127a3581
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun May 1 04:26:47 2022 -0400
+
+    improvements to simple rect operations
+    
+    - the stuff in lib/rectop is pretty good
+    - demos of rect operations in demo/*
+    - removed unused or useless demos
+    - probably want to pull rect operations into it's own project
+
+commit 6dac9f356ac4d104b59e8fa559f26df25acd8c9d
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 25 03:18:21 2022 -0400
+
+    development save
+    
+    - shrinkwrap.py and subdividerect.py have the interesting viewable stuff
+    - should remove all that enum rect sides stuff--it's terribly hard to
+      unwind
+    - lib.rectops has better focus and design
+    - should consolidate the two "engines" in shrinkwrap.py and
+      subdividerect.py; they overlap a lot
+    - should investigate what all these other files are
+
+commit af0e2b1a71de6c42093ea6882371b6380b0656ad
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Mar 13 06:12:10 2022 -0400
+
+    snapshot: working but trying to clean up
+
+commit e0c5fd091a673d054286624a6bc19aab31f0ba2a
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Mar 13 06:11:28 2022 -0400
+
+    update readme
+
+commit a655a29ab9ccaef11d22a7ba42d93414ba28d574
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Jan 28 03:00:24 2022 -0500
+
+    init

@@ -1,0 +1,17 @@
+commit 0716a18acb15e2b6fbea8a69b9bbdb8410518aa8
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Mar 10 23:18:22 2022 -0500
+
+    add readme
+
+commit 3c3b67efffef3f87151943b186fc5c44b6671dac
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Mar 10 23:15:24 2022 -0500
+
+    modtable.py: add comments and docs, cleaner code
+
+commit f3fa6c6998602702b0cbcf05e3314d7cbb926df9
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Feb 6 00:50:54 2022 -0500
+
+    init of two year old project

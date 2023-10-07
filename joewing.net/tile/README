@@ -1,0 +1,25 @@
+Tile 20000117 by Joe Wingbermuehle
+
+>Description
+This is a game in which you try to put the tiles in order. A tile must be
+next to an empty space to be moved. Click the tile to move it.
+This game isn't the best, but it's my first attempt at using GTK. So that's
+my excuse :P
+
+>Installation
+ - Edit the Makefile (if necessary)
+ - Run 'make'
+ - su root
+ - Run 'make install'
+This program requires GTK (www.gtk.org).
+
+>History
+Version 20000117
+	-First, possibly last, version.
+Version 20000915
+	-Now the puzzle is always possible.
+	-Added an "OK" button to the dialog boxes.
+
+Joe Wingbermuehle
+http://joewing.calc.org
+http://www.umr.edu/~jwing

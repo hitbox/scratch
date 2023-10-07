@@ -1,0 +1,35 @@
+commit 024241dc5b753da66cc8f0746804eb3ed23449c5
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Oct 30 08:22:41 2021 -0400
+
+    dev: snapshot
+
+commit 680abdf82adfec62292d5fa33155699a18343299
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Oct 28 09:46:56 2021 -0400
+
+    dev: little bit of progress
+
+commit cfefc50253ba57a29313dc39ee4f5564c6cc2e3e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Oct 28 03:18:21 2021 -0400
+
+    quick initial sketch
+
+commit a811ed1ff1ae5602d624f6795bc777ee53f642ad
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Oct 28 03:18:05 2021 -0400
+
+    remove whitespace
+
+commit 7cea08ba807b8076319f2acebcff06e37acbf7c9
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Oct 28 02:25:33 2021 -0400
+
+    fix typo
+
+commit 5978c31158e76983a06da1256f686231ec433afc
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Oct 28 02:24:00 2021 -0400
+
+    init

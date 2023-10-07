@@ -1,0 +1,257 @@
+commit 6a7ba6c938f03688c8a47f4f3c660a5f7f9da501
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Jul 5 02:24:16 2016 -0400
+
+    little more cheating to get done
+
+commit 0a508a82834170caea091a2b6b1fba8a8091afba
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Jul 4 16:58:17 2016 -0400
+
+    destroyed by day 19
+
+commit b1027eb8b240a4fced908cc0f13cd0a57bf62bbe
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon May 30 05:30:11 2016 -0400
+
+    moved parse to adventlib and now day24 part 1 isn't working
+
+commit b3938bd56a9088e1c3988d00b62eeeaa32fc9315
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun May 29 21:34:39 2016 -0400
+
+    TRANSFER
+
+commit 0a0092e2139231d3afa45fb2382df30726f08c35
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu May 26 04:20:01 2016 -0400
+
+    starting on day24 part 2
+
+commit bc765d2f4113f201836686aaf5451999494b59d2
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu May 26 02:51:12 2016 -0400
+
+    part 1 of day 24 (very slow solution)
+
+commit fba57299e9455a369678a47d0e7986d0aba40f3c
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Wed May 25 04:52:14 2016 -0400
+
+    getting started on day24
+
+commit 88173ac063e19fd45fc6fdc9b4bc359a1ba57122
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Wed May 25 02:57:17 2016 -0400
+
+    making more use of adventlib and day 23 was easy
+
+commit 0a8dd16cda3ddc4b0c3655d8f8b085a70ccafdcf
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Wed May 25 01:33:51 2016 -0400
+
+    after a hint, got day 22
+
+commit 774caf4984f4861051d559c570a342beb52ac316
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun May 22 09:03:01 2016 -0400
+
+    TRANSFER
+
+commit 5b14a70c0840a995cfa3f51f30508459177fe2a7
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat May 21 00:09:58 2016 -0400
+
+    slogging through
+
+commit b4cecf2e0696e18480c04c74f592197ea8f0847d
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri May 20 04:05:56 2016 -0400
+
+    coming along
+
+commit 3c6b8c6820c78305cfbe710695924ef7dd9cad34
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu May 19 21:19:56 2016 -0400
+
+    TRANSFER
+
+commit 8756f5f49a2824dedee00526eb2cbee93b713d97
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu May 19 04:16:08 2016 -0400
+
+    brute forced day 20
+
+commit 7bc5863f4288b33b644e56d80b34765fdd01cdae
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu May 19 02:28:01 2016 -0400
+
+    still at it
+
+commit 39fd20ec703d8a6e0af277bec05d45f295ce05b5
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue May 17 02:58:46 2016 -0400
+
+    stuck in the muck
+
+commit 07219098f879a1f77dadbf71bcf3b73e0e95dd7d
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon May 16 19:20:52 2016 -0400
+
+    ...
+
+commit aaf1f3f053c4dc14754a3d9b9b430e3973dd2bd9
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon May 16 00:01:56 2016 -0400
+
+    little fix up
+
+commit e7326737f50bca9743a6231ae47cb1ebdeb5ed39
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun May 15 23:57:16 2016 -0400
+
+    catching up
+
+commit d9881b2c1e2abf649a8eedf0bb9af24e2c40ca59
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun May 15 19:09:34 2016 -0400
+
+    moar progress
+
+commit 9231a1ddf0a6b1ea095e9894ae18838e822364be
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun May 15 18:29:23 2016 -0400
+
+    tearin' it up!
+
+commit 9a13c427b2094f22cf8978fc90f3f12eb56ce50f
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat May 14 03:43:34 2016 -0400
+
+    stuck on day 5, doing part twos (didn't realize)
+
+commit c05fcfb28dfd93d2b51da42c862ec2d69a96b582
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri May 13 18:37:03 2016 -0400
+
+    after fits and starts, finally day 19 got it's spoon full of sugar
+
+commit 9da778a1eab492498b4aa461edb129be0c4215ef
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri May 13 17:18:00 2016 -0400
+
+    added input to test pushing to multiple urls
+
+commit d5a73b995cd3e96f66a6bacd0cfd6dee608b0ee0
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri May 13 17:12:45 2016 -0400
+
+    updated README
+
+commit c1403af9e470aac598975a3a8de53260da7d9276
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri May 13 17:09:53 2016 -0400
+
+    day 18 get down!
+
+commit c02abf604ae1ed633a59f3396d08935fcec6405d
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun May 8 18:00:51 2016 -0400
+
+    P R O G R E S S !
+
+commit 59613166a6f340dd8330bef35ddd6cb635dec054
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu May 5 20:40:22 2016 -0400
+
+    stuck on sue
+
+commit 83afee95739c16309572e254b704c42fbe3d70e3
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Wed May 4 01:11:00 2016 -0400
+
+    day15 started
+
+commit 3a518eebc79df159f42370ec3cb1ce43713d7dd0
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Apr 29 02:39:24 2016 -0400
+
+    knockin' 'em outta the park
+
+commit 7a7db0ba13e793ecc52ce62b0efbc31201bac9aa
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Apr 28 21:56:13 2016 -0400
+
+    Day 11 get down!
+
+commit cd9464cf972d626366ede1112e57f6c1a566d6f8
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Apr 28 02:40:10 2016 -0400
+
+    one more down and working on the next, day11
+
+commit b397b3f7fc5d226ee6e7e9af11847a1818fef8f1
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Wed Apr 27 04:14:12 2016 -0400
+
+    TRANSFER
+
+commit 0c4b8cbbf7dbd5b328d39cf2e56bf17edf460b7e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Wed Apr 27 02:32:00 2016 -0400
+
+    TRANSFER
+
+commit df6b58c19e73adb96226f8ac0a0d5a418f0c5f4e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Apr 26 03:53:44 2016 -0400
+
+    TRANSFER
+
+commit 0cc127d8634d4e3dc26d34c9fc397a3fc7101917
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Apr 26 02:59:58 2016 -0400
+
+    Found answer to Day 7 problem!
+
+commit 950f5f24a1beb2bf59a254e6d180673adf1b0daf
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 18 19:49:15 2016 -0400
+
+    TRANSFER
+
+commit 35cfb1b8cdd592d5bce3ebd01e5a362db914384c
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 18 19:16:16 2016 -0400
+
+    TRANSFER
+
+commit 67b9ac0ffd941068970f45546756007e49b96817
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Apr 18 16:15:26 2016 -0400
+
+    TRANSFER
+
+commit 3ed6fc1a4b37021c3c2aaba6cd25c4b8d9bb3c45
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Apr 16 02:51:11 2016 -0400
+
+    TRANSFER: another shot and a miss
+
+commit a82cae66b31bcb5804a048fe67537ec9528888c9
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Apr 15 20:40:33 2016 -0400
+
+    TRANSFER: gave up for now on the circuit thing, day 7
+
+commit 5a3e4049487792a26698a47c95b9b2e7d2d9bb42
+Author: buildupthatwall <elgoogemail2007@gmail.com>
+Date:   Fri Apr 15 08:52:08 2016 +0000
+
+    README.md edited online with Bitbucket
+
+commit 4c827b49ad37614fc60143695f387838258dd391
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Apr 14 23:23:23 2016 -0400
+
+    init

@@ -1,0 +1,197 @@
+commit af0093f62ba200e5b2dcb449ea0275c52cd02902
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Dec 14 02:25:47 2021 -0500
+
+    day 14 part 1 done, part 2 too slow with strings and lists
+
+commit 285fac303fb8d92c8886519efcd3fb4fc22e46b0
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Mon Dec 13 04:31:26 2021 -0500
+
+    day 12 woefully incomplete, day 13 part 1 done, day 13 part 2 has ugly render
+
+commit 0798db463927039cdb8a4eb9b485f279d966d8fc
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Dec 11 10:38:38 2021 -0500
+
+    added curses visualizer for day 11
+
+commit 7fc633839d8dde5014dbc741630e1f1db6fd2cd5
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Dec 11 10:38:14 2021 -0500
+
+    fix missed assert for answer
+
+commit f8a682df202d44bb5a21ac482dcae783280991df
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Dec 11 10:37:45 2021 -0500
+
+    all flashed check moved to func
+
+commit 8fc8daff8dada34687c90e59beaba6236b6ae2e4
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Dec 11 03:44:36 2021 -0500
+
+    day 11 done, reworking cli
+
+commit 2e5b0f3858be602f92c42530e449bf48cbe71419
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 10 03:43:31 2021 -0500
+
+    add docs
+
+commit 59ca173b17d41a3f1e9a3ce526998daec79b215c
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 10 03:43:20 2021 -0500
+
+    remove unused function
+
+commit a4343547f26e66e57cad0321c59529c5d1da063e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 10 03:37:56 2021 -0500
+
+    day 10 done
+
+commit 92e569a50257503240cf67ae0ac035eba5a8481f
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 9 03:42:00 2021 -0500
+
+    formatting
+
+commit c7161fb336e7130c9905793fd0e0273e333eb74d
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 9 03:41:30 2021 -0500
+
+    day 9 done, very slow
+
+commit 0badd7ee12496db4e6ba351f1e1011ad58f41aa0
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Wed Dec 8 02:45:44 2021 -0500
+
+    day 8 part 1 done
+
+commit ec659c41757992cec132969ec5efbc886c230b34
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Dec 7 12:40:35 2021 -0500
+
+    sum number 1..n with (n*(n+1))//2, huge speed up
+
+commit 4f321381603ce0c0f45ac96f9faceeb942cccd64
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Dec 7 12:39:05 2021 -0500
+
+    move code below doc, add link to study
+
+commit 83739b91d3b068aa26a03185283562bfab2e668d
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Dec 7 02:02:14 2021 -0500
+
+    day 7 done
+
+commit 884b4eb1ae5456f9a6f65c4c1973285b5f2b56da
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Tue Dec 7 00:45:24 2021 -0500
+
+    day 6 part 1 done. cheated for part 2
+
+commit 659c817d057f8a81f0229f829f028c61ef2e151f
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sun Dec 5 06:01:18 2021 -0500
+
+    day 5 complete
+
+commit dc3bf8db6e75c6329d7f7c112e11833b4cdc425e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Dec 4 05:32:05 2021 -0500
+
+    day 4 parts 1 and 2 complete
+
+commit 9b2c16274ba7f2b7cbe8f3bfaff174475af2d615
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Dec 4 05:30:59 2021 -0500
+
+    day 3 part 2 complete
+
+commit c4d7612bda31ce412fe8dfb17b687de37503f4cd
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Dec 4 05:28:39 2021 -0500
+
+    move regex near the only place it is used
+
+commit bad8dd58c3161270810753401a61d75e0e3acf5d
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Sat Dec 4 02:23:06 2021 -0500
+
+    snapshot for transfer
+
+commit 88c156396fe3588b659cec7c52e58f6da9e9e488
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 3 08:37:20 2021 -0500
+
+    consistent doc style
+
+commit 5da18ef689e6f1be74e24ca21f70e7fbecfe454a
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 3 02:40:33 2021 -0500
+
+    add day 3 docs/notes
+
+commit 5b35cdd1f476801d9dd63e26118811bf7d29756e
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 3 02:40:13 2021 -0500
+
+    add nsetbits func
+
+commit 26d401a1be7b00522439ac52f7197f1171aba81f
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 3 02:26:48 2021 -0500
+
+    day 3 part 1 solution
+
+commit 36fc56c01120861086e1194ccaa61cbc9d2b63f8
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 3 02:25:15 2021 -0500
+
+    func docs
+
+commit bb41f132c008e60a3ece313b2fe34ec7c9313ed8
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 3 02:24:45 2021 -0500
+
+    better names
+
+commit 63d322a6b7ff3ebed8a116d53af055e3fb717b43
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Fri Dec 3 02:21:36 2021 -0500
+
+    ignore __pycache__
+
+commit f73fcd5122957c0a22831b158cf4d2678e752f73
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 2 09:27:47 2021 -0500
+
+    day 2 complete
+
+commit 9edb9eeec9aa4da763203b6c93a1b77c4de0c10c
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 2 06:31:30 2021 -0500
+
+    added .gitignoe
+
+commit da204aac94850d9035b3fb4d0ec463bf29d5acaa
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 2 03:11:02 2021 -0500
+
+    added readme
+
+commit 6b1cad16d99f6ef0b5627dbc3394284e330f92db
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 2 03:10:51 2021 -0500
+
+    use stdlib for path
+
+commit 7150022cadc40dde4d9c74eecf420bee72e78714
+Author: Carl Harris <elgoogemail2007@gmail.com>
+Date:   Thu Dec 2 03:06:13 2021 -0500
+
+    init with day 1

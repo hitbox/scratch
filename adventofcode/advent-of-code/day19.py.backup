@@ -1,0 +1,289 @@
+#!/usr/bin/env python2
+import copy
+import re
+import os
+from pprint import pprint as pp
+from adventlib import input_path, parseargs2
+
+# GAVE UP ON PART 2
+
+SIMPLE_MACHINE = """\
+H => HO
+H => OH
+O => HH
+HOH
+"""
+
+TEST_MACHINE = """\
+Hi => HO
+Hi => OH
+H => B
+Oi => HH
+HiOH
+"""
+
+SIMPLE_MACHINE_2 = """\
+e => H
+e => O
+H => HO
+H => OH
+O => HH
+e
+"""
+
+
+def parse(text):
+    machine = set()
+    start = None
+
+    map_re = re.compile('(.+) => (.+)').match
+    for line in text.splitlines():
+        line = line.strip()
+        m = map_re(line)
+        if m:
+            machine.add( m.groups() )
+        elif line:
+            start = line
+            break
+
+    return machine, start
+
+def parse_medicine(text):
+    for line in text.splitlines():
+        if line and ' => ' not in line:
+            return line
+
+def replace_iter(s, old, new):
+    #print 'replace_iter: %s, %s, %s' % (s, old, new, )
+    start = 0
+    n = len(old)
+    while True:
+        index = s.find(old, start)
+        if index == -1:
+            break
+        yield s[:index] + new + s[index+n:]
+        start = index+n
+
+def distinct_replacements(medicine, machine):
+    repls = set()
+    for sub, repl in machine:
+        start = 0
+        while True:
+            index = medicine.find(sub, start)
+            if index == -1:
+                break
+            before = medicine[:index]
+            after = medicine[index+len(sub):]
+            molecule = before + repl + after
+
+            repls.add(molecule)
+            start = index + len(sub)
+    return repls
+
+INDENT = '  '
+def find_molecule(target, current, machine, _depth=1):
+
+    #print (INDENT*(_depth-1)) + 'find: %s, len(...) = %s' % (current, len(current) )
+
+    if len(current) >= len(target):
+        return
+
+    repls = distinct_replacements(current, machine)
+
+    if target in repls:
+        print (INDENT*(_depth-1)) + 'find: depth: %s, FOUND in %s' % (_depth, repls, )
+        return _depth
+
+    for repl in repls:
+        x = find_molecule(target, repl, machine, _depth+1)
+        if x is not None:
+            return x
+
+def make_graph(text):
+    graph = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or ' => ' not in line:
+            break
+        k, v = line.split(' => ')
+        if k in graph:
+            graph[k].append(v)
+        else:
+            graph[k] = [v]
+    return graph
+
+    graph2 = graph.copy()
+
+    values = [ repl for value in graph.values() for repl in value ]
+    for repl in values:
+        for key in graph.viewkeys():
+            if key in repl:
+                if repl in graph:
+                    graph2[repl].append(key)
+                else:
+                    graph2[repl] = [key]
+
+    return graph2
+
+def pindent(depth, s, *fmtargs):
+    indent = INDENT * depth
+    print indent + s % fmtargs
+
+def findgraph(target, current, graph, path=[], depth=0):
+    if len(current) > len(target):
+        return
+
+    #pindent(depth, 'current: %r', current)
+
+    path += [current]
+
+    if current == target:
+        #pindent(depth, 'yield path: %r', path)
+        yield path
+
+    for key, replacements in graph.iteritems():
+        if key not in current:
+            continue
+        #pindent(depth, 'key: %r, replacements: %r', key, replacements)
+        for replacement in sorted(replacements, reverse=True):
+            #pindent(depth, 'replacement: %s', replacement)
+            for repl in replace_iter(current, key, replacement):
+                #pindent(depth, 'repl: %s', repl)
+                pathcopy = copy.deepcopy(path)
+                for rv in findgraph(target, repl, graph, path=pathcopy, depth=depth+1):
+                    yield rv
+
+def findpath(target, current, rgraph, path=[], depth=1):
+    # reverse version of findgraph
+    path += [current]
+
+    #pindent(depth, 'current: %r, path: %r', current, path)
+
+    if target in current and len(current) > 1:
+        return
+
+    if current == target:
+        #pindent(depth, 'found: %r', path)
+        yield path
+        return
+
+    #found = []
+    for key, replacement in rgraph:
+        if key not in current:
+            continue
+        for repl in replace_iter(current, key, replacement):
+            #print 'repl: %r' % (repl, )
+            #pindent(depth, 'key: %r, replacement: %r, repl: %r', key, replacement, repl)
+            for candidate in findpath(target, repl, rgraph, copy.deepcopy(path), depth+1):
+                if candidate:
+                    yield candidate
+                    #pindent(depth, 'found: %r', candidate)
+                    #found.append(candidate)
+
+def reverse_graph(graph):
+    d = {}
+    for key, replacements in graph.iteritems():
+        for replacement in replacements:
+            d[replacement] = key
+
+    return tuple( (key, d[key]) for key in sorted(d, key=len, reverse=True) )
+
+def debug():
+    machine = SIMPLE_MACHINE_2
+    graph = make_graph(machine)
+    start = parse_medicine(machine)
+    target = 'HOH'
+
+    print 'start: %r, target: %s' % (start, target)
+
+    print 'graph:'
+    pp(graph)
+
+    rgraph = reverse_graph(graph)
+    print
+    print 'reverse graph:'
+    pp(rgraph)
+
+    # start, target swapped!
+    for path in findpath(start, target, rgraph):
+        print 'found path: %r' % (path, )
+
+def debug2():
+    text = open(input_path(__file__, 1)).read()
+    DEBUG_MACHINE = '\n'.join(["e => H",
+                               "e => O",
+                               "H => HO",
+                               "H => OH",
+                               "O => HH",
+                               "HOH"])
+
+    graph = make_graph(DEBUG_MACHINE)
+    medicine = parse_medicine(DEBUG_MACHINE)
+    start = 'e'
+
+    print 'graph:'
+    pp(graph)
+
+    print 'start: %r' % (start, )
+    print 'medicine (target): %s' % medicine
+
+    paths = findgraph(medicine, start, graph)
+    pp(paths)
+    print "findgraph(%r, %r, %r) => %s" % (medicine, start, graph, min(paths))
+
+def tests():
+    machine, start = parse(SIMPLE_MACHINE)
+
+    repls = distinct_replacements(start, machine)
+    assert repls == set(('HOOH', 'HOHO', 'OHOH', 'HHHH'))
+
+    repls = distinct_replacements('HOHOHO', machine)
+    assert len(repls) == 7
+
+    machine, start = parse(TEST_MACHINE)
+    repls = distinct_replacements(start, machine)
+    assert repls == set(['BiOH', 'OHOH', 'HiOB', 'HOOH'])
+
+    machine, start = parse(SIMPLE_MACHINE_2)
+
+    assert find_molecule('HOH', 'e', machine) == 3
+    assert find_molecule('HOHOHO', 'e', machine) == 6
+
+def part1():
+    with open(input_path(__file__, 1)) as f:
+        s = f.read()
+
+        print 'Part 1: looking...'
+        machine, start = parse(s)
+
+        repls = len(distinct_replacements(start, machine))
+        print 'Part 1: distinct replacements %s' % repls
+
+def part2():
+    with open(input_path(__file__, 1)) as f:
+        machine = f.read()
+        print 'Part 2: looking...'
+        _, target = parse(machine)
+        graph = make_graph(machine)
+
+        rgraph = reverse_graph(graph)
+        start = 'e'
+
+        paths = []
+        # start, target swapped!
+        for path in findpath(start, target, rgraph):
+            print 'path: %r' % (path, )
+            paths.append(path)
+
+        if paths:
+            print len(min(paths))
+
+
+def main():
+    args = parseargs2('debug')
+
+    command = globals()[args.command]
+    command()
+
+if __name__ == '__main__':
+    main()

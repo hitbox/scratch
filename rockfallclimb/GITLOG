@@ -1,0 +1,120 @@
+commit 47457817aa7a93b73fcca8c025ee1fe0c10afd27
+Merge: 043c83b f9cf626
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Wed Jun 20 03:47:31 2012 -0400
+
+    guy-demo conflict resolve
+
+commit 043c83b5193ed82748385a0c6afe0bce365e7520
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Wed Jun 20 03:13:32 2012 -0400
+
+    guy-demo should work as advertised
+
+commit f9cf62607a5925d68f27a77b79e8fee6e7ff5635
+Author: Carl Harris <oohay_email2004@yahoo.com>
+Date:   Fri May 25 17:45:47 2012 -0400
+
+    guy-demo runs at least again
+
+commit 8b9bb3d119ddfef3db92c80a2d51de1fb4ec1829
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Thu May 24 05:04:08 2012 -0400
+
+    more reorganization and thoughts
+
+commit e225085a55bc0eb2368de844af312e4b188567dd
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Thu May 24 04:09:13 2012 -0400
+
+    reorganization
+
+commit 4ee702ce27e347505d62122236164955624e67bf
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Wed May 23 05:47:51 2012 -0400
+
+    basic animation added with new 'guy' demo
+
+commit f212f9abeb418de0a3a4542587760f8debbcfd7b
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Tue May 22 07:57:47 2012 -0400
+
+    just some doc comments
+
+commit b8804da9c987059a23db801889bb7f449d6a6281
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Tue May 22 07:54:56 2012 -0400
+
+    WIP: parallax: foreground trees added to demo
+
+commit 03345c6e021937d79bc67aafb2602f6bb740c107
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Tue May 22 03:46:45 2012 -0400
+
+    WIP: parallax scrolling. It needs to take scroll_factor into account when collision testing the lens of the view
+
+commit 8a89de5f168053f80cc126a4b1ca5c22e58b8d22
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Tue May 22 02:34:38 2012 -0400
+
+    _animation now uses the draw monkey patching technique
+
+commit 71ca55e230b11eded2fa6fac5bf8c5e24e12da8a
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Tue May 22 02:24:01 2012 -0400
+
+    added 'no-scroll' and 'visibility' to sprites. updated demo with transparency and an 'always-on-top' (nasty hack) sprite
+
+commit 2e3c0795750cda3d3242980554e1e323426f5dcf
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Mon May 21 05:46:39 2012 -0400
+
+    views that are smaller than the screen working better. updated falling-rocks-demo-1 to reflect this
+
+commit 04b5bcdfc81f45c487a14d935f8edd70f959c5a4
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Mon May 21 04:45:44 2012 -0400
+
+    fixed 'jumping' of partially out-of-view sprites. was forgetting to normalize clipped coords to view's lens rect'
+
+commit 590a6bc4d506e7521d90c1cc8eb82cfd5c3212b6
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Fri May 18 06:37:22 2012 -0400
+
+    swirly camera but with problems
+
+commit bc2c1675547ddce6c26d0da07c6b517009ec27a4
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Fri May 18 03:34:14 2012 -0400
+
+    it's rainin' rocks Hallelujah
+
+commit 36dfcd9d4198974c309045bdf1ce2b0880425922
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Thu May 17 05:32:05 2012 -0400
+
+    keybindings added and a rock class
+
+commit 2b5a2f361be6ef2069914b83cda9fde7632e1196
+Author: unknown <oohay_email2004@yahoo.com>
+Date:   Thu May 17 04:48:24 2012 -0400
+
+    got an animated boulder with an arrow on it running
+
+commit 9d9a50c4013ffce522bc8082f6713db2a61e19b1
+Author: hitbox <oohay_email2004@yahoo.com>
+Date:   Wed May 16 14:35:22 2012 -0300
+
+    Update readme
+
+commit 04c9ea123ea02712f631b27f6257a110ff9783b2
+Author: Carl Harris <oohay_email2004@yahoo.com>
+Date:   Wed May 16 13:16:28 2012 -0400
+
+    some basic stuff laid down
+
+commit 78285f691fd048507464f2daf8bd9ab8367eb53f
+Author: hitbox <oohay_email2004@yahoo.com>
+Date:   Wed May 16 09:36:55 2012 -0700
+
+    initial commit
