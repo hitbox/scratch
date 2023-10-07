@@ -179,7 +179,7 @@ class BaseState(ABC):
         pass
 
     @abstractmethod
-    def events(self):
+    def dispatch_events(self):
         pass
 
     @abstractmethod
@@ -194,7 +194,7 @@ class BaseState(ABC):
 class EventDispatchMixin:
     "Dispath to event handler by method name mixin."
 
-    def events(self):
+    def dispatch_events(self):
         for event in pygame.event.get():
             name = callable_name_for_event(event)
             method = getattr(self, name, None)
@@ -754,7 +754,7 @@ def run(
             state.start()
             next_state = None
         else:
-            state.events()
+            state.dispatch_events()
             state.update()
             state.draw()
 
