@@ -21,8 +21,6 @@ with contextlib.redirect_stdout(open(os.devnull, 'w')):
 
 # events
 STATESWITCH = pygame.event.custom_type()
-DEMOCUTRECT = pygame.event.custom_type()
-SWITCHMODE = pygame.event.custom_type()
 
 # nicer ways to deal with pygame.Rect sides
 SIDES = ['top', 'right', 'bottom', 'left']
@@ -159,17 +157,23 @@ class TestSharesSide(unittest.TestCase):
         )
 
 
-class EventHandler:
+class RectCut:
 
-    userevent_names = {}
+    def __init__(self):
+        self.preview_line = None
+        self.cut_sides = it.cycle(SIDES)
+        self.next_cut_side()
 
-    def __getitem__(self, event_type):
-        if event_type >= pygame.USEREVENT:
-            event_name = self.userevent_names[event_type]
+    def next_cut_side(self):
+        self.cut_side = next(self.cut_sides)
+        self.update_preview(pygame.mouse.get_pos(), global_rects)
+
+    def update_preview(self, pos, rects):
+        rect = get_colliding_rect(pos, rects)
+        if not rect:
+            self.preview_line = None
         else:
-            event_name = pygame.event.event_name(event_type).lower()
-        method_name = f'on_{event_name}'
-        return getattr(self, method_name)
+            self.preview_line = make_preview_cut_line(rect, pos, self.cut_side)
 
 
 class BaseState(ABC):
@@ -219,10 +223,9 @@ class RectCutState(RectStateBase):
         self.frame = self.screen.get_rect()
         self.rect_renderer = RectRenderer(global_palettes['beach'])
         #
-        self.preview_cut_line = None
-        self.cut_sides = it.cycle(SIDES)
-        self.next_cut_side()
         self.started = 0
+        #
+        self.rectcut = RectCut()
 
     def start(self):
         cursor = pygame.SYSTEM_CURSOR_ARROW
@@ -231,18 +234,18 @@ class RectCutState(RectStateBase):
             initial_rect = inflate_by(self.frame, -.20)
             global_rects.append(initial_rect)
         self.started += 1
-        self.update_preview_cut_line(pygame.mouse.get_pos(), global_rects)
+        self.rectcut.update_preview(pygame.mouse.get_pos(), global_rects)
 
     def on_keydown(self, event):
         if event.key in (pygame.K_TAB, pygame.K_q):
             post_stateswitch(TilingManagerState)
         elif event.key == pygame.K_LALT:
-            self.next_cut_side()
+            self.rectcut.next_cut_side()
         elif event.key == pygame.K_ESCAPE:
             post_stateswitch(None)
 
     def on_mousemotion(self, event):
-        self.update_preview_cut_line(event.pos, global_rects)
+        self.rectcut.update_preview(event.pos, global_rects)
 
     def on_mousebuttondown(self, event):
         if event.button != pygame.BUTTON_LEFT:
@@ -250,19 +253,8 @@ class RectCutState(RectStateBase):
         rect = get_colliding_rect(event.pos, global_rects)
         if not rect:
             return
-        remaining = cut_at_position(rect, event.pos, self.cut_side)
+        remaining = cut_at_position(rect, event.pos, self.rectcut.cut_side)
         global_rects.append(remaining)
-
-    def next_cut_side(self):
-        self.cut_side = next(self.cut_sides)
-        self.update_preview_cut_line(pygame.mouse.get_pos(), global_rects)
-
-    def update_preview_cut_line(self, pos, rects):
-        rect = get_colliding_rect(pos, rects)
-        if not rect:
-            self.preview_cut_line = None
-        else:
-            self.preview_cut_line = make_preview_cut_line(rect, pos, self.cut_side)
 
     def update(self):
         pass
@@ -272,8 +264,8 @@ class RectCutState(RectStateBase):
         # draw rects
         self.rect_renderer.render(self.screen, global_rects)
         # preview cut line
-        if self.preview_cut_line:
-            p1, p2 = self.preview_cut_line
+        if self.rectcut.preview_line:
+            p1, p2 = self.rectcut.preview_line
             pygame.draw.line(self.screen, 'red', p1, p2, 1)
         # this state's name
         image = self.font.render(self.__class__.__name__, True, 'white')
@@ -513,7 +505,11 @@ def get_adjacent_corners(side):
 def get_side_line(rect, side):
     # attribute names for either side of `side` name
     corner_attr1, corner_attr2 = SIDES_ADJACENT_CORNERS[side]
-    return (getattr(rect, corner_attr1), getattr(rect, corner_attr2))
+    result = (
+        getattr(rect, corner_attr1),
+        getattr(rect, corner_attr2),
+    )
+    return result
 
 def sorted_groupby(iterable, key=None):
     return it.groupby(sorted(iterable, key=key), key=key)
