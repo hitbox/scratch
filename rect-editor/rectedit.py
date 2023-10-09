@@ -289,7 +289,6 @@ def unsubscribe(event_type, callback):
     _listeners[event_type].remove(callback)
 
 def shorthand(*args):
-    # https://developer.mozilla.org/en-US/docs/Web/CSS/Shorthand_properties
     keys = 'top right bottom left'.split()
     # XXX: will have to do heavy argument lifting here until we think of a
     #      better solution.
