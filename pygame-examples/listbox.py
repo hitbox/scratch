@@ -103,8 +103,8 @@ def run(
     windows = [
         Window(
             'Window Title',
-            pygame.Rect(100,200,300,400),
-            pygame.Rect(0,0,300,400),
+            frame = pygame.Rect(100,200,300,400),
+            camera = pygame.Rect(0,0,300,400),
         ),
     ]
 
