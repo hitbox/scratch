@@ -143,68 +143,6 @@ def run(scene):
                 scene.dispatch_event(event)
         scene.update()
 
-def trash_run():
-    running = True
-    while running:
-        # update
-        mouse_screen_pos = pygame.mouse.get_pos()
-        mouse_world_pos = camera.to_world(mouse_screen_pos)
-        mbtn1, mbtn2, mbtn3 = pygame.mouse.get_pressed()
-
-        keys = pygame.key.get_pressed()
-        speed = 5
-        if keys[pygame.K_w]:
-            player.position.y -= speed
-        if keys[pygame.K_s]:
-            player.position.y += speed
-        if keys[pygame.K_a]:
-            player.position.x -= speed
-        if keys[pygame.K_d]:
-            player.position.x += speed
-        player.rect.topleft = player.position
-
-        if camera.focus.contains(player.rect):
-            camera.velocity.update(0)
-        else:
-            delta = pygame.Vector2(camera.focus.topleft) - player.rect.topleft
-            camera.velocity.update(-delta.normalize())
-        camera.update(elapsed)
-
-        # draw
-        screen.fill('black')
-        for sprite in [player]:
-            pos = camera.to_screen(sprite.rect.topleft)
-            screen.blit(sprite.image, pos)
-        # draw lines from copy
-        _lines = lines[:]
-        if line.start:
-            # add preview new line
-            _line = (line.start, mouse_world_pos)
-            _lines.append(('ghostwhite', _line))
-        for color, _line in _lines:
-            points = list(map(camera.to_screen, _line))
-            pygame.draw.line(screen, color, *points)
-
-        text_lines = [
-            f'{camera.view=}',
-            f'{camera.focus=}',
-            f'{camera.position=}',
-            #f'{camera.velocity=}',
-            #f'{line.start=}',
-            f'{mouse_screen_pos=}',
-            f'{mouse_world_pos=}',
-        ]
-        for _line in _lines:
-            text_lines.append(f'{_line}')
-        images = [font.render(line, True, 'azure') for line in text_lines]
-        rects = list(map(pygame.Surface.get_rect, images))
-        rects[0].bottomright = window.bottomright
-        pairattr(rects, 'bottomright', 'topright')
-        for image, rect in zip(images, rects):
-            screen.blit(image, rect)
-
-        pygame.display.flip()
-
 def main(argv=None):
     """
     """
