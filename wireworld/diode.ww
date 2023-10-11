@@ -1,0 +1,10 @@
+# https://en.wikipedia.org/wiki/Wireworld
+# diode example right aside
+# added loops on left to pump/cycle
+ CCCTHCCC   CC
+C        CCCC CCCCCC
+ HTCCCCCC   CC
+
+ CCCTHCCC    CC
+C        CCCC CCCCCC
+ HTCCCCCC    CC

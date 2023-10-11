@@ -1,0 +1,13 @@
+# https://en.wikipedia.org/wiki/Wireworld
+# example XOR gate near top of page.
+# - the two loops on the left appear to cycle around
+# - the loops are offset to demo XOR, one or the other, but not both.
+ CCCTHCCC
+C        CCCCCC
+ HTCCCCCC      C
+              CCCC
+              C  CCCCC
+              CCCC
+ CCCCCCCC      C
+C        CTHCCC
+ HTCCCCHT
