@@ -35,7 +35,7 @@ def main(argv=None):
 
     props = list(shorthand(args.values))
 
-    print(props)
+    print(' '.join(props))
 
 if __name__ == '__main__':
     main()
