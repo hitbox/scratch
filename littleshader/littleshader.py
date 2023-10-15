@@ -64,8 +64,8 @@ def calc(expr, i, t, x, y, **extra_context):
 def loop(
     expression_list,
     size = None,
-    color1 = (2*255/3,)*3,
-    color2 = (2*255/3, 255/3, 255/3),
+    color1 = 'darkgray',
+    color2 = 'indianred',
     export_frames_path = None,
 ):
     if size is None:
