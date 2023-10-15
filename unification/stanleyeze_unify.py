@@ -1,6 +1,10 @@
 import argparse
 import unittest
 
+class ParseError(Exception):
+    pass
+
+
 class Substitution:
 
     def __init__(self, variable, replacement):
@@ -66,6 +70,10 @@ class TestParseExpression(unittest.TestCase):
         result = parse_expression(s)
         self.assertEqual(result, expected)
 
+    def check_parse_error(self, s):
+        with self.assertRaises(ParseError):
+            parse_expression(s)
+
     def test_parse_constant(self):
         self.check_parse('a', Constant('a'))
 
@@ -80,6 +88,12 @@ class TestParseExpression(unittest.TestCase):
 
     def test_parse_expression_variable_arg(self):
         self.check_parse('f(X)', Expression('f', [Variable('X')]))
+
+    def test_parse_unopened_paren(self):
+        self.check_parse_error('f X)')
+
+    def test_parse_unclosed_paren(self):
+        self.check_parse_error('f(X')
 
 
 class TestUnification(unittest.TestCase):
@@ -119,27 +133,32 @@ class TestUnification(unittest.TestCase):
 
 
 def parse_expression(s):
-    d = 0
+    paren = 0
     i = 0
     op = None
     args = []
-    for index, char in enumerate(s):
+    for j, char in enumerate(s):
         if char == '(':
             if op is None:
-                op = s[:index]
-                i = index + 1
-            d += 1
+                op = s[:j]
+                i = j + 1
+            paren += 1
         elif char == ')':
-            if d == 1:
-                if index > i:
-                    args.append(s[i:index])
-                    i = index + 1
-                d -= 1
-        elif char == ',' and d == 1:
-            args.append(s[i:index])
-            i = index + 1
-        elif char == ' ' and i == index:
+            if paren == 1:
+                if j > i:
+                    args.append(s[i:j])
+                    i = j + 1
+                paren -= 1
+            else:
+                raise ParseError('Closing parenthesis without opening.')
+        elif char == ',' and paren == 1:
+            args.append(s[i:j])
+            i = j + 1
+        elif char == ' ' and i == j:
             i += 1
+
+    if paren != 0:
+        raise ParseError('Unclosed parenthesis.')
 
     if op is None:
         if s[0].isupper():
