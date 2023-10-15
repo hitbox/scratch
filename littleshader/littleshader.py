@@ -1,3 +1,4 @@
+import abc
 import argparse
 import contextlib
 import math
@@ -22,12 +23,121 @@ BASE_CONTEXT = dict(
 )
 
 EXAMPLES = [
+    'sin(t)',
     'sin(y/8+t)',
     #'sin(t - dist(graph_center, (x,y)))',
     'sin(t-sqrt(x*x+y*y))',
-    'sin(t)',
     'sin(t+i)',
 ]
+
+class EventMixin:
+    """
+    Mixin method to dispatch to event handler by name.
+    """
+
+    def on_event(self, event):
+        eventname = pygame.event.event_name(event.type)
+        handlername = f'on_{eventname.lower()}'
+        handler = getattr(self, handlername, None)
+        if handler:
+            handler(event)
+
+
+class SceneBase(abc.ABC):
+
+    @abc.abstractmethod
+    def on_event(self, event):
+        ...
+
+    @abc.abstractmethod
+    def update(self):
+        ...
+
+
+class ShaderScene(EventMixin, SceneBase):
+
+    def __init__(self, expressions, step):
+        assert expressions
+        self.expressions = expressions
+        self.expression_index = 0
+        self.expression = self.expressions[self.expression_index]
+        self.step = step
+        #
+        self.clock = pygame.time.Clock()
+        self.frames_per_second = 60
+        self.color1 = pygame.Color('darkgray')
+        self.color2 = pygame.Color('indianred')
+        self.background_color = 'gray6'
+        self.gui_font = pygame.font.SysFont('monospace', 20)
+        self.gui_small_font = pygame.font.SysFont('monospace', 10)
+        self.reset()
+
+    def reset(self):
+        self.window = pygame.display.get_surface()
+        self.frame = self.window.get_rect()
+        self.graph = self.frame.inflate(-self.frame.width/3, -self.frame.height/3)
+        self.positions = list(
+            gridpositions(
+                self.graph,
+                self.graph.width / self.step,
+                self.graph.height / self.step,
+            )
+        )
+        self.radius_a = 0
+        self.radius_b = (min(self.graph.size) / self.step) / 2
+        self.elapsed = 0
+
+    def on_keydown(self, event):
+        if event.key == pygame.K_ESCAPE:
+            post_quit()
+        elif event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+            # prev/next expression
+            pass
+
+    def update(self):
+        frame_elapsed = self.clock.tick(self.frames_per_second)
+        self.elapsed += frame_elapsed
+        self.draw()
+
+    def draw(self):
+        self.window.fill(self.background_color)
+        t = self.elapsed / 1000
+        if self.expression:
+            self.draw_circles(t)
+        self.draw_gui(t)
+        pygame.display.flip()
+
+    def draw_circles(self, t):
+        for i, (x, y) in enumerate(self.positions):
+            radius = calc(self.expression, i, t, x, y)
+            radius = remap(radius, -1, +1, self.radius_a, self.radius_b)
+            color = self.color1 if math.sin(t) < 0 else self.color2
+            pos = (self.graph.x + x, self.graph.y + y)
+            pygame.draw.circle(self.window, color, pos, radius)
+            radius_image = self.gui_small_font.render(f'{radius:0.2f}', True, 'white')
+            self.window.blit(radius_image, radius_image.get_rect(center=pos))
+
+    def draw_gui(self, t):
+
+        def _render(string):
+            return self.gui_font.render(string, True, 'azure')
+
+        t_image = _render(f'{t=:0.2f}')
+        self.window.blit(
+            t_image,
+            t_image.get_rect(
+                topright = self.frame.topright,
+            ),
+        )
+
+        expression_image = _render(str(self.expression))
+        self.window.blit(
+            expression_image,
+            expression_image.get_rect(
+                midtop = self.frame.midtop,
+            )
+        )
+
 
 def post_quit():
     pygame.event.post(pygame.event.Event(pygame.QUIT))
@@ -46,172 +156,39 @@ def lerp(a, b, t):
 def invlerp(a, b, x):
     return (x - a) / (b - a)
 
-def remap(a, b, c, d, x):
+def remap(x, a, b, c, d):
     return x * (d-c) / (b-a) + c-a * (d-c) / (b-a)
     return lerp(c, d, invlerp(a, b, x))
 
+def gridpositions(rect, xstep, ystep):
+    xrange = range(rect.left, rect.width, int(xstep))
+    yrange = range(rect.top, rect.height, int(ystep))
+    return product(xrange, yrange)
+
 def calc(expr, i, t, x, y, **extra_context):
-    context = dict(
-        x = x,
-        y = y,
-        i = i,
-        t = t,
-        **BASE_CONTEXT,
-        **extra_context,
-    )
+    context = locals()
+    del context['expr']
+    context.update(BASE_CONTEXT)
     return eval(expr, context)
 
-def loop(
-    expression_list,
-    size = None,
-    color1 = 'darkgray',
-    color2 = 'indianred',
-    export_frames_path = None,
-):
-    if size is None:
-        size = (1024,)*2
-    window = pygame.display.set_mode(size)
-    frame = window.get_rect()
-    graph = frame.inflate(-frame.width/3, -frame.height/3)
+def sizetype(string):
+    result = tuple(map(int, string.replace(',', ' ').split()))
+    if len(result) < 2:
+        result *= 2
+    return result
 
-    # step such that there are 20 positions for circles across the graph
-    step = int(min(graph.size) / 20)
-    # ranges of each dimension of the graph
-    ranges = map(lambda d: range(0, d, step), graph.size)
-    # all the (x,y) pairs we care about
-    circle_positions = list(product(*ranges))
-    extra_context = dict(
-        step = step,
-        # the expressions are in cartesiann space, therefore can't use
-        # graph.center it's in screen space
-        graph_center = (graph.width / 2, graph.height / 2),
-    )
-
-    gui_frame = frame.inflate(-step*2,-step*2)
-    pygame.font.init()
-    # NOTE: untested for windows
-    # https://support.microsoft.com/en-us/topic/microsoft-supplied-monospaced-truetype-fonts-93aa7a47-2149-be09-31a9-c22df598c952
-    gui_font = get_font(min(size) // 32, 'DejaVuSansMono', 'Courier New')
-    clock = pygame.time.Clock()
-
-    key_stack = deque(maxlen=min(size)//10)
-    display_key_stack = (
-        pygame.K_ESCAPE,
-        pygame.K_LEFT,
-        pygame.K_RIGHT,
-        pygame.K_DELETE,
-        pygame.K_BACKSPACE,
-        pygame.K_RETURN,
-    )
-
-    new_expression_allowed = string.ascii_letters + string.punctuation + string.digits
-    new_expression = ''
-    new_expression_placeholder = '(new expression)'
-    new_expression_flash = ''
-
-    expression_index = 0
-    expression = expression_list[expression_index]
-    last_good_expression = expression
-
-    frame_index = 0
-    start = time.time()
+def run(scene):
+    """
+    """
+    assert isinstance(scene, SceneBase)
     running = True
     while running:
-        clock.tick()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type == pygame.KEYDOWN:
-                # keystrokes
-                if event.key in display_key_stack:
-                    keyname = pygame.key.name(event.key)
-                    key_stack.appendleft(keyname)
-
-                if event.key == pygame.K_ESCAPE:
-                    post_quit()
-                elif event.key in (pygame.K_LEFT, pygame.K_RIGHT):
-                    if expression_list:
-                        di = -1 if event.key == pygame.K_LEFT else 1
-                        expression_index = (expression_index + di) % len(expression_list)
-                        expression = expression_list[expression_index]
-                        new_expression = ''
-                elif event.key == pygame.K_DELETE:
-                    # delete current expression
-                    if expression in expression_list:
-                        expression_list.remove(expression)
-                        expression = ''
-                    if expression_list:
-                        expression_index = (expression_index - 1) % len(expression_list)
-                        expression = expression_list[expression_index]
-                elif event.key == pygame.K_BACKSPACE:
-                    new_expression = new_expression[:-1]
-                elif event.key == pygame.K_RETURN:
-                    # try to commit new expression
-                    if new_expression not in expression_list:
-                        try:
-                            calc(new_expression, 0, t, 0, 0, **extra_context)
-                        except:
-                            key_stack.appendleft(f'Invalid: {new_expression}')
-                        else:
-                            expression_list.append(new_expression)
-                            key_stack.appendleft(new_expression)
-                    if new_expression in expression_list:
-                        expression_index = expression_list.index(new_expression)
-                        expression = expression_list[expression_index]
-                        new_expression = ''
-                elif event.unicode in new_expression_allowed:
-                    new_expression += event.unicode
-        # draw circles
-        t = time.time() - start
-        window.fill((255/16, 255/16, 255/16))
-        if expression:
-            for i, (x, y) in enumerate(circle_positions):
-                radius = calc(expression, i, t, x, y, **extra_context)
-                radius = remap(-1, 1, -step/2, step/2, radius)
-                color = color1 if radius < 0 else color2
-                pos = (graph.x + x, graph.y + y)
-                pygame.draw.circle(window, color, pos, abs(radius))
-        # draw the current expression
-        expr_image = gui_font.render(expression, True, color2)
-        expr_rect = expr_image.get_rect(midbottom=gui_frame.midbottom)
-        window.blit(expr_image, expr_rect)
-        # draw fps
-        fps_image = gui_font.render(f'{clock.get_fps():.2f}', True, color1)
-        fps_rect = fps_image.get_rect(
-            topleft = gui_frame.topleft,
-        )
-        window.blit(fps_image, fps_rect)
-        # draw new expression or placeholder
-        new_expr_image = gui_font.render(
-            new_expression or new_expression_placeholder,
-            True,
-            color1)
-        new_expr_rect = new_expr_image.get_rect(midtop=gui_frame.midtop)
-        window.blit(new_expr_image, new_expr_rect)
-        # draw key strokes
-        key_groups = [(key, list(group)) for key, group in groupby(key_stack)]
-        key_strings = [
-            f'{key}({len(group)})' if len(group) > 1 else key
-            for key, group in key_groups
-        ]
-        keyname_images = [gui_font.render(keyname, True, color2) for keyname in key_strings]
-        keyname_rects = [image.get_rect() for image in keyname_images]
-        if keyname_rects:
-            keyname_rects[0].bottomleft = gui_frame.bottomleft
-            for r1, r2 in zip(keyname_rects[:-1], keyname_rects[1:]):
-                r2.bottomleft = r1.topleft
-            for image, rect in zip(keyname_images, keyname_rects):
-                window.blit(image, rect)
-        # export frames
-        if export_frames_path:
-            frame_path = export_frames_path % (frame_index, )
-            pygame.image.save(window, frame_path)
-            frame_index += 1
-        # update display
-        pygame.display.update()
-
-def sizetype(string):
-    return tuple(map(int, string.replace(',', ' ').split()))
+            else:
+                scene.on_event(event)
+        scene.update()
 
 def main(argv=None):
     """
@@ -222,10 +199,20 @@ def main(argv=None):
     )
     parser.add_argument('--expr', help='Expression to render.')
     parser.add_argument('--export')
-    parser.add_argument('--size', type=sizetype)
+    parser.add_argument('--size', type=sizetype, default='1024')
+    parser.add_argument('--step', type=int, default=20)
     args = parser.parse_args(argv)
 
     expressions = [args.expr] if args.expr else EXAMPLES
+
+    pygame.display.set_mode(args.size)
+    pygame.font.init()
+
+    shader_scene = ShaderScene(expressions, args.step)
+    run(shader_scene)
+
+    return
+
     loop(
         expressions,
         export_frames_path = args.export,
