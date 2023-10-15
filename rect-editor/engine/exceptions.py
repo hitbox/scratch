@@ -1,2 +1,0 @@
-class RectEditError(Exception):
-    pass
