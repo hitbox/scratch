@@ -15,14 +15,13 @@ from itertools import product
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
 
-MATH_CONTEXT = {k: getattr(math, k) for k in dir(math) if not k.startswith('_')}
-BASE_CONTEXT = dict(
-    Decimal = Decimal,
-    random = random.random,
-    **MATH_CONTEXT
-)
-
 EXAMPLES = [
+    '1/(step/2)*math.tan(t/step*i*math.tan(index-i))', # dialogue with an alien
+    '-.4/(math.hypot(i-t%10,j-t%8)-t%2*9)', # fireworks FIXME
+    'math.sin(i/2) - math.sin(i-t) - j+step/2', # waves FIXME
+    'math.cos(t + index + i * j)', # animated smooth noise
+    'random.random() * 2 - 1',
+    'j - i', # simple triangle FIXME
     'math.sin(t-math.dist((t % step, t % step),(i,j)))', # dist from shifting index
     'math.sin(t-math.sqrt(i*i+j*j))', # 1
     'math.sin(t-math.dist((0,0),(i,j)))', # 1
@@ -61,7 +60,7 @@ class SceneBase(abc.ABC):
 
 class ShaderScene(EventMixin, SceneBase):
 
-    def __init__(self, expressions, step, draw_as):
+    def __init__(self, expressions, step, draw_as, move_radius=0):
         assert expressions
         self.expressions = expressions
         self.expression_index = 0
@@ -69,6 +68,7 @@ class ShaderScene(EventMixin, SceneBase):
         self.step = step
         assert draw_as in ('circle', 'rect')
         self.draw_as = getattr(self, f'draw_radius_as_{draw_as}')
+        self.move_radius = move_radius
         #
         self.clock = pygame.time.Clock()
         self.frames_per_second = 60
@@ -109,8 +109,10 @@ class ShaderScene(EventMixin, SceneBase):
     def draw(self):
         self.window.fill(self.background_color)
         t = time.time()
-        self.graph.centerx = self.frame.centerx + math.cos(t) * (self.frame.width / 5)
-        self.graph.centery = self.frame.centery + math.sin(t) * (self.frame.height / 5)
+        if self.move_radius:
+            # spin whole graph around center
+            self.graph.centerx = self.frame.centerx + math.cos(t) * self.move_radius
+            self.graph.centery = self.frame.centery + math.sin(t) * self.move_radius
         if self.expression:
             self.draw_expression(t)
         self.draw_gui(t)
@@ -129,6 +131,7 @@ class ShaderScene(EventMixin, SceneBase):
         step = self.step
         ystep = int(self.graph.height / step)
         yitems = enumerate(range(self.graph.top, self.graph.bottom, ystep))
+        index = 0
         for j, y in yitems:
             xstep = int(self.graph.width / step)
             xitems = enumerate(range(self.graph.left, self.graph.right, xstep))
@@ -137,6 +140,7 @@ class ShaderScene(EventMixin, SceneBase):
                 color = self.color1 if radius < 0 else self.color2
                 radius = remap(abs(radius), 0, +1, self.radius_a, self.radius_b)
                 self.draw_as(radius, x, y, color)
+                index += 1
 
     def draw_radius_as_circle(self, radius, x, y, color):
         pygame.draw.circle(self.window, color, (x, y), radius)
@@ -176,14 +180,6 @@ class ShaderScene(EventMixin, SceneBase):
 def post_quit():
     pygame.event.post(pygame.event.Event(pygame.QUIT))
 
-def get_font(size, *sysfonts, fallback=None):
-    for font in sysfonts:
-        try:
-            return pygame.font.SysFont(font, size)
-        except FileNotFoundError:
-            continue
-    return pygame.fon.SysFont(fallback, size)
-
 def lerp(a, b, t):
     return a * (1 - t) + b * t
 
@@ -193,17 +189,6 @@ def invlerp(a, b, x):
 def remap(x, a, b, c, d):
     return x * (d-c) / (b-a) + c-a * (d-c) / (b-a)
     return lerp(c, d, invlerp(a, b, x))
-
-def gridpositions(rect, xstep, ystep):
-    xrange = range(rect.left, rect.width, int(xstep))
-    yrange = range(rect.top, rect.height, int(ystep))
-    return product(xrange, yrange)
-
-def calc(expr, i, t, x, y, **extra_context):
-    context = dict(i=i, t=t, x=x, y=y)
-    context.update(BASE_CONTEXT)
-    context.update(extra_context)
-    return eval(expr, context)
 
 def sizetype(string):
     result = tuple(map(int, string.replace(',', ' ').split()))
