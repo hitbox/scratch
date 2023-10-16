@@ -1,3 +1,4 @@
+import argparse
 import unittest
 
 class TestHoursMinutesSeconds(unittest.TestCase):
@@ -58,5 +59,16 @@ def hms(seconds):
     hours, minutes = divmod(minutes, 60)
     return (hours, minutes, seconds)
 
+def main(argv=None):
+    """
+    Print the hours, minutes, and seconds of given seconds.
+    """
+    parser = argparse.ArgumentParser(
+        description = main.__doc__,
+    )
+    parser.add_argument('s', type=int, help='Seconds')
+    args = parser.parse_args(argv)
+    print(hms(args.s))
+
 if __name__ == '__main__':
-    unittest.main()
+    main()
