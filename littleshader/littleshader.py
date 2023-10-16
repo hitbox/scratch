@@ -23,11 +23,16 @@ BASE_CONTEXT = dict(
 )
 
 EXAMPLES = [
-    'sin(t)',
-    'sin(y/8+t)',
-    #'sin(t - dist(graph_center, (x,y)))',
-    'sin(t-sqrt(x*x+y*y))',
-    'sin(t+i)',
+    'math.sin(t-math.dist((t % step, t % step),(i,j)))', # dist from shifting index
+    'math.sin(t-math.sqrt(i*i+j*j))', # 1
+    'math.sin(t-math.dist((0,0),(i,j)))', # 1
+    'math.sin(t-math.dist((step,step),(i,j)))', # opposite of 1
+    'math.sin(j/8+t)',
+    'math.sin(t)',
+    'math.sin(t-math.sqrt((i-7.5)**2+(j-6)**2))',
+    'math.cos(t)',
+    'math.sin(t+i)',
+    'math.sin(t+j)',
 ]
 
 class EventMixin:
@@ -56,85 +61,114 @@ class SceneBase(abc.ABC):
 
 class ShaderScene(EventMixin, SceneBase):
 
-    def __init__(self, expressions, step):
+    def __init__(self, expressions, step, draw_as):
         assert expressions
         self.expressions = expressions
         self.expression_index = 0
         self.expression = self.expressions[self.expression_index]
         self.step = step
+        assert draw_as in ('circle', 'rect')
+        self.draw_as = getattr(self, f'draw_radius_as_{draw_as}')
         #
         self.clock = pygame.time.Clock()
         self.frames_per_second = 60
         self.color1 = pygame.Color('darkgray')
         self.color2 = pygame.Color('indianred')
         self.background_color = 'gray6'
+
         self.gui_font = pygame.font.SysFont('monospace', 20)
+        self.gui_big_font = pygame.font.SysFont('monospace', 30)
         self.gui_small_font = pygame.font.SysFont('monospace', 10)
+        self.gui_color = 'azure'
+
         self.reset()
 
     def reset(self):
         self.window = pygame.display.get_surface()
         self.frame = self.window.get_rect()
-        self.graph = self.frame.inflate(-self.frame.width/3, -self.frame.height/3)
-        self.positions = list(
-            gridpositions(
-                self.graph,
-                self.graph.width / self.step,
-                self.graph.height / self.step,
-            )
-        )
+        self.graph = self.frame.inflate(-self.frame.width/2, -self.frame.height/2)
         self.radius_a = 0
         self.radius_b = (min(self.graph.size) / self.step) / 2
-        self.elapsed = 0
 
     def on_keydown(self, event):
-        if event.key == pygame.K_ESCAPE:
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
             post_quit()
         elif event.key in (pygame.K_LEFT, pygame.K_RIGHT):
             # prev/next expression
-            pass
+            if event.key == pygame.K_LEFT:
+                di = -1
+            else:
+                di = +1
+            self.expression_index = (self.expression_index + di) % len(self.expressions)
+            self.expression = self.expressions[self.expression_index]
 
     def update(self):
-        frame_elapsed = self.clock.tick(self.frames_per_second)
-        self.elapsed += frame_elapsed
+        self.clock.tick(self.frames_per_second)
         self.draw()
 
     def draw(self):
         self.window.fill(self.background_color)
-        t = self.elapsed / 1000
+        t = time.time()
+        self.graph.centerx = self.frame.centerx + math.cos(t) * (self.frame.width / 5)
+        self.graph.centery = self.frame.centery + math.sin(t) * (self.frame.height / 5)
         if self.expression:
-            self.draw_circles(t)
+            self.draw_expression(t)
         self.draw_gui(t)
         pygame.display.flip()
 
-    def draw_circles(self, t):
-        for i, (x, y) in enumerate(self.positions):
-            radius = calc(self.expression, i, t, x, y)
-            radius = remap(radius, -1, +1, self.radius_a, self.radius_b)
-            color = self.color1 if math.sin(t) < 0 else self.color2
-            pos = (self.graph.x + x, self.graph.y + y)
-            pygame.draw.circle(self.window, color, pos, radius)
-            radius_image = self.gui_small_font.render(f'{radius:0.2f}', True, 'white')
-            self.window.blit(radius_image, radius_image.get_rect(center=pos))
+    def _render(self, string):
+        return self.gui_font.render(string, True, self.gui_color)
+
+    def _render_small(self, string):
+        return self.gui_small_font.render(string, True, self.gui_color)
+
+    def _render_big(self, string):
+        return self.gui_big_font.render(string, True, self.gui_color)
+
+    def draw_expression(self, t):
+        step = self.step
+        ystep = int(self.graph.height / step)
+        yitems = enumerate(range(self.graph.top, self.graph.bottom, ystep))
+        for j, y in yitems:
+            xstep = int(self.graph.width / step)
+            xitems = enumerate(range(self.graph.left, self.graph.right, xstep))
+            for i, x in xitems:
+                radius = eval(self.expression, globals(), locals())
+                color = self.color1 if radius < 0 else self.color2
+                radius = remap(abs(radius), 0, +1, self.radius_a, self.radius_b)
+                self.draw_as(radius, x, y, color)
+
+    def draw_radius_as_circle(self, radius, x, y, color):
+        pygame.draw.circle(self.window, color, (x, y), radius)
+
+    def draw_radius_as_rect(self, radius, x, y, color):
+        side = radius * 2
+        rect = pygame.Rect(0, 0, side, side)
+        rect.center = (x, y)
+        pygame.draw.rect(self.window, color, rect)
 
     def draw_gui(self, t):
-
-        def _render(string):
-            return self.gui_font.render(string, True, 'azure')
-
-        t_image = _render(f'{t=:0.2f}')
+        t_image = self._render(f'{t=:0.2f}')
         self.window.blit(
             t_image,
             t_image.get_rect(
-                topright = self.frame.topright,
+                bottomleft = self.frame.bottomleft,
             ),
         )
 
-        expression_image = _render(str(self.expression))
+        expression_image = self._render_big(str(self.expression))
         self.window.blit(
             expression_image,
             expression_image.get_rect(
                 midtop = self.frame.midtop,
+            )
+        )
+
+        fps_image = self._render(f'{self.clock.get_fps():.2f}')
+        self.window.blit(
+            fps_image,
+            fps_image.get_rect(
+                bottomright = self.frame.bottomright,
             )
         )
 
@@ -166,9 +200,9 @@ def gridpositions(rect, xstep, ystep):
     return product(xrange, yrange)
 
 def calc(expr, i, t, x, y, **extra_context):
-    context = locals()
-    del context['expr']
+    context = dict(i=i, t=t, x=x, y=y)
     context.update(BASE_CONTEXT)
+    context.update(extra_context)
     return eval(expr, context)
 
 def sizetype(string):
@@ -198,9 +232,9 @@ def main(argv=None):
         description = main.__doc__,
     )
     parser.add_argument('--expr', help='Expression to render.')
-    parser.add_argument('--export')
     parser.add_argument('--size', type=sizetype, default='1024')
     parser.add_argument('--step', type=int, default=20)
+    parser.add_argument('--draw-as', choices=['circle', 'rect'], default='rect')
     args = parser.parse_args(argv)
 
     expressions = [args.expr] if args.expr else EXAMPLES
@@ -208,16 +242,8 @@ def main(argv=None):
     pygame.display.set_mode(args.size)
     pygame.font.init()
 
-    shader_scene = ShaderScene(expressions, args.step)
+    shader_scene = ShaderScene(expressions, args.step, args.draw_as)
     run(shader_scene)
-
-    return
-
-    loop(
-        expressions,
-        export_frames_path = args.export,
-        size = args.size,
-    )
 
 if __name__ == '__main__':
     main()
