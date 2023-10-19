@@ -3,6 +3,7 @@ import contextlib
 import os
 
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
+    from pygame import Color
     from pygame import Vector3
     from pygame.color import THECOLORS as colors
 
@@ -11,11 +12,11 @@ def main(argv=None):
     Find a pygame color.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('rgb', nargs=3, type=int)
+    parser.add_argument('color', type=Color)
     parser.add_argument('-n', type=int, default=3)
     args = parser.parse_args(argv)
 
-    reference = Vector3(args.rgb)
+    reference = Vector3(args.color[:3])
 
     def rgb_distance(item):
         name, color = item
