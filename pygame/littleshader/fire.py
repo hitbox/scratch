@@ -1,13 +1,12 @@
 import argparse
 import contextlib
-import functools
-import math
 import os
 import random
-import time
 
 from itertools import chain
 from itertools import cycle
+from itertools import pairwise
+from operator import attrgetter
 from types import SimpleNamespace
 
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
@@ -15,17 +14,52 @@ with contextlib.redirect_stdout(open(os.devnull, 'w')):
 
 FIRECOLORS = [
     'brown1',
-    'crimson',
-    'darkgoldenrod1',
-    'darkorange',
-    'deeppink',
+    #'crimson',
+    #'darkgoldenrod1',
+    #'darkorange',
+    #'deeppink',
     'firebrick1',
     'indianred',
-    'ivory',
+    #'ivory',
     'orangered',
-    'red',
-    'yellow',
+    #'red',
+    #'yellow',
 ]
+
+class Checkbox:
+
+    def __init__(self, value, checked, label=None):
+        self.value = value
+        self.checked = checked
+        self.label = label
+
+
+class CheckboxSprite(pygame.sprite.Sprite):
+
+    def update_image_and_rect(self, size, line_color, position=None):
+        if position is None:
+            position = {}
+        position = dict(position)
+        self.image = pygame.Surface(size, flags=pygame.SRCALPHA)
+        self.rect = self.image.get_rect()
+        pygame.draw.rect(self.image, line_color, self.rect, 1)
+        if self.checkbox.checked:
+            cross_rect = self.rect.inflate((-min(size)//4,)*2)
+            draw_cross(self.image, line_color, cross_rect)
+        for key, value in position.items():
+            setattr(self.rect, key, value)
+
+    def on_click(self):
+        self.checkbox.checked = not self.checkbox.checked
+
+
+class Select:
+
+    def __init__(self, choices=None):
+        if choices is None:
+            choices = []
+        self.choices = choices
+
 
 class FlameSprite(pygame.sprite.Sprite):
 
@@ -37,8 +71,26 @@ class FlameSprite(pygame.sprite.Sprite):
         self.acceleration = None
         self.radius = None
         self.color = None
-        self.radius_countdown = 30
+        self.radius_countdown = None
         self.radius_frames = 0
+
+    def update_shape(
+        self,
+        radius,
+        color,
+    ):
+        self.radius = radius
+        self.color = color
+
+    def update_dynamics(
+        self,
+        position,
+        velocity,
+        acceleration,
+    ):
+        self.position = position
+        self.velocity = velocity
+        self.acceleration = acceleration
 
     def update_image_and_rect(self):
         self.image = circle_image(self.radius, tuple(self.color))
@@ -77,18 +129,18 @@ class Fire:
         self.colors = colors
 
     def _update(self, context):
-        position = pygame.Vector2(next(self.positions))
-        velocity = pygame.Vector2(next(self.velocities))
-        radius = next(self.radii)
-        color = next(self.colors)
-        sprite = FlameSprite(context.sprites)
-        sprite.position = position
-        sprite.velocity = velocity
-        sprite.acceleration = pygame.Vector2()
-        sprite.radius = radius
-        sprite.color = color
-        sprite.update_image_and_rect()
-        sprite.radius_countdown = random.randint(5, 10)
+        flame = FlameSprite(context.sprites)
+        flame.update_shape(
+            radius = next(self.radii),
+            color = next(self.colors),
+        )
+        flame.update_dynamics(
+            position = pygame.Vector2(next(self.positions)),
+            velocity = pygame.Vector2(next(self.velocities)),
+            acceleration = pygame.Vector2(),
+        )
+        flame.update_image_and_rect()
+        flame.radius_countdown = random.randint(5, 10)
 
     def update(self, context):
         for _ in range(self.flames_per_frame):
@@ -120,6 +172,15 @@ def random_position(top, right, bottom, left):
     x = random.randint(left, right)
     y = random.randint(top, bottom)
     return (x, y)
+
+def draw_cross(surf, line_color, rect=None):
+    pygame.draw.line(surf, line_color, rect.topleft, rect.bottomright)
+    pygame.draw.line(surf, line_color, rect.bottomleft, rect.topright)
+
+def instance_is(class_or_tuple):
+    def _instance_is(obj):
+        return isinstance(obj, class_or_tuple)
+    return _instance_is
 
 def painterly_circles(
     surf,
@@ -182,7 +243,7 @@ def run():
             size = window.size,
             colors = (
                 pygame.Color('plum4'),
-                pygame.Color('yellow'),
+                pygame.Color('chocolate'),
             ),
             ncircles = 8,
             pixel_spread = 50,
@@ -192,6 +253,40 @@ def run():
     )
 
     sprites = pygame.sprite.Group()
+
+    select = Select()
+    for color_name in FIRECOLORS:
+        checkbox = Checkbox(
+            value = pygame.Color(color_name),
+            checked = True,
+            label = color_name,
+        )
+        select.choices.append(checkbox)
+        checkbox_sprite = CheckboxSprite(sprites)
+        checkbox_sprite.checkbox = checkbox
+        checkbox_sprite.update_image_and_rect((20,)*2, 'azure')
+
+    checkbox_sprites = list(filter(instance_is(CheckboxSprite), sprites))
+    for checkbox_sprite1, checkbox_sprite2 in pairwise(checkbox_sprites):
+        checkbox_sprite2.rect.topright = checkbox_sprite1.rect.bottomright
+        for checkbox_sprite in [checkbox_sprite1, checkbox_sprite2]:
+            checkbox_sprite.label_sprite = pygame.sprite.Sprite(sprites)
+            checkbox_sprite.label_sprite.image = font.render(
+                checkbox_sprite.checkbox.label,
+                True,
+                'azure',
+            )
+            checkbox_sprite.label_sprite.rect = checkbox_sprite.label_sprite.image.get_rect(
+                topleft = checkbox_sprite.rect.topright,
+            )
+
+    # XXX
+    # - left off here
+    # - running into problems with selecting things
+    # - need to get the checkboxes and labels here
+    rect = pygame.Rect((0,)*4).unionall(list(map(attrgetter('rect'), checkbox_sprites)))
+
+    # flames and fire
     firerect = screen.get_rect(
         width=window.width / 2,
         midtop=window.midbottom,
@@ -208,7 +303,7 @@ def run():
             yield color
 
     fire = Fire(
-        flames_per_frame = 2,
+        flames_per_frame = 8,
         positions = callinf(
             random_position,
             firerect.top,
@@ -220,7 +315,9 @@ def run():
             lambda: (0, -random.randint(1, 20) / 50),
         ),
         radii = callinf(
-            lambda: random.randint(minradius, maxradius),
+            random.randint,
+            minradius,
+            maxradius,
         ),
         colors = fire_color(
             color_pairs = callinf(
