@@ -2,7 +2,6 @@ import abc
 import argparse
 import cmd
 import csv
-import inspect
 import pickle
 import string
 
@@ -85,14 +84,18 @@ class Game:
 
 
 class EditShell(cmd.Cmd):
-    intro = 'Game shell. Type help or ? to list commands.\n'
+    intro = 'Edit shell. Type help or ? to list commands.\n'
     _error_prefix = '*** '
     _dirty = 0
     _dirty_prompt = 3
 
-    def __init__(self, game, completekey='tab', stdin=None, stdout=None):
+    def __init__(self, data=None, completekey='tab', stdin=None, stdout=None):
         super().__init__(completekey, stdin, stdout)
-        self._game = game
+        if data is None:
+            data = dict()
+        self.data = data
+        self.path = []
+        self.last_filename = None
 
     def _confirm(self, prompt, default=''):
         answer = input(prompt)
@@ -133,9 +136,44 @@ class EditShell(cmd.Cmd):
         # - a dirty threshold to automatically prompt to save
         # - current filename default
 
+    def _list_by_id(self, attr):
+        """
+        Columnar list of a list attribute attr.
+        """
+        self.columnize(list(map(attrgetter('id'), attr)))
+
+    def _interactive_create(self, name):
+        """
+        Prompt for attribute values and return them.
+        """
+        self.stdout.write(f'New {name}\n')
+        id_ = self._prompt_truthy('id> ')
+        if id_ is None:
+            return
+        description = self._prompt_truthy('description> ')
+        if description is None:
+            return
+        return (id_, description)
+
+    def _create(self, name, arg):
+        if arg:
+            try:
+                id_, _, description = arg.partition(' ')
+            except ValueError:
+                self._write_error('invalid args')
+            else:
+                return (id_, description)
+        else:
+            return self._interactive_create(name)
+
     @property
     def prompt(self):
+        """
+        Dynamic prompt.
+        """
         parts = ['edit']
+        if self.path:
+            parts.append('/'.join(self.path))
         if self._dirty >= self._dirty_prompt:
             parts.append('dirty')
         return f'({" ".join(parts)}) '
@@ -150,101 +188,104 @@ class EditShell(cmd.Cmd):
         prompt = 'Unsaved changes. Are you sure? '
         return self._confirm(prompt, default='y')
 
-    def do_save(self, arg):
+    def do_save(self, filename):
         """
         Save to file.
         """
-        if not arg:
-            self._write_error('invalid filename')
-            return
-        with open(arg, 'wb') as save_file:
-            pickle.dump(self._game, save_file)
+        if not filename:
+            if not self.last_filename:
+                self._write_error('invalid filename')
+                return
+            filename = self.last_filename
+        with open(filename, 'wb') as file:
+            pickle.dump(self.data, file)
         self._set_clean()
 
-    def do_load(self, arg):
+    def do_load(self, filename):
         """
         Load from file.
         """
-        if not arg:
+        if not filename:
             self._write_error('invalid filename')
             return
-        self._game = Game()
-        with open(arg, 'rb') as load_file:
-            self._game.__dict__.update(pickle.load(load_file).__dict__)
+        with open(filename, 'rb') as file:
+            self.data = pickle.load(file)
+        self.last_filename = filename
         self._set_clean()
 
-    def do_here(self, arg):
+    def _current_data(self):
+        data = self.data
+        for key in self.path:
+            data = data[key]
+        return data
+
+    def _complete_keys(self, line):
+        cmd, args, foo = self.parseline(line)
+        data = self._current_data()
+        return list(key for key in data if key.startswith(args))
+
+    def do_list(self, arg):
         """
-        Show current location or create.
+        List current data keys.
         """
+        data = self._current_data()
+        self.columnize(list(data))
+
+    def complete_list(self, text, line, begin, end):
+        return self._complete_keys(line)
+
+    def do_show(self, arg):
+        data = self._current_data()
         if arg:
-            location = self._game.location_by_id(arg)
-            if location is None:
-                self._write_error('location not found')
+            if arg not in data:
+                self._write_error('invalid key')
                 return
-            self._game.here = location
-        if self._game.here is not None:
-            self.stdout.write(f'{self._game.here}')
+            values = data[arg]
+            if isinstance(values, dict):
+                values = list(map(str, values.items()))
+            else:
+                values = [values]
         else:
-            self._write_error('*** no current location')
-            prompt = 'create a new location? '
-            if self._confirm(prompt):
-                self.do_create_location(arg)
+            values = list(data.keys())
+        self.columnize(values)
 
-    def _list_by_id(self, attr):
-        self.columnize(list(map(attrgetter('id'), attr)))
+    def complete_show(self, text, line, begin, end):
+        return self._complete_keys(line)
 
-    def do_list_locations(self, arg):
-        """
-        List locations
-        """
-        self._no_args(arg)
-        self._list_by_id(self._game.locations)
+    def do_down(self, arg):
+        data = self._current_data()
+        if arg in data:
+            self.path.append(arg)
+        else:
+            self._write_error('invalid key')
 
-    def do_list_objects(self, arg):
-        """
-        List objects
-        """
-        self._no_args(arg)
-        self._list_by_id(self._game.objects)
+    def complete_down(self, text, line, begin, end):
+        return self._complete_keys(line)
 
-    def _create(self, arg):
+    def do_up(self, arg):
         if arg:
-            try:
-                id_, _, description = arg.partition(' ')
-            except ValueError:
-                self._write_error('invalid args')
-        else:
-            self.stdout.write('New location\n')
-            id_ = self._prompt_truthy('id> ')
-            if id_ is None:
-                return
-            description = self._prompt_truthy('description> ')
-            if description is None:
-                return
-        return (id_, description)
-
-    def do_create_location(self, arg):
-        """
-        Create location and set current location if None.
-        """
-        result = self._create(arg)
-        if result is None:
+            self._write_error('command takes no arguments')
             return
-        id_, description = result
-        location = Location(id=id_, description=description)
-        self._game.locations.append(location)
-        self._dirtier()
-
-    def do_describe_location(self, arg):
-        """
-        Show location description.
-        """
-        location = self._game.location_by_id(arg)
-        if location is None:
-            self._write_error('location not found')
+        if not self.path:
+            self._write_error('already at top')
             return
-        self._write_message(location.description)
+        self.path.pop()
+
+    def do_add(self, arg):
+        """
+        Add key.
+        """
+        data = self._current_data()
+        key, _, rest = arg.partition(' ')
+        # if key exists?
+        data[key] = rest if rest else dict()
+
+    def do_del(self, arg):
+        """
+        Delete key.
+        """
+        data = self._current_data()
+        del data[arg]
 
 
 def lengths(iterable):
@@ -274,8 +315,7 @@ def main(argv=None):
     parser.add_argument('file', nargs='?')
     args = parser.parse_args(argv)
 
-    game = Game()
-    editshell = EditShell(game)
+    editshell = EditShell()
     if args.file:
         editshell.do_load(args.file)
     editshell.cmdloop()
