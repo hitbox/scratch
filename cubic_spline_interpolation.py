@@ -3,6 +3,9 @@ import contextlib
 import math
 import os
 
+from itertools import pairwise
+from itertools import repeat
+
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
 
@@ -229,21 +232,8 @@ def nsinc(x):
     else:
         return math.sin(math.pi * x) / (math.pi * x)
 
-def cubic_spline_interpolate(xs, ys, N):
-    """
-    doInterpolate uses cubic spline interpolation to create N new points
-    between xs and calculates their ys, returning [pxs, pys] - the (x,y) coords
-    of the interpolated points.
-    """
-    # Perform interpolation on xs, ys to get the coefficients of the splines.
-    A, b = build_spline_equations(xs, ys)
-    coeffs = solve(A, b)
-
-    # Create N points linearly spaced between the min and max of xs, and
-    # calculate the corresponding py for each px using the appropriate curve.
-    pxs = linspace(min(xs), max(xs), N)
-
-    pys = [0 for _ in range(N)]
+def _cubic_spline_interpolate(xs, ys, N):
+    # this was part of the next func before trying to python-ify it.
     for i in range(N):
         px = pxs[i]
         # Find the number of the curve for px, based on which points from xs
@@ -260,6 +250,36 @@ def cubic_spline_interpolate(xs, ys, N):
 
         # With the curve index in hand, we can calculate py based on the
         # relevant curve coefficients from coeffs.
+        a, b, c, d = coeffs[curve_index * 4: curve_index * 4 + 4]
+        pys[i] = a * px ** 3 + b * px ** 2 + c * px + d
+
+def cubic_spline_interpolate(xs, ys, N):
+    """
+    doInterpolate uses cubic spline interpolation to create N new points
+    between xs and calculates their ys, returning [pxs, pys] - the (x,y) coords
+    of the interpolated points.
+    """
+    # Perform interpolation on xs, ys to get the coefficients of the splines.
+    A, b = build_spline_equations(xs, ys)
+    coeffs = solve(A, b)
+
+    # Create N points linearly spaced between the min and max of xs, and
+    # calculate the corresponding py for each px using the appropriate curve.
+    pxs = linspace(min(xs), max(xs), N)
+
+    def find_curve_index(px):
+        for curve_index, (xs1, xs2) in enumerate(pairwise(xs)):
+            if xs1 <= px <= xs2:
+                return curve_index
+        else:
+            raise RuntimeError('curve index not found')
+
+    def py_i(px, a, b, c, d):
+        return a * px ** 3 + b * px ** 2 + c * px + d
+
+    pys = list(repeat(0, N))
+    for i, px in enumerate(pxs):
+        curve_index = find_curve_index(px)
         a, b, c, d = coeffs[curve_index * 4: curve_index * 4 + 4]
         pys[i] = a * px ** 3 + b * px ** 2 + c * px + d
 
