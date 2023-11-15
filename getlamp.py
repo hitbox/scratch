@@ -197,6 +197,7 @@ class EditShell(cmd.Cmd):
                 self._write_error('invalid filename')
                 return
             filename = self.last_filename
+            self._write_message(filename)
         with open(filename, 'wb') as file:
             pickle.dump(self.data, file)
         self._set_clean()
@@ -235,18 +236,21 @@ class EditShell(cmd.Cmd):
         return self._complete_keys(line)
 
     def do_show(self, arg):
+        """
+        Show value of key.
+        """
         data = self._current_data()
-        if arg:
-            if arg not in data:
-                self._write_error('invalid key')
-                return
-            values = data[arg]
-            if isinstance(values, dict):
-                values = list(map(str, values.items()))
-            else:
-                values = [values]
+        if not arg:
+            self._write_error('key argument required')
+            return
+        if arg not in data:
+            self._write_error('invalid key')
+            return
+        values = data[arg]
+        if isinstance(values, dict):
+            values = list(map(str, values.items()))
         else:
-            values = list(data.keys())
+            values = [values]
         self.columnize(values)
 
     def complete_show(self, text, line, begin, end):
@@ -277,7 +281,20 @@ class EditShell(cmd.Cmd):
         """
         data = self._current_data()
         key, _, rest = arg.partition(' ')
-        # if key exists?
+        if key in data:
+            self._write_error('key exists')
+            return
+        data[key] = rest if rest else dict()
+
+    def do_set(self, arg):
+        """
+        Set key value
+        """
+        data = self._current_data()
+        key, _, rest = arg.partition(' ')
+        if key not in data:
+            self._write_error('key does not exist')
+            return
         data[key] = rest if rest else dict()
 
     def do_del(self, arg):
