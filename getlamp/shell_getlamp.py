@@ -369,3 +369,13 @@ def main(argv=None):
 
 if __name__ == '__main__':
     main()
+
+# 2023-11-16
+# - this file represents an attempt to make a shell from which the getlamp game
+#   could be built
+# - vague idea that we could switch between editor and game loop
+# - first attempt, this, used all dictionaries everywhere
+# - came to having "edges" between rooms and I definitely needed a list
+# - the edges would be painful if every one needed a name
+# - Python is the interface for editing Python data structures
+# - that is, an interactive interpreter
