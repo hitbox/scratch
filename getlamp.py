@@ -88,8 +88,15 @@ class EditShell(cmd.Cmd):
     _error_prefix = '*** '
     _dirty = 0
     _dirty_prompt = 3
+    _path_sep = '/'
 
-    def __init__(self, data=None, completekey='tab', stdin=None, stdout=None):
+    def __init__(
+        self,
+        data = None,
+        completekey = 'tab',
+        stdin = None,
+        stdout = None,
+    ):
         super().__init__(completekey, stdin, stdout)
         if data is None:
             data = dict()
@@ -166,14 +173,25 @@ class EditShell(cmd.Cmd):
         else:
             return self._interactive_create(name)
 
+    def _current_data(self):
+        data = self.data
+        for key in self.path:
+            data = data[key]
+        return data
+
+    def _complete_key(self, line):
+        cmd, args, foo = self.parseline(line)
+        data = self._current_data()
+        return [key for key in data if key.startswith(args)]
+
     @property
     def prompt(self):
         """
         Dynamic prompt.
         """
         parts = ['edit']
-        if self.path:
-            parts.append('/'.join(self.path))
+        path_string = f'{self._path_sep}'.join(self.path)
+        parts.append(f'{self._path_sep}{path_string}')
         if self._dirty >= self._dirty_prompt:
             parts.append('dirty')
         return f'({" ".join(parts)}) '
@@ -214,26 +232,20 @@ class EditShell(cmd.Cmd):
         self.last_filename = filename
         self._set_clean()
 
-    def _current_data(self):
-        data = self.data
-        for key in self.path:
-            data = data[key]
-        return data
-
-    def _complete_keys(self, line):
-        cmd, args, foo = self.parseline(line)
-        data = self._current_data()
-        return list(key for key in data if key.startswith(args))
-
-    def do_list(self, arg):
+    def do_ls(self, arg):
         """
         List current data keys.
         """
         data = self._current_data()
+        if arg:
+            if arg not in data:
+                self._write_error('invalid key')
+                return
+            data = data[arg]
         self.columnize(list(data))
 
-    def complete_list(self, text, line, begin, end):
-        return self._complete_keys(line)
+    def complete_ls(self, text, line, begin, end):
+        return self._complete_key(line)
 
     def do_show(self, arg):
         """
@@ -247,26 +259,41 @@ class EditShell(cmd.Cmd):
             self._write_error('invalid key')
             return
         values = data[arg]
+        # repr and make list for columize
         if isinstance(values, dict):
-            values = list(map(str, values.items()))
+            values = list(map(repr, values.items()))
         else:
-            values = [values]
+            values = [repr(values)]
         self.columnize(values)
 
     def complete_show(self, text, line, begin, end):
-        return self._complete_keys(line)
+        return self._complete_key(line)
 
-    def do_down(self, arg):
+    def do_cd(self, arg):
+        """
+        Navigate into a key.
+        """
         data = self._current_data()
-        if arg in data:
+        if arg and arg == '..':
+            # pop one level up
+            self.do_up('')
+        elif arg and arg == self._path_sep:
+            # pop until root
+            while self.path:
+                self.path.pop()
+        elif arg in data:
+            # go down one level
             self.path.append(arg)
         else:
             self._write_error('invalid key')
 
-    def complete_down(self, text, line, begin, end):
-        return self._complete_keys(line)
+    def complete_cd(self, text, line, begin, end):
+        return self._complete_key(line)
 
     def do_up(self, arg):
+        """
+        Navigate up, out of a key to the parent.
+        """
         if arg:
             self._write_error('command takes no arguments')
             return
