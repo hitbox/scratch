@@ -2,10 +2,11 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# sorted list of words
 py_wordlist="words = ['another', 'data', 'date', 'hello', 'text', 'word']"
 py_prefix="prefix = 'dat'"
 
-for func_suffix in loop bisect; do
+for func_suffix in loop_flavor{1..3} bisect; do
     echo $func_suffix
     python -m timeit \
         --setup "from prefix_search import prefix_search_${func_suffix} as prefix_search" \
