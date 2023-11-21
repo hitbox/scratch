@@ -44,8 +44,10 @@ class TestShorthand(unittest.TestCase):
         result = list(shorthand(1, 2, bottom=3))
         self.assertEqual([1,2,3,2], result)
 
-    def test_shorthand_errors(self):
-        # raises for giving top as positional and kwarg
+    def test_shorthand_raise_for_empty(self):
+        self.assertRaises(AssertionError, shorthand)
+
+    def test_shorthand_raise_for_duplicate(self):
         self.assertRaises(AssertionError, shorthand, 2, top=1)
 
 
