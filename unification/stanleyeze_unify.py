@@ -191,6 +191,9 @@ def occurs_in(var, exp):
     return any(occurs_in(var, e) for e in exp.arguments)
 
 def unify_variable(var, exp, mgu, trace):
+    """
+    :param mgu: most general unifier
+    """
     for s in (x for x in mgu if x.variable == var):
         return unify_with_occurence_check(s.replacement, exp, mgu, trace)
     t = substitute(mgu, exp)
