@@ -2,7 +2,6 @@ import itertools as it
 
 from collections import defaultdict
 
-
 deltas = set(tuple(x - 1 for x in divmod(i, 3)) for i in range(9))
 deltas.remove((0,0))
 
