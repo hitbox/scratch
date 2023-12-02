@@ -78,10 +78,10 @@ class Tests(unittest.TestCase):
             'a1b2c3d4e5f',
             'treb7uchet',
         ]
-        result = calibrate(example_lines)
+        result = sum(solve(line, []) for line in example_lines)
         self.assertEqual(result, 142)
-        #
-        result = calibrate(example_lines, with_named=True)
+        # test with names because there are no names in this example
+        result = sum(solve(line, NUMBERS) for line in example_lines)
         self.assertEqual(result, 142)
 
     def test_part2_example(self):
@@ -95,57 +95,31 @@ class Tests(unittest.TestCase):
             '7pqrstsixteen',
         ]
         expect_numbers = [29, 83, 13, 24, 42, 14, 76]
-        func = calibration_value_func(with_named=True)
-        numbers = list(map(func, example_lines))
-        for expected, actual in zip(expect_numbers, numbers):
+        calibrations = [solve(line, NUMBERS) for line in example_lines]
+        for expected, actual in zip(expect_numbers, calibrations):
             self.assertEqual(expected, actual)
-        self.assertEqual(calibrate(example_lines, with_named=True), 281)
+        self.assertEqual(sum(calibrations), 281)
 
 
-number_names = {
-    'one': 1,
-    'two': 2,
-    'three': 3,
-    'four': 4,
-    'five': 5,
-    'six': 6,
-    'seven': 7,
-    'eight': 8,
-    'nine': 9,
-}
+NUMBERS = [
+    'one',
+    'two',
+    'three',
+    'four',
+    'five',
+    'six',
+    'seven',
+    'eight',
+    'nine',
+]
 
-def calibration_value_part1(string):
-    numbers = ''.join(char for char in string if char.isdigit())
-    if len(numbers) < 2:
-        numbers += numbers
-    return int(numbers[0] + numbers[-1])
-
-def calibration_value_part2(string):
-    numbers = []
-    while string:
-        consume = 1
-        if string[0].isdigit():
-            numbers.append(string[0])
-        else:
-            for name, number in number_names.items():
-                if string.startswith(name):
-                    numbers.append(str(number))
-                    consume = len(name)
-                    break
-        string = string[consume:]
-    if len(numbers) < 2:
-        numbers += numbers
-    return int(numbers[0] + numbers[-1])
-
-def calibration_value_func(with_named=False):
-    if with_named:
-        return calibration_value_part2
-    else:
-        return calibration_value_part1
-
-def calibrate(lines, with_named=False):
-    func = calibration_value_func(with_named)
-    return sum(map(func, lines))
+def solve(line, names):
+    for n, name in enumerate(names, start=1):
+        line = line.replace(name, f'{name[0]}{n}{name[-1]}')
+    digits = [char for char in line if char.isdigit()]
+    if len(digits) < 2:
+        digits += digits
+    return int(digits[0] + digits[-1])
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
@@ -159,18 +133,37 @@ def main(argv=None):
 
     with args.input as input_file:
         lines = [line.strip() for line in input_file]
+        # confirm all lowercase
         assert all(char.islower() for line in lines for char in line if char.isalpha())
 
-    part1_answer = calibrate(lines)
+    part1_answer = sum(solve(line, []) for line in lines)
     assert part1_answer == 54390
     print(f'{part1_answer=}')
 
-    part2_answer = calibrate(lines, with_named=True)
+    part2_answer = sum(solve(line, NUMBERS) for line in lines)
+    assert part2_answer == 54277
     print(f'{part2_answer=}')
     # incorrect:
     # - 0 (zero)
     # - 54305
     # - 54390
+    # - 54341
 
 if __name__ == '__main__':
     main()
+
+# 2023-12-01
+# - tried lots of things
+# - should set up a test case for when one integer name bleeds into the next,
+#   depending on which direction you're scanning the string
+#   - this is likely the problem with my attempts
+# - finally just used the juanplopes_day01.py solution
+# - https://www.reddit.com/r/adventofcode/comments/1883ibu/2023_day_1_solutions/kbk7rxh/
+# - https://github.com/juanplopes/advent-of-code-2023/blob/main/day01.py
+# - like the idea of passing the names list to handle both cases
+# - never would have thought of replacing the middle of the digit names
+#   - suspect this keeps replacements unique
+# - didn't care for using `ord` to get an integer
+# - didn't care for using less-than-or-equal when `isdigit` exists
+# - don't think there are ever no digits, so removed that test
+# - just leave as strings and concat and convert at end
