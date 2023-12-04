@@ -290,8 +290,8 @@ def main(argv=None):
     print(f'{part1_answer=}')
 
     part2_answer = solve_gear_ratios(schematic)
+    assert part2_answer == 81463996
     print(f'{part2_answer=}')
-    # 81463996
 
 if __name__ == '__main__':
     main()
