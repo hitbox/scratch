@@ -195,9 +195,8 @@ def solve2(scratchcards):
         if not nwins:
             continue
         others = range(card+1, card+1+nwins)
-        for _ in range(instances[card]):
-            for othercard in others:
-                instances[othercard] += 1
+        for othercard in others:
+            instances[othercard] += instances[card]
     return sum(instances.values())
 
 def main(argv=None):
