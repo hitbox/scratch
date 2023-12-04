@@ -126,7 +126,7 @@ def main(argv=None):
     parser.add_argument(
         '-i',
         '--input',
-        default = 'inputs/day01.txt',
+        default = 'instance/inputs/day01.txt',
         type = argparse.FileType(),
     )
     args = parser.parse_args(argv)
