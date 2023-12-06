@@ -59,6 +59,14 @@ def hms(seconds):
     hours, minutes = divmod(minutes, 60)
     return (hours, minutes, seconds)
 
+def playing(time):
+    # https://discuss.python.org/t/support-multiple-divisors-in-divmod/33109
+    minutes, seconds = divmod(time, 60)
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+    weeks, days = divmod(days, 7)
+    return locals()
+
 def main(argv=None):
     """
     Print the hours, minutes, and seconds of given seconds.
