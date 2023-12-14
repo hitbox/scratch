@@ -2,23 +2,30 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-echo constants cubed with multiplication
+echo "- constants cubed with multiplication"
 python -m timeit "3 * 3 * 3"
-echo
 
-echo constants operator cubed
+echo "- constants ** operator cubed"
 python -m timeit "3 ** 3"
-echo
 
-echo constants math.pow cubed
+echo "- constants operator.pow cubed"
+python -m timeit --setup "import operator" "operator.pow(3, 3)"
+
+echo "- constants math.pow cubed"
 python -m timeit --setup "import math" "math.pow(3, 3)"
-echo
 
-echo constants functools.reduce and operators.mult
+echo "- constants functools.reduce and operators.mult"
 python -m timeit \
     --setup "from functools import reduce" \
     --setup "from operator import mul" \
     "reduce(mul, (3,3,3))"
+echo
+
+echo very big constants functools.reduce and operators.mult
+python -m timeit \
+    --setup "from functools import reduce" \
+    --setup "from operator import mul" \
+    "reduce(mul, (3,)*100)"
 echo
 
 # with variables
@@ -27,8 +34,12 @@ echo variable cubed with multiplication
 python -m timeit --setup "x = 3" "x * x * x"
 echo
 
-echo variable operator cubed
+echo "variable ** operator cubed"
 python -m timeit --setup "x = 3" "x ** 3"
+echo
+
+echo variable operator.pow cubed
+python -m timeit --setup "x = 3" --setup "import operator" "operator.pow(x, x)"
 echo
 
 echo variable math.pow cubed
@@ -46,6 +57,7 @@ python -m timeit \
 # 2023-12-06
 # - Surprising the exponent operator is slower, but only with a variable.
 # - math.pow is slow!
+# - operator.pow is twice faster than math.pow
 # - reduce(mul, ... is slower!
 # - so people are correct to multiply instead of exponentiate with the operator
 #   and shave 5 nsec or so
