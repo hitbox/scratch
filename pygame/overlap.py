@@ -1,35 +1,16 @@
 import argparse
 import contextlib
+import itertools as it
 import os
 import random
 import string
 
-from itertools import cycle
-from itertools import pairwise
 from operator import attrgetter
 
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
 
-exclude = [
-    'black',
-    'dark',
-    'gray',
-    'grey',
-    'light',
-    'medium',
-    'pale',
-    'white',
-]
-
-colorfuls = [
-    (name, color)
-    for name, color in pygame.color.THECOLORS.items()
-    if not any(unwanted in name for unwanted in exclude)
-    and not set(name).intersection(string.digits)
-]
-random.shuffle(colorfuls)
-colorfuls = dict(colorfuls)
+colorfuls = list(it.product((255,0), repeat=3))
 
 class RectDraw:
 
@@ -51,7 +32,7 @@ def get_rect(rect, **kwargs):
 def align(rects, attr1, attr2):
     "Set brect.attr1 to arect.attr2 pairwise"
     attr2 = attrgetter(attr2)
-    for a, b in pairwise(rects):
+    for a, b in it.pairwise(rects):
         setattr(b, attr1, attr2(a))
 
 def wrap(rects):
@@ -78,6 +59,10 @@ def moveas(rects, **kwargs):
 
 def overlap(a, b):
     "Overlapping rect of a and b rects"
+    # XXX
+    # - unnecessary function
+    # - use pygame.Rect.clip
+    # - clip_from.clip(clip_to)
     _, left, right, _ = sorted([a.left, a.right, b.left, b.right])
     _, top, bottom, _ = sorted([a.top, a.bottom, b.top, b.bottom])
     width = right - left
@@ -85,7 +70,8 @@ def overlap(a, b):
     return pygame.Rect(left, top, width, height)
 
 def generate_rects(n, draw_rects, spawn, side):
-    colors = cycle(colorfuls)
+    random.shuffle(colorfuls)
+    colors = it.cycle(colorfuls)
     mindim = side // 4
     while len(draw_rects) < n:
         color = next(colors)
@@ -129,16 +115,17 @@ def run(args):
     for image, rect in zip(images, rects):
         background.blit(image, rect)
 
-    knife = pygame.Rect((0,)*2, (200,100))
+    knife = RectDraw(
+        pygame.Rect((0,)*2, (200,100)),
+        color='magenta',
+    )
 
     nrects = 2
     draw_rects = None
 
     def genrects():
         nonlocal draw_rects
-        draw_rects = [
-            RectDraw(knife, color='magenta'),
-        ]
+        draw_rects = [knife]
         generate_rects(nrects, draw_rects, spawn, side=side)
 
     genrects()
@@ -161,7 +148,7 @@ def run(args):
                     pygame.event.post(pygame.event.Event(pygame.QUIT))
                 elif event.key == pygame.K_SPACE:
                     # rotate
-                    knife.size = (knife.height, knife.width)
+                    knife.rect.size = (knife.rect.height, knife.rect.width)
                 elif event.key == pygame.K_a:
                     nrects += 1
                     genrects()
@@ -172,7 +159,7 @@ def run(args):
         # update
         b1, b2, b3 = pygame.mouse.get_pressed()
         if b1:
-            knife.center = pygame.mouse.get_pos()
+            knife.rect.center = pygame.mouse.get_pos()
         # draw
         screen.blit(background, (0,)*2)
         # draw rects and collect overlaps
@@ -181,8 +168,9 @@ def run(args):
             color = draw_rect.style.get('color', 'magenta')
             border = draw_rect.style.get('border', 1)
             pygame.draw.rect(screen, color, draw_rect.rect, border)
-            if draw_rect.rect is not knife and knife.colliderect(draw_rect.rect):
-                overlapping.append((draw_rect, overlap(knife, draw_rect.rect)))
+            if draw_rect.rect is not knife.rect and knife.rect.colliderect(draw_rect.rect):
+                overlap = draw_rect.rect.clip(knife.rect)
+                overlapping.append((draw_rect, overlap))
 
         # draw overlaps sorted smallest area last
         def overlap_area(item):
@@ -190,7 +178,9 @@ def run(args):
             return area(overlaprect)
 
         for draw_rect, rect in sorted(overlapping, key=overlap_area, reverse=True):
-            color = draw_rect.style.get('color', 'magenta')
+            color1 = pygame.Color(knife.style.get('color', 'magenta'))
+            color2 = pygame.Color(draw_rect.style.get('color', 'magenta'))
+            color = color1.lerp(color2, 0.5)
             pygame.draw.rect(screen, color, rect, 0)
         pygame.display.flip()
 
