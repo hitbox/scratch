@@ -1,0 +1,651 @@
+import abc
+import argparse
+import contextlib
+import itertools as it
+import math
+import operator as op
+import os
+import pickle
+import random
+
+from collections import deque
+from itertools import pairwise
+from operator import itemgetter
+
+with contextlib.redirect_stdout(open(os.devnull, 'w')):
+    import pygame
+
+quit_event = pygame.event.Event(pygame.QUIT)
+
+class GameError(Exception):
+    pass
+
+
+class Game:
+
+    def __init__(
+        self,
+        *,
+        pencil,
+        gamearea,
+        lines,
+        walls,
+    ):
+        self.pencil = pencil
+        self.gamearea = gamearea
+        self.lines = lines
+        self.walls = walls
+        self.line_begin = None
+        self.drawing_points = []
+
+    @property
+    def drawing_lines(self):
+        return list(it.pairwise(self.drawing_points))
+
+    def pre_update(self):
+        self.tracing = None
+        self.tracing_slope = None
+        self.move_line = None
+        self.move_line_slope = None
+
+    def update(self):
+        self.pre_update()
+        self.update_tracing_line()
+
+        if not self.pencil.velocity:
+            # not moving, nothing further to do
+            return
+
+        new_position = self.pencil.position + self.pencil.velocity
+        self.move_line = (self.pencil.position, new_position)
+        self.move_line_slope = abs(slope(self.move_line))
+
+        if self.pencil.is_drawing:
+            self.update_for_drawing(new_position)
+        else:
+            assert self.tracing
+            self.update_for_tracing(new_position)
+
+        # check walls if still moving
+        if (
+            self.pencil.velocity
+            and
+            any(wall.collidepoint(new_position) for wall in self.walls)
+        ):
+            new_position.update(self.pencil.position)
+            self.pencil.stop()
+            self.line_begin = None
+
+        # previous to current
+        self.pencil.previous.update(self.pencil.position)
+        # current to next
+        self.pencil.position.update(new_position)
+
+    def update_tracing_line(self):
+        # line pencil is tracing or none
+        for line in self.lines:
+            if is_point_on_line(self.pencil.position, line):
+                self.tracing = line
+                self.tracing_slope = abs(slope(self.tracing))
+                break
+
+    def update_walls(self):
+        def key(point):
+            return (point.x, point.y)
+
+        points = set(iter_line_points(self.lines))
+        for corners in it.combinations(points, 4):
+            corners = sorted(map(pygame.Vector2, corners), key=key)
+            topleft, bottomleft, topright, bottomright = corners
+            if (
+                topleft.x == bottomleft.x
+                and
+                topleft.y == topright.y
+                and
+                topright.x == bottomright.x
+                and
+                bottomright.y == bottomleft.y
+            ):
+                width = abs(topright.x - topleft.x)
+                height = abs(topleft.y - bottomleft.y)
+                rect = pygame.Rect(topleft, (width, height))
+                if rect != self.gamearea:
+                    # not the entire game area rect
+                    for other_rect in self.walls:
+                        if rect.colliderect(other_rect):
+                            break
+                    else:
+                        # no collisions with existing walls, add it
+                        # shrink points off of line point
+                        rect.x = topleft.x + 1
+                        rect.y = topleft.y + 1
+                        rect.width -= 1
+                        rect.height -= 1
+                        self.walls.append(rect)
+        # TODO
+        # consider three points at a time too
+
+    def update_for_drawing(self, new_position):
+        lines = self.lines + self.drawing_lines
+        collisions = list(
+            filter(None, map(line_intersection, it.repeat(self.move_line), lines))
+        )
+        if collisions:
+            # one collision with a drawn line while drawing
+            assert len(collisions) == 1, collisions
+            new_position.update(collisions[0])
+            self.pencil.stop()
+
+            final_point = tuple(map(int, new_position))
+            points = self.drawing_points + [final_point]
+            new_lines = list(it.pairwise(points))
+            self.lines.extend(new_lines)
+            self.drawing_points.clear()
+
+            # TODO
+            # - LEFT OFF HERE
+            # - need to consider if walls are built before adding them to lines
+            # - this class is smelly big!
+            # - a game state class with no behavior, like pencil
+            # - or at least behavior that only changes it's own state for convenience
+            # - touching your own drawing line kills you
+
+            self.update_walls()
+        else:
+            # no collisions, check direction change
+            new_direction = new_position - self.pencil.position
+            old_direction = self.pencil.position - self.pencil.previous
+            if new_direction != old_direction:
+                # changed direction while drawing
+                self.drawing_points.append(tuple(map(int, self.pencil.position)))
+
+    def update_for_tracing(self, new_position):
+        # not drawing, should be currently tracing a line
+        if self.move_line_slope == self.tracing_slope:
+            # continue tracing clamp to current line
+            # sorted horizontal and vertical dimensions of line
+            (minx, maxx), (miny, maxy) = map(sorted, zip(*self.tracing))
+            if self.move_line_slope == math.inf:
+                # vertical line
+                if new_position.y < miny or new_position.y > maxy:
+                    new_position.y = clamp(new_position.y, miny, maxy)
+                    self.pencil.stop()
+            else:
+                # horizontal line
+                if new_position.x < minx or new_position.x > maxx:
+                    new_position.x = clamp(new_position.x, minx, maxx)
+                    self.pencil.stop()
+        else:
+            # jumped off line
+            # check that new position is on a line
+            new_on_line = is_point_on_lines(new_position, self.lines)
+            # was not drawing, new position is not on line, now drawing
+            self.pencil.is_drawing = not new_on_line
+            if self.pencil.is_drawing:
+                self.drawing_points.append(tuple(map(int, self.pencil.position)))
+            else:
+                # have not switched to drawing, must be on a line
+                pass
+
+
+class Engine:
+
+    def __init__(self):
+        self.running = False
+
+    def run(self, state):
+        state.start(engine=self)
+        self.running = True
+        while self.running:
+            state.update(engine=self)
+
+
+class State(abc.ABC):
+
+    @abc.abstractmethod
+    def start(self, engine):
+        pass
+
+    @abc.abstractmethod
+    def update(self, engine):
+        pass
+
+
+class GameManager(State):
+
+    def __init__(
+        self,
+        *,
+        screen_size,
+        game,
+        pencil_renderer,
+        framerate = 60,
+    ):
+        self.screen_size = screen_size
+        self.game = game
+        self.pencil_renderer = pencil_renderer
+        self.framerate = framerate
+
+        self.screen = None
+        self.window = None
+        self.clock = None
+        self.gui_font = None
+
+    def start(self, engine):
+        pygame.font.init()
+        self.screen = pygame.display.set_mode(self.screen_size)
+        self.window = self.screen.get_rect()
+        self.clock = pygame.time.Clock()
+        self.gui_font = pygame.font.SysFont('monospace', 18)
+
+    def update(self, engine):
+        elapsed = self.clock.tick(self.framerate)
+        self.dispatch_events(engine, pygame.event.get())
+        self.game.update(engine, self, elapsed)
+        self.draw(engine)
+
+    def dispatch_events(self, engine, events):
+        for event in events:
+            self.dispatch_event(engine, event)
+
+    def dispatch_event(self, engine, event):
+        method = getattr(self, event_methodname(event), None)
+        if method:
+            method(engine, event)
+
+    def do_quit(self, engine, event):
+        engine.running = False
+
+    def do_keydown(self, engine, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygame.event.post(quit_event)
+
+    def draw(self, engine):
+        self.screen.fill('black')
+        # draw game area
+        pygame.draw.rect(self.screen, 'magenta', self.game.gamearea, 1)
+        # draw pencil
+        self.pencil_renderer.draw(self.screen, self.game.pencil)
+        # draw gui
+        pygame.display.flip()
+
+
+class Vector(pygame.Vector2):
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.previous = self.copy()
+
+
+class Game:
+    # XXX: NEW
+
+    def __init__(
+        self,
+        *,
+        gamearea,
+        pencil,
+        line_manager,
+    ):
+        self.gamearea = gamearea
+        self.pencil = pencil
+        self.line_manager = line_manager
+        self.new_position = None
+        self.move_line = None
+
+    def update(self, engine, state, elapsed):
+        pencil = self.pencil
+
+        self.new_position = pencil.position + pencil.velocity
+        self.move_line = (pencil.position, self.new_position - pencil.position)
+
+        self.new_direction = self.new_position - pencil.position
+        self.prev_direction = pencil.position - pencil.position.previous
+
+        pencil.position.previous.update(pencil.position)
+        pencil.position.update(self.new_position)
+        pencil.rect.center = pencil.position
+
+
+class LineManager:
+    # NOTES
+    # - motivation here is to have a way to consider the drawing points before
+    #   adding them to the list of lines.
+    # - if pencil touches its own line, it dies.
+    # - probably need to keep lines and drawing points separate for a, say,
+    #   flashing period showing a completed line like tetris.
+
+    def __init__(self, lines):
+        self.lines = lines
+        self.drawing_points = []
+
+    @classmethod
+    def from_rect(cls, rect):
+        return cls(rectlines(rect))
+
+
+class Pencil:
+
+    def __init__(
+        self,
+        position,
+        speed,
+        velocity,
+        rect_size,
+        is_drawing = False,
+    ):
+        self.position = position
+        self.speed = speed
+        self.velocity = velocity
+        self.previous = self.position.copy()
+        self.is_drawing = is_drawing
+        self.rect = pygame.Rect((0,)*2, rect_size)
+        self.rect.center = self.position
+
+    def stop(self):
+        self.velocity.update(0,0)
+        self.is_drawing = False
+
+
+class PencilRenderer:
+
+    def draw(self, surf, pencil):
+        pygame.draw.rect(surf, 'brown', pencil.rect, 1)
+        pygame.draw.line(surf, 'red', pencil.position.previous, pencil.position)
+
+
+def opposite(list_, value):
+    return list_[list_.index(value) + len(list_) // 2]
+
+def rectlines(rect):
+    yield (rect.topleft, rect.topright)
+    yield (rect.topright, rect.bottomright)
+    yield (rect.bottomright, rect.bottomleft)
+    yield (rect.bottomleft, rect.topleft)
+
+def event_methodname(event, prefix='do_'):
+    event_name = pygame.event.event_name(event.type).lower()
+    return f'{prefix}{event_name}'
+
+def slope(line):
+    (x1, y1), (x2, y2) = line
+    run = (x2 - x1)
+    if run == 0:
+        return math.inf
+    rise = (y2 - y1)
+    return rise / run
+
+def clamp(x, a, b):
+    if x < a:
+        return a
+    elif x > b:
+        return b
+    return x
+
+def iter_line_points(lines):
+    for (start, end) in lines:
+        yield start
+        yield end
+
+def is_point_on_line(point, line):
+    x, y = point
+    (x1, y1), (x2, y2) = line
+
+    # Check if the line is vertical (to avoid division by zero)
+    if x1 == x2:
+        return x == x1 and min(y1, y2) <= y <= max(y1, y2)
+
+    # Calculate the slope (m) and y-intercept (c) of the line
+    m = (y2 - y1) / (x2 - x1)
+    c = y1 - m * x1
+
+    # Check if the given point lies on the line
+    return y == m * x + c
+
+def is_point_on_lines(point, lines):
+    return any(map(is_point_on_line, it.repeat(point), lines))
+
+def line_intersection(line1, line2):
+    (x1, y1), (x2, y2) = line1
+    (x3, y3), (x4, y4) = line2
+
+    # Calculate the denominator
+    denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+
+    if denominator == 0:
+        # Lines are parallel, no intersection
+        return
+
+    # Calculate intersection point coordinates
+    intersection_x = (
+        (x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)
+    ) / denominator
+    intersection_y = (
+        (x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)
+    ) / denominator
+
+    # Check if the intersection point lies within the line segments
+    if (
+        min(x1, x2) <= intersection_x <= max(x1, x2)
+        and
+        min(y1, y2) <= intersection_y <= max(y1, y2)
+        and
+        min(x3, x4) <= intersection_x <= max(x3, x4)
+        and
+        min(y3, y4) <= intersection_y <= max(y3, y4)
+    ):
+        return (intersection_x, intersection_y)
+
+def get_rect(rect=None, **kwargs):
+    if rect is None:
+        rect = pygame.Rect((0,)*4)
+    else:
+        rect = rect.copy()
+    for key, val in kwargs.items():
+        setattr(rect, key, val)
+    return rect
+
+def mirror_rect(rect, around, **kwargs):
+    attrs = ('top', 'right', 'bottom', 'left')
+    assert around in attrs
+    opposite = attrs[(attrs.index(attrs) + 2) % len(attrs)]
+    result = rect.copy()
+    setattr(result, opposite, around)
+    for key, val in kwargs.items():
+        setattr(result, key, val)
+    return result
+
+def scaleiter(iterable, scale):
+    yield from (value * scale for value in iterable)
+
+def run(loadstate=None):
+    pygame.font.init()
+    screen = pygame.display.set_mode((800,)*2)
+    window = screen.get_rect()
+    clock = pygame.time.Clock()
+    framerate = 60
+    font = pygame.font.SysFont('monospace', 18)
+
+    get_movekeys = itemgetter(
+        pygame.K_UP,
+        pygame.K_RIGHT,
+        pygame.K_DOWN,
+        pygame.K_LEFT,
+    )
+
+    exclude = ('black', 'white', 'grey', 'gray')
+    wallcolors = [
+        name for name in pygame.color.THECOLORS
+        if not any(substr in name for substr in exclude)
+    ]
+    random.shuffle(wallcolors)
+
+    gamearea = window.inflate((-min(window.size)*0.5,)*2)
+    lines = list(rectlines(gamearea))
+
+    pencil = Pencil(
+        position = Vector(gamearea.left, gamearea.centery),
+        speed = 3,
+        velocity = Vector(),
+        rect_size = (20,)*2,
+    )
+
+    if loadstate:
+        with loadstate as state_file:
+            game = pickle.load(state_file)
+    else:
+        game = Game(
+            pencil = pencil,
+            gamearea = gamearea,
+            lines = lines,
+            walls = walls,
+        )
+
+    pencil_rect = pygame.Rect((0,)*2, (20,)*2)
+
+    running = True
+    while running:
+        elapsed = clock.tick(framerate)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    pygame.event.post(quit_event)
+                elif event.key == pygame.K_r:
+                    # shuffle wall colors
+                    random.shuffle(wallcolors)
+                elif event.key == pygame.K_s:
+                    # save state
+                    with open('drawing.pickle', 'wb') as state_file:
+                        pickle.dump(game, state_file)
+                    print('saved')
+                    # TODO
+                    # - not saving lines
+                elif event.key == pygame.K_UP and game.pencil.velocity.y <= 0:
+                    # UP
+                    game.pencil.velocity.update(0, -game.pencil.speed)
+                elif event.key == pygame.K_RIGHT and game.pencil.velocity.x >= 0:
+                    # RIGHT
+                    game.pencil.velocity.update(+game.pencil.speed, 0)
+                elif event.key == pygame.K_DOWN:
+                    # DOWN
+                    game.pencil.velocity.update(0, +game.pencil.speed)
+                elif event.key == pygame.K_LEFT and game.pencil.velocity.x <= 0:
+                    # LEFT
+                    game.pencil.velocity.update(-game.pencil.speed, 0)
+        # update
+        game.update()
+        pencil_rect.center = game.pencil.position
+
+        # draw
+        screen.fill('black')
+
+        for start, end in game.lines:
+            pygame.draw.line(screen, 'floralwhite', start, end)
+
+        if game.drawing_points:
+            lines = it.pairwise(game.drawing_points + [game.pencil.position])
+            for start, end in lines:
+                pygame.draw.line(screen, 'magenta', start, end)
+
+        # debug draw walls after lines because walls should never cover lines
+        for wall, color in zip(game.walls, wallcolors):
+            pygame.draw.rect(screen, color, wall)
+
+        # player on top
+        pygame.draw.rect(screen, 'brown', pencil_rect, 1)
+
+        # draw gui
+        text_lines = [
+            f'{game.tracing_slope=}',
+            f'{game.move_line_slope=}',
+            f'{game.drawing_points=}',
+            f'{game.pencil.is_drawing=}',
+        ]
+        images = [font.render(line, True, 'floralwhite') for line in text_lines]
+        rects = [image.get_rect(right=window.right) for image in images]
+        rects[0].bottom = window.bottom
+        for r1, r2 in pairwise(rects):
+            r2.bottom = r1.top
+        for image, rect in zip(images, rects):
+            screen.blit(image, rect)
+
+        # draw gui the lines
+        text_lines = [f'{line} {line is game.tracing}' for line in game.lines]
+        images = [font.render(line, True, 'floralwhite') for line in text_lines]
+        rects = [image.get_rect() for image in images]
+        rects[0].bottom = window.bottom
+        for r1, r2 in pairwise(rects):
+            r2.bottom = r1.top
+        for image, rect in zip(images, rects):
+            screen.blit(image, rect)
+
+        pygame.display.flip()
+
+def walls_around(rect):
+    walls = [
+        # top
+        get_rect(
+            rect,
+            width = rect.width*2,
+            midbottom = (rect.centerx, rect.top),
+        ),
+        # right
+        get_rect(
+            rect,
+            height = rect.height*2,
+            midleft = (rect.right + 1, rect.centery),
+        ),
+        # bottom
+        get_rect(
+            rect,
+            width = rect.width*2,
+            midtop = (rect.centerx, rect.bottom + 1),
+        ),
+        # left
+        get_rect(
+            rect,
+            height = rect.height*2,
+            midright = (rect.left, rect.centery),
+        ),
+    ]
+    return walls
+
+def run():
+    screen_size = (800,)*2
+    gamearea = get_rect(
+        size = tuple(scaleiter(screen_size, 0.75)),
+        center = tuple(scaleiter(screen_size, 0.5)),
+    )
+    pencil = Pencil(
+        # start in middle left
+        position = Vector(
+            gamearea.left,
+            gamearea.centery,
+        ),
+        speed = 3,
+        velocity = Vector(3,0),
+        rect_size = (20,)*2,
+    )
+    state = GameManager(
+        screen_size = screen_size,
+        game = Game(
+            gamearea = gamearea,
+            pencil = pencil,
+            line_manager = LineManager.from_rect(gamearea),
+        ),
+        pencil_renderer = PencilRenderer(),
+    )
+    engine = Engine()
+    engine.run(state)
+
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    args = parser.parse_args(argv)
+    run()
+
+if __name__ == '__main__':
+    main()
+
+# 2023-12-23
