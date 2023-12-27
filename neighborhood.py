@@ -22,11 +22,12 @@ def main(argv=None):
 
     def key(item):
         x, y = item
-        angle = math.pi - math.atan2(y, x) % math.tau
-        return angle
+        return math.atan2(-y, x)
+
+    deltas = sorted(deltas, key=key)
 
     from pprint import pprint
-    pprint([(delta, math.degrees(key(delta))) for delta in sorted(deltas, key=key)])
+    pprint([(delta, math.degrees(key(delta))) for delta in deltas])
 
 if __name__ == '__main__':
     main()
