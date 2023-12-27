@@ -16,6 +16,18 @@ from pygame import Vector2
 
 SEGMENT_DIAMETER = 32
 
+class Engine:
+
+    def __init__(self):
+        self.running = False
+
+    def run(self, state):
+        state.start(engine=self)
+        self.running = True
+        while self.running:
+            state.update(engine=self)
+
+
 class Interval:
 
     def __init__(self, threshold, elapsed=0):
@@ -85,7 +97,7 @@ class Snake:
             # grow every n moves
             if self.move_count % self.grow_moves == 0:
                 self.grow()
-            self.move()
+            self.move(elapsed)
 
     def grow(self, n=1):
         """
@@ -97,17 +109,78 @@ class Snake:
         self.body.appendleft(v)
         self.colors.appendleft(next(self.color_generator))
 
-    def move(self):
+    def move(self, elapsed):
         """
         Slither
         """
+        ms = elapsed / 1000
         for s1, s2 in pairwise(self.body):
-            s1 += s2 - s1
-        self.body[-1] += self.head_velocity * self.segment_diameter
+            s1 += (s2 - s1) * ms
+        self.body[-1] += self.head_velocity * ms
 
+        # entropy head velocity
         self.head_velocity.update(
             tuple(map(op.mul, self.head_velocity, self.velocity_entropy))
         )
+
+    def points_colors(self):
+        return zip(self.body, self.colors)
+
+
+class SnakeState:
+
+    def __init__(self, snake):
+        self.snake = snake
+        self.update_snake_images()
+
+    def update_snake_images(self):
+        self.snake_images = {}
+        for color in set(self.snake.colors):
+            image = pygame.Surface((self.snake.segment_diameter,)*2, pygame.SRCALPHA)
+            rect = image.get_rect()
+            pygame.draw.circle(image, color, rect.center, self.snake.segment_radius)
+            self.snake_images[color] = image
+
+    def start(self, engine):
+        self.screen = pygame.display.set_mode((800,)*2)
+        self.window = self.screen.get_rect()
+        self.clock = pygame.time.Clock()
+        self.framerate = 60
+        self.elapsed = None
+        self.pressed = None
+
+    def update(self, engine):
+        self.elapsed = self.clock.tick(self.framerate)
+        self.events(engine)
+        self.pressed = pygame.key.get_pressed()
+        self.update_snake(engine)
+        self.draw(engine)
+
+    def update_snake(self, engine):
+        self.snake.update(self.elapsed, self.pressed)
+        # wrap movement around window
+        for point in self.snake.body:
+            modulo_vector_ip(point, self.window)
+
+    def draw(self, engine):
+        self.screen.fill('black')
+        for point, color in self.snake.points_colors():
+            image = self.snake_images[color]
+            self.screen.blit(image, image.get_rect(center=point))
+        pygame.display.flip()
+
+    def events(self, engine):
+        for event in pygame.event.get():
+            method = getattr(self, event_methodname(event), None)
+            if method is not None:
+                method(engine, event)
+
+    def do_quit(self, engine, event):
+        engine.running = False
+
+    def do_keydown(self, engine, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygame.event.post(pygame.event.Event(pygame.QUIT))
 
 
 def pressed_key(pressed, key1, key2):
@@ -118,6 +191,10 @@ def pressed_key(pressed, key1, key2):
             return key1
         else:
             return key2
+
+def event_methodname(event, prefix='do_'):
+    name = pygame.event.event_name(event.type).lower()
+    return f'{prefix}{name}'
 
 def range_spread(origin, dist, step=1):
     return range(origin - dist, origin + dist, step)
@@ -145,18 +222,13 @@ def remap(a, b, c, d, x):
     return x*(d-c)/(b-a) + c-a*(d-c)/(b-a)
 
 def run():
-    screen = pygame.display.set_mode((800,)*2)
-    window = screen.get_rect()
-    clock = pygame.time.Clock()
-    framerate = 60
-
     # head at end of list
     xs = range_spread(
-        window.centerx,
+        0,
         15 * SEGMENT_DIAMETER,
         SEGMENT_DIAMETER,
     )
-    ys = it.repeat(window.centery // 4)
+    ys = it.repeat(0)
     snake_body = deque(map(Vector2, xs, ys))
 
     snake_colors_cycle = it.cycle(['brown1'] + ['antiquewhite3'] * 3 * 4)
@@ -164,36 +236,19 @@ def run():
 
     snake = Snake(
         body = snake_body,
-        head_velocity = Vector2(0, +1), # down
+        head_velocity = Vector2(0, +500), # down
         colors = snake_colors,
         move_interval = Interval(threshold=100, elapsed=100),
         color_generator = snake_colors_cycle,
         segment_diameter = SEGMENT_DIAMETER,
         velocity_entropy = it.repeat(0.99),
+        move_delta = 1,
+        max_velocity = 500,
     )
 
-    running = True
-    while running:
-        elapsed = clock.tick(framerate)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key in (pygame.K_ESCAPE, pygame.K_q):
-                    pygame.event.post(pygame.event.Event(pygame.QUIT))
-
-        # update
-        pressed = pygame.key.get_pressed()
-        snake.update(elapsed, pressed)
-        # wrap movement around window
-        for point in snake.body:
-            modulo_vector_ip(point, window)
-
-        # draw
-        screen.fill('black')
-        for point, color in zip(snake.body, snake.colors):
-            pygame.draw.circle(screen, color, point, snake.segment_radius)
-        pygame.display.flip()
+    state = SnakeState(snake)
+    engine = Engine()
+    engine.run(state)
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
