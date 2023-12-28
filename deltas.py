@@ -34,8 +34,16 @@ def main(argv=None):
     """
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', type=int, default=9)
-    parser.add_argument('-c', '--cardinal', action='store_true')
-    parser.add_argument('-o', '--no-origin', action='store_true')
+    parser.add_argument(
+        '-c', '--cardinal',
+        action = 'store_true',
+        help = 'Only the cardinal directions.',
+    )
+    parser.add_argument(
+        '-o', '--no-origin',
+        action = 'store_true',
+        help = 'Do not include the origin delta.'
+    )
     args = parser.parse_args(argv)
 
     # symmectrical so x,y or i,j is up to interpretation
