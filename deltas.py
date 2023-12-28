@@ -19,12 +19,9 @@ named_deltas = {
 
 delta_names = {val: key for key, val in named_deltas.items()}
 
-def logical_xor(x, y):
-    return bool(x) ^ bool(y)
-
 def anglekey(item):
     x, y = item
-    # half-pi to shift atan into 0 -> 2pi
+    # half-pi to shift range between 0 -> 2pi
     return half_pi + math.atan2(y, x)
 
 def main(argv=None):
@@ -47,22 +44,27 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     # symmectrical so x,y or i,j is up to interpretation
-    deltas = set(tuple(v-1 for v in divmod(i, 3)) for i in range(9))
+    deltas = [tuple(v-1 for v in divmod(i, 3)) for i in range(9)]
+
     reference = set(delta_names)
-    assert deltas == reference, deltas
+    assert set(deltas) == reference, deltas
 
     if args.cardinal:
-        deltas = set((x, y) for x, y in deltas if logical_xor(x, y))
-
-        if not args.no_origin:
-            # add origin back because xor removes it
-            deltas.add((0,0))
+        deltas = [(x, y) for x, y in deltas if (x == 0 or y == 0) and (x, y) != (0, 0)]
 
     if args.no_origin:
-        deltas.discard((0,0))
+        if (0,0) in deltas:
+            deltas.remove((0,0))
+
+    print('presort')
+    pprint([(delta, delta_names[delta]) for delta in deltas])
+
+    print('native x/y sorted')
+    pprint([(delta, delta_names[delta]) for delta in sorted(deltas)])
 
     deltas = sorted(deltas, key=anglekey)
 
+    print('angle sorted')
     pprint([(delta, delta_names[delta]) for delta in deltas])
 
 if __name__ == '__main__':
