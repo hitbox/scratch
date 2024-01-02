@@ -8,7 +8,20 @@ import os
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
 
-rect_corners = op.attrgetter('topleft', 'topright', 'bottomright', 'bottomleft')
+RECT_POINTS = [
+    'topleft',
+    'midtop',
+    'topright',
+    'midright',
+    'bottomright',
+    'midbottom',
+    'bottomleft',
+    'midleft',
+]
+
+RECT_CORNERS = [name for name in RECT_POINTS if 'mid' not in name]
+rect_points = op.attrgetter(*RECT_POINTS)
+rect_corners = op.attrgetter(*RECT_CORNERS)
 
 class samples:
 
@@ -30,6 +43,12 @@ def clamp(x, a, b):
     elif x > b:
         return b
     return x
+
+def mix(x, a, b):
+    return a * (1 - x) + b * x
+
+def remap(x, a, b, c, d):
+    return x*(d-c)/(b-a) + c-a*(d-c)/(b-a)
 
 def bezier(control_points, t):
     degree = len(control_points) - 1
@@ -62,13 +81,23 @@ def run():
     framerate = 60
     font = pygame.font.SysFont('monospace', 20)
 
-    control_rect = window.inflate((-300,)*2)
-    control_points = list(map(pygame.Vector2, rect_corners(control_rect)))
+    control_rect = window.inflate((-500,)*2)
+    control_points = list(map(pygame.Vector2, [
+        control_rect.bottomleft,
+        control_rect.midleft,
+        control_rect.midtop,
+        control_rect.topright,
+    ]))
+    constrain_points = [control_points[0], control_points[-1]]
     control_radius = 10
     nsamples = 24
-    point_samples = samples(500)
+    point_samples = samples(100)
+    bezier_x = control_rect.left
 
     line_points = None
+
+    _lerp_rect = window.inflate((-300,)*2)
+    lerp_line = tuple(map(pygame.Vector2, (_lerp_rect.bottomleft, _lerp_rect.bottomright)))
 
     def update_line_points():
         nonlocal line_points
@@ -106,7 +135,11 @@ def run():
                 mouse_left, mouse_middle, mouse_right = event.buttons
                 if mouse_left:
                     if dragging:
-                        dragging.update(dragging + event.rel)
+                        new = dragging + event.rel
+                        if dragging in constrain_points:
+                            new.x = clamp(new.x, control_rect.left, control_rect.right)
+                            new.y = clamp(new.y, control_rect.top, control_rect.bottom)
+                        dragging.update(new)
                         update_line_points()
                     else:
                         for control_point in control_points:
@@ -120,43 +153,40 @@ def run():
                             dragging = None
 
         screen.fill('black')
-        # draw first two and last two control points lines
-        pygame.draw.lines(screen, 'grey', True, control_points[:2])
-        pygame.draw.lines(screen, 'grey', True, control_points[-2:])
-
         # draw points moving along the curve
         point1 = bezier(control_points, point_samples.current())
         pygame.draw.circle(screen, 'coral', point1, 5)
-
-        point2 = bezier(control_points, 1 - point_samples.current())
-        pygame.draw.circle(screen, 'coral', point2, 5)
-
-        # draw tangent
-        tangent_vector = bezier_tangent(control_points, point_samples.current())
-        pygame.draw.line(screen, 'blue', point1, tangent_vector + point1)
-
-        point_samples.update()
+        rect = pygame.Rect((0,)*2, (20,)*2)
+        rect.midtop = (point1.x, control_rect.bottom)
+        pygame.draw.lines(screen, 'red', True, [rect.midtop, rect.bottomright, rect.bottomleft])
 
         # draw control points as circles
+        pygame.draw.rect(screen, 'brown', control_rect, 1)
+
+        # draw first two and last two control points lines
+        pygame.draw.line(screen, 'grey', *control_points[:2])
+        pygame.draw.line(screen, 'grey', *control_points[-2:])
         for center in control_points:
-            x = clamp(center[0], window.left, window.right)
-            y = clamp(center[1], window.top, window.bottom)
-            pygame.draw.circle(screen, 'brown', (x,y), control_radius, 1)
+            if center in constrain_points:
+                color = 'brown'
+            else:
+                color = 'magenta'
+            pygame.draw.circle(screen, color, center, control_radius, 1)
 
         # draw bezier line
         pygame.draw.lines(screen, 'orange', False, line_points)
 
+        # draw lerp line
+        pygame.draw.line(screen, 'darkred', *lerp_line)
+        bezier_y_t = remap(point1.y, control_rect.left, control_rect.right, 1, 0)
+        centerx = mix(bezier_y_t, lerp_line[0].x, lerp_line[1].x)
+        center = (centerx, lerp_line[0].y)
+        pygame.draw.circle(screen, 'darkviolet', center, 10)
+
         # gui info
         items = [
-            ('tangent_vector', tuple(f'{value:.2f}' for value in tangent_vector)),
-            ('tangent_vector.magnitude()', f'{tangent_vector.magnitude():.2f}'),
             ('nsamples', nsamples),
         ]
-        if False:
-            for i, point in enumerate(control_points):
-                items.append(
-                    (f'control_points[{i}]', point)
-                )
         keys, values = zip(*items)
 
         key_images = [font.render(str(thing), True, 'azure') for thing in keys]
@@ -181,6 +211,9 @@ def run():
             screen.blit(image, rect)
 
         pygame.display.flip()
+
+        # weird place for updates
+        point_samples.update()
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
