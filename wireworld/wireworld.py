@@ -2,6 +2,7 @@ import argparse
 import contextlib
 import enum
 import itertools as it
+import operator as op
 import os
 
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
@@ -17,7 +18,8 @@ CellState.H.color = 'blue'
 CellState.T.color = 'red'
 CellState.C.color = 'yellow'
 
-moore_offsets = [(x, y) for x, y in it.product(*it.repeat(range(-1,2), 2)) if x or y]
+deltas = [tuple(v - 1 for v in divmod(i, 3)) for i in range(9)]
+deltas.remove((0,0))
 
 def world_from_file(obj):
     """
@@ -43,7 +45,7 @@ def world_from_file(obj):
             if char in namemap
         }
         for (x, y), data in world.items():
-            for (dx, dy) in moore_offsets:
+            for (dx, dy) in deltas:
                 neighbor_position = (x + dx, y + dy)
                 if neighbor_position in world:
                     data['neighbors'].append(neighbor_position)
@@ -75,37 +77,66 @@ def step(world):
     }
     return newworld
 
+def wrap_rects(rects):
+    sides = op.attrgetter('top', 'right', 'bottom', 'left')
+    tops, rights, bottoms, lefts = zip(*map(sides, rects))
+    top = min(tops)
+    right = max(rights)
+    bottom = max(bottoms)
+    left = min(lefts)
+    width = right - left
+    height = bottom - top
+    return (left, top, width, height)
+
+def get_rect(rect=None, **kwargs):
+    if rect is None:
+        rect = pygame.Rect((0,)*4)
+    else:
+        rect = rect.copy()
+    for key, val in kwargs.items():
+        setattr(rect, key, val)
+    return rect
+
+def update_as_one(rects, **kwargs):
+    origin = pygame.Rect(wrap_rects(rects))
+    dest = get_rect(origin, **kwargs)
+    delta = pygame.Vector2(dest.topleft) - origin.topleft
+    for rect in rects:
+        rect.topleft += delta
+
 def run(world):
-    original = world
     screen = pygame.display.set_mode((512,)*2)
     window = screen.get_rect()
     clock = pygame.time.Clock()
-    step_time = 100
-    step_elapsed = 0
+    framerate = 60
+
+    scale = 22
+    cell_rects = [pygame.Rect((i*scale, j*scale), (scale,)*2) for (i, j) in world]
+    update_as_one(cell_rects, center=window.center)
+
+    def draw():
+        screen.fill('black')
+        for cell, rect in zip(world.values(), cell_rects):
+            color = cell['state'].color
+            pygame.draw.rect(screen, color, rect)
+            pygame.draw.rect(screen, 'gray', rect, 1)
+        pygame.display.flip()
+    draw()
+
+    frame = 0
     running = True
     while running:
-        elapsed = clock.tick()
+        clock.tick(framerate)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_ESCAPE, pygame.K_q):
                     pygame.event.post(pygame.event.Event(pygame.QUIT))
-        step_elapsed += elapsed
-        if step_elapsed >= step_time:
-            step_elapsed = 0
+        frame = (frame + 1) % (framerate // 8)
+        if frame == 0:
             world = step(world)
-        # draw
-        screen.fill('black')
-        scale = 20
-        for (i, j), cell in world.items():
-            screen_pos = (i * scale, j * scale)
-            color = cell['state'].color
-            rect = pygame.Rect(screen_pos, (scale, scale))
-            pygame.draw.rect(screen, color, rect)
-            pygame.draw.rect(screen, 'gray', rect, 1)
-
-        pygame.display.flip()
+            draw()
 
 def main(argv=None):
     """
