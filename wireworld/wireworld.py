@@ -53,11 +53,13 @@ def world_from_file(obj):
 
 def next_state(world, cell):
     if cell['state'] == CellState.H:
+        # H -> T
         return CellState.T
     elif cell['state'] == CellState.T:
+        # T -> C
         return CellState.C
     else:
-        # is conductor
+        # C -> H if num H neighbors equals one or two, otherwise C
         head_neighbors = sum(
             1 for neighbor_position in cell['neighbors']
             if world[neighbor_position]['state'] == CellState.H
@@ -68,14 +70,14 @@ def next_state(world, cell):
             return CellState.C
 
 def step(world):
-    newworld = {
+    new_world = {
         pos: {
             'state': next_state(world, data),
             'neighbors': data['neighbors'],
         }
         for pos, data in world.items()
     }
-    return newworld
+    return new_world
 
 def wrap_rects(rects):
     sides = op.attrgetter('top', 'right', 'bottom', 'left')
