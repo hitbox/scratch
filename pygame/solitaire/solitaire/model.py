@@ -1,7 +1,14 @@
 import itertools as it
 
 SUITS = 'HSDC'
+RANK_NAME = {
+    1: 'A',
+    11: 'J',
+    12: 'Q',
+    13: 'K',
+}
 RANKS = list(range(1,14))
+RANKS = [RANK_NAME.get(rank, rank) for rank in range(1,14)]
 
 # number of starting card in each pile
 TABLEAUS = list(range(1,8))
