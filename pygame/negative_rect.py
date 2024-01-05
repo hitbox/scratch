@@ -9,6 +9,178 @@ with contextlib.redirect_stdout(open(os.devnull, 'w')):
 
 sides = op.attrgetter('top', 'right', 'bottom', 'left')
 
+COLORS = [
+    'brown',
+    'olive',
+    'orchid',
+    'orange',
+    'turquoise',
+    'purple',
+    'salmon',
+    'olivedrab',
+    'teal',
+]
+
+FRAMERATE = 60
+
+class Engine:
+
+    def __init__(self):
+        self.running = False
+
+    def run(self, state):
+        state.start(engine=self)
+        self.running = True
+        while self.running:
+            state.update()
+
+    def stop(self):
+        self.running = False
+
+
+class Demo:
+
+    def __init__(self, scale, framerate, fontsize):
+        self.scale = scale
+        self.framerate = framerate
+        self.fontsize = fontsize
+        self.clock = pygame.time.Clock()
+
+    def start(self, engine):
+        self.engine = engine
+        self.screen = pygame.display.get_surface()
+        self.window = self.screen.get_rect()
+        self.size = self.screen.get_size()
+        self.font = pygame.font.SysFont('monospace', self.fontsize)
+
+        size = tuple(map(lambda x: x / self.scale, self.window.size))
+        self.buffer = pygame.Surface(size)
+        self.world = self.buffer.get_rect()
+        self.space = self.world.inflate((-min(self.world.size)//3,)*2)
+        self.walls = [
+            make_rect(self.space, bottom=self.space.top),
+            make_rect(self.space, left=self.space.right),
+            make_rect(self.space, top=self.space.bottom),
+            make_rect(self.space, right=self.space.left),
+        ]
+
+        refrect = self.space.inflate((-min(self.space.size)//1.25,)*2)
+        refrect.normalize()
+
+        self.draggables = [refrect.copy()]
+        self.dragging = None
+
+    def update(self):
+        # update
+        margins = list(map(
+            pygame.Rect,
+            filter(
+                lambda other: validate_inside(other, self.space),
+                margin_rects(self.draggables, self.space)
+            )
+        ))
+        # create labels
+        text_blits = []
+        for rect, color in zip(margins, COLORS):
+            pygame.draw.rect(self.buffer, color, rect, 1)
+            text = f'{rect.width}x{rect.height}={rect.width*rect.height}'
+            image = self.font.render(text, True, 'azure')
+            rect = image.get_rect(center=rect.center)
+            text_blits.append((image, rect))
+        # separate text labels
+        while True:
+            rects = list(rect for _, rect in text_blits)
+            rects += self.walls
+            if not any(r1.colliderect(r2) for r1, r2 in it.combinations(rects, 2)):
+                break
+            for r1, r2 in it.combinations(rects, 2):
+                if r1.colliderect(r2):
+                    overlap = pygame.Vector2(r1.clip(r2).size)
+                    if r1 in self.walls:
+                        r2.topleft -= overlap
+                    elif r2 in self.walls:
+                        r1.topleft -= overlap
+                    else:
+                        r1.topleft -= overlap / 2
+                        r2.topleft += overlap / 2
+        # drawing
+        self.clear_screen()
+        self.draw_draggables()
+        self.draw_margins(margins)
+        # draw text labels
+        for (image, rect), color in zip(text_blits, COLORS):
+            pygame.draw.circle(self.buffer, color, rect.center, 2)
+            self.buffer.blit(image, rect)
+        # scale and update display
+        pygame.transform.scale(self.buffer, self.window.size, self.screen)
+        pygame.display.flip()
+        for event in pygame.event.get():
+            event_name = pygame.event.event_name(event.type)
+            method_name = f'do_{event_name.lower()}'
+            method = getattr(self, method_name, None)
+            if method is not None:
+                method(event)
+        self.clock.tick(self.framerate)
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        pygame.event.post(pygame.event.Event(pygame.QUIT))
+
+    def do_mousebuttonup(self, event):
+        self.dragging = None
+
+    def do_mousebuttondown(self, event):
+        world_pos = map(lambda x: x / self.scale, event.pos)
+        for rect in self.draggables:
+            if rect.collidepoint(*world_pos):
+                self.dragging = rect
+                break
+        else:
+            self.dragging = None
+
+    def do_mousemotion(self, event):
+        if not (event.buttons[0] and self.dragging):
+            return
+        # left button down and moving
+        delta = pygame.Vector2(*map(lambda x: x / self.scale, event.rel))
+        # validate new position for margin area size
+        testrect = pygame.Rect(self.dragging.topleft + delta, self.dragging.size)
+        _margins = map(pygame.Rect, margin_rects([testrect], self.space))
+        # all areas > x and there are valid margin rects all around
+        valid_move = all(
+            validate_inside(rect, self.space) and area(rect) > 1000
+            for rect in _margins
+        )
+        if valid_move:
+            self.dragging.topleft += delta
+
+    def clear_screen(self):
+        self.buffer.fill('black')
+
+    def draw_walls(self):
+        for rect in self.walls:
+            pygame.draw.rect(self.buffer, 'lime', rect, 1)
+
+    def draw_draggables(self):
+        for rect in self.draggables:
+            pygame.draw.rect(self.buffer, 'purple4', rect, 1)
+
+    def draw_margins(self, margins):
+        for rect, color in zip(margins, COLORS):
+            pygame.draw.rect(self.buffer, color, rect, 1)
+
+
+def make_rect(rect=None, **kwargs):
+    if rect is None:
+        rect = pygame.Rect((0,)*4)
+    else:
+        rect = rect.copy()
+    for key, val in kwargs.items():
+        setattr(rect, key, val)
+    return rect
+
 def rect_from_points(x1, y1, x2, y2):
     w = x2 - x1
     h = y2 - y1
@@ -55,106 +227,6 @@ def margin_rects(rects, inside):
 def area(rect):
     return rect.width * rect.height
 
-def run(size, scale):
-    pygame.font.init()
-    width, height = size
-    screen = pygame.display.set_mode((width*scale, height*scale))
-    buffer = pygame.Surface((width, height))
-    window = buffer.get_rect()
-    clock = pygame.time.Clock()
-    framerate = 60
-    font = pygame.font.SysFont('monospace', 12)
-    space = window.inflate((-min(window.size)//3,)*2)
-    colors = [
-        'brown',
-        'olive',
-        'orchid',
-        'orange',
-        'turquoise',
-        'purple',
-        'salmon',
-        'olivedrab',
-        'teal',
-    ]
-    refrect = space.inflate((-min(space.size)//1.25,)*2)
-    refrect.normalize()
-    draggables = [refrect.copy()]
-
-    dragging = None
-    running = True
-    while running:
-        margins = list(map(
-            pygame.Rect,
-            filter(
-                lambda other: validate_inside(other, space),
-                margin_rects(draggables, space)
-            )
-        ))
-        # create labels
-        text_blits = []
-        for rect, color in zip(margins, colors):
-            pygame.draw.rect(buffer, color, rect, 1)
-            text = f'{rect.width}x{rect.height}={rect.width*rect.height}'
-            image = font.render(text, True, 'azure')
-            rect = image.get_rect(center=rect.center)
-            text_blits.append((image, rect))
-        # separate text labels
-        while True:
-            rects = list(rect for _, rect in text_blits)
-            if not any(r1.colliderect(r2) for r1, r2 in it.combinations(rects, 2)):
-                break
-            for r1, r2 in it.combinations(rects, 2):
-                if r1.colliderect(r2):
-                    overlap = pygame.Vector2(r1.clip(r2).size)
-                    r1.topleft -= overlap / 2
-                    r2.topleft += overlap / 2
-                    # TODO
-                    # - also constrain to window
-        # drawing
-        buffer.fill('black')
-        # draw draggables
-        for rect in draggables:
-            pygame.draw.rect(buffer, 'purple4', rect, 1)
-        for rect, color in zip(margins, colors):
-            pygame.draw.rect(buffer, color, rect, 1)
-        # draw text labels
-        for (image, rect), color in zip(text_blits, colors):
-            pygame.draw.circle(buffer, color, rect.center, 2)
-            buffer.blit(image, rect)
-        # scale and update display
-        pygame.transform.scale(buffer, (width*scale, height*scale), screen)
-        pygame.display.flip()
-        # events
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                pygame.event.post(pygame.event.Event(pygame.QUIT))
-            elif event.type == pygame.MOUSEBUTTONUP:
-                dragging = None
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                world_pos = map(lambda x: x / scale, event.pos)
-                for rect in draggables:
-                    if rect.collidepoint(*world_pos):
-                        dragging = rect
-                        break
-                else:
-                    dragging = None
-            elif event.type == pygame.MOUSEMOTION and event.buttons[0] and dragging:
-                # left button down and moving
-                delta = pygame.Vector2(*map(lambda x: x / scale, event.rel))
-                # validate new position for margin area size
-                testrect = pygame.Rect(dragging.topleft + delta, dragging.size)
-                _margins = map(pygame.Rect, margin_rects([testrect], space))
-                # all areas > x and there are valid margin rects all around
-                valid_move = all(
-                    validate_inside(rect, space) and area(rect) > 1000
-                    for rect in _margins
-                )
-                if valid_move:
-                    dragging.topleft += delta
-        clock.tick(framerate)
-
 def size_type(string):
     return tuple(map(int, string.replace(',', ' ').split()))
 
@@ -163,7 +235,15 @@ def main(argv=None):
     parser.add_argument('--size', type=size_type, default='320 240')
     parser.add_argument('--scale', type=int, default='2')
     args = parser.parse_args(argv)
-    run(args.size, args.scale)
+
+    width, height = args.size
+
+    pygame.font.init()
+    screen = pygame.display.set_mode((width*args.scale, height*args.scale))
+
+    state = Demo(args.scale, FRAMERATE, 18)
+    engine = Engine()
+    engine.run(state)
 
 if __name__ == '__main__':
     main()
