@@ -88,21 +88,28 @@ class Demo:
             rect = image.get_rect(center=rect.center)
             text_blits.append((image, rect))
         # separate text labels
-        while True:
+        for _ in range(1):
             rects = list(rect for _, rect in text_blits)
             rects += self.walls
-            if not any(r1.colliderect(r2) for r1, r2 in it.combinations(rects, 2)):
+            overlaps = [
+                (r1, r2, r1.clip(r2))
+                for r1, r2 in it.combinations(rects, 2)
+                if r1.colliderect(r2)
+            ]
+            if not any(overlaps):
                 break
-            for r1, r2 in it.combinations(rects, 2):
-                if r1.colliderect(r2):
-                    overlap = pygame.Vector2(r1.clip(r2).size)
-                    if r1 in self.walls:
-                        r2.topleft -= overlap
-                    elif r2 in self.walls:
-                        r1.topleft -= overlap
-                    else:
-                        r1.topleft -= overlap / 2
-                        r2.topleft += overlap / 2
+            for r1, r2, overlap in overlaps:
+                direction = pygame.Vector2(r2.center) - pygame.Vector2(r1.center)
+                direction.normalize()
+                overlap = pygame.Vector2(overlap.size)
+                move = pygame.Vector2(overlap * direction)
+                if r1 in self.walls:
+                    r2.topleft -= move
+                elif r2 in self.walls:
+                    r1.topleft -= move
+                else:
+                    r1.topleft -= move / 2
+                    r2.topleft += move / 2
         # drawing
         self.clear_screen()
         self.draw_draggables()
