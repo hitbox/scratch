@@ -3,7 +3,6 @@ import contextlib
 import itertools as it
 import os
 import random
-import string
 
 from operator import attrgetter
 
@@ -11,6 +10,8 @@ with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
 
 colorfuls = list(it.product((255,0), repeat=3))
+
+sides = attrgetter('top', 'right', 'bottom', 'left')
 
 class RectDraw:
 
@@ -69,26 +70,40 @@ def overlap(a, b):
     height = bottom - top
     return pygame.Rect(left, top, width, height)
 
-def generate_rects(n, draw_rects, spawn, side):
-    random.shuffle(colorfuls)
-    colors = it.cycle(colorfuls)
-    mindim = side // 4
-    while len(draw_rects) < n:
-        color = next(colors)
-        width = random.randint(-side, side)
-        height = random.randint(-side, side)
-        if (
-            abs(width) > mindim
-            and abs(height) > mindim
-            and width * height > mindim
-        ):
-            rect = pygame.Rect((0,)*2, (width,height))
-            rect.normalize()
-            x = random.randint(spawn.left, spawn.right)
-            y = random.randint(spawn.top, spawn.bottom)
-            rect.center = (x, y)
-            draw_rect = RectDraw(rect, color=color)
-            draw_rects.append(draw_rect)
+def random_point(rect):
+    top, right, bottom, left = sides(rect)
+    return (
+        random.randint(left, right),
+        random.randint(top, bottom)
+    )
+
+def random_rect(inside):
+    top, right, bottom, left = sides(inside)
+    _left, _right = sorted(random.randint(left, right) for _ in range(2))
+    _top, _bottom = sorted(random.randint(top, bottom) for _ in range(2))
+    width = _right - _left
+    height = _bottom - _top
+    return (_left, _top, width, height)
+
+def is_position_event(event):
+    return (
+        (
+            event.type == pygame.MOUSEMOTION
+            and
+            event.buttons[0]
+        )
+        or
+        (
+            event.type == pygame.MOUSEBUTTONDOWN
+            and
+            event.button == pygame.BUTTON_LEFT
+        )
+    )
+
+def iter_overlaps(rect, others):
+    for other_rect in others:
+        if other_rect is not rect and other_rect.colliderect(rect):
+            yield (other_rect, other_rect.clip(rect))
 
 def run(args):
     "Interactive overlapping rect demo"
@@ -99,7 +114,7 @@ def run(args):
     screen = pygame.display.set_mode((800,)*2)
     background = screen.copy()
     frame = screen.get_rect()
-    side = min(frame.size)//2
+    side = min(frame.size)//4
     spawn = frame.inflate((-side,)*2)
 
     help_lines = (
@@ -119,14 +134,26 @@ def run(args):
         pygame.Rect((0,)*2, (200,100)),
         color='magenta',
     )
+    knife.rect.center = pygame.mouse.get_pos()
 
     nrects = 2
-    draw_rects = None
+    draw_rects = []
+    random.shuffle(colorfuls)
+    colors = it.cycle(colorfuls)
 
     def genrects():
-        nonlocal draw_rects
-        draw_rects = [knife]
-        generate_rects(nrects, draw_rects, spawn, side=side)
+        draw_rects.clear()
+        draw_rects.append(knife)
+        while len(draw_rects) < nrects:
+            for _ in range(10):
+                rect = pygame.Rect(random_rect(spawn))
+                if not any(rect.colliderect(draw_rect.rect) for draw_rect in draw_rects):
+                    color = next(colors)
+                    draw_rect = RectDraw(rect, color=color)
+                    draw_rects.append(draw_rect)
+                    break
+            else:
+                draw_rects.pop()
 
     genrects()
     frame = 0
@@ -149,6 +176,7 @@ def run(args):
                 elif event.key == pygame.K_SPACE:
                     # rotate
                     knife.rect.size = (knife.rect.height, knife.rect.width)
+                    knife.rect.center = pygame.mouse.get_pos()
                 elif event.key == pygame.K_a:
                     nrects += 1
                     genrects()
@@ -156,13 +184,13 @@ def run(args):
                     if nrects > 2:
                         nrects -= 1
                         genrects()
-        # update
-        b1, b2, b3 = pygame.mouse.get_pressed()
-        if b1:
-            knife.rect.center = pygame.mouse.get_pos()
+            elif is_position_event(event):
+                knife.rect.center = event.pos
         # draw
         screen.blit(background, (0,)*2)
+
         # draw rects and collect overlaps
+
         overlapping = []
         for draw_rect in draw_rects:
             color = draw_rect.style.get('color', 'magenta')
