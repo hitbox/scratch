@@ -8,15 +8,9 @@ with contextlib.redirect_stdout(open(os.devnull, 'w')):
 
 class Line:
 
-    def __init__(self, start=None, end=None, color=None):
-        if start is None:
-            start = (0, 0)
+    def __init__(self, start, end, color):
         self.start = start
-        if end is None:
-            end = (0, 0)
         self.end = end
-        if color is None:
-            color = 'magenta'
         self.color = color
 
     def __iter__(self):
@@ -32,8 +26,6 @@ class Camera:
         x = -min(size) // 2
         self.focus = self.view.inflate(x, x)
         self.focus.center = self.position
-        # TODO
-        # - trying to make the focus rect appear on screen where it should.
 
     def to_world(self, point):
         return self.position + point
@@ -76,6 +68,8 @@ class DemoData:
 
     def __init__(self):
         self.player = RectSprite((32,)*2, 'red')
+        self.player_speed = 2
+        self.cam_speed = 2
         self.lines = []
         self.newline_start = None
 
@@ -131,6 +125,31 @@ class DemoScene(EventMixin):
         # update state and draw
         elapsed = self.clock.tick(self.frames_per_second)
         mouse_pos = pygame.mouse.get_pos()
+        pressed = pygame.key.get_pressed()
+        player = self.data.player
+        camera = self.camera
+
+        if pressed[pygame.K_LEFT]:
+            player.position.x -= self.data.player_speed
+        if pressed[pygame.K_RIGHT]:
+            player.position.x += self.data.player_speed
+        if pressed[pygame.K_UP]:
+            player.position.y -= self.data.player_speed
+        if pressed[pygame.K_DOWN]:
+            player.position.y += self.data.player_speed
+
+        # TODO
+        # - moving camera appears to move player
+        if pressed[pygame.K_a]:
+            camera.position.x -= self.data.cam_speed
+        if pressed[pygame.K_d]:
+            camera.position.x += self.data.cam_speed
+        if pressed[pygame.K_w]:
+            camera.position.y -= self.data.cam_speed
+        if pressed[pygame.K_s]:
+            camera.position.y += self.data.cam_speed
+
+        player.update()
         self.camera.update(elapsed)
         # draw
         self.screen.fill('black')
@@ -145,16 +164,16 @@ class DemoScene(EventMixin):
         # draw camera
         pygame.draw.rect(self.screen, 'magenta', self.camera.focus_as_screen(), 1)
         # draw ui
-        cam = self.camera
         text_lines = [
-            f'{cam.view=}',
-            f'{cam.focus=}',
-            f'{cam.position=}',
+            f'{camera.view=}',
+            f'{camera.focus=}',
+            f'{camera.position=}',
+            f'{player.position=}',
         ]
         images = [self.ui_font.render(line, True, 'azure') for line in text_lines]
         rects = list(map(pygame.Surface.get_rect, images))
         rects[0].bottomright = self.window.bottomright
-        setpairattr(rects, 'bottomright', 'topright')
+        pairwise_setattr(rects, 'bottomright', 'topright')
         for image, rect in zip(images, rects):
             self.screen.blit(image, rect)
         # draw cursor
@@ -162,7 +181,7 @@ class DemoScene(EventMixin):
         pygame.display.flip()
 
 
-def setpairattr(items, sattr, gattr):
+def pairwise_setattr(items, sattr, gattr):
     for i1, i2 in zip(items, items[1:]):
         setattr(i2, sattr, getattr(i1, gattr))
 
@@ -182,7 +201,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     args = parser.parse_args(argv)
 
-    pygame.display.set_mode((512,)*2)
+    pygame.display.set_mode((800,)*2)
     pygame.font.init()
 
     scene = DemoScene()
