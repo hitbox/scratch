@@ -55,11 +55,9 @@ def margin_rects(rects, inside):
 def area(rect):
     return rect.width * rect.height
 
-def run():
+def run(size, scale):
     pygame.font.init()
-    width = 300
-    height = 200
-    scale = 4
+    width, height = size
     screen = pygame.display.set_mode((width*scale, height*scale))
     buffer = pygame.Surface((width, height))
     window = buffer.get_rect()
@@ -85,13 +83,13 @@ def run():
     dragging = None
     running = True
     while running:
-        margins = map(
+        margins = list(map(
             pygame.Rect,
             filter(
                 lambda other: validate_inside(other, space),
                 margin_rects(draggables, space)
             )
-        )
+        ))
         # create labels
         text_blits = []
         for rect, color in zip(margins, colors):
@@ -117,6 +115,8 @@ def run():
         # draw draggables
         for rect in draggables:
             pygame.draw.rect(buffer, 'purple4', rect, 1)
+        for rect, color in zip(margins, colors):
+            pygame.draw.rect(buffer, color, rect, 1)
         # draw text labels
         for (image, rect), color in zip(text_blits, colors):
             pygame.draw.circle(buffer, color, rect.center, 2)
@@ -155,10 +155,15 @@ def run():
                     dragging.topleft += delta
         clock.tick(framerate)
 
+def size_type(string):
+    return tuple(map(int, string.replace(',', ' ').split()))
+
 def main(argv=None):
     parser = argparse.ArgumentParser()
+    parser.add_argument('--size', type=size_type, default='320 240')
+    parser.add_argument('--scale', type=int, default='2')
     args = parser.parse_args(argv)
-    run()
+    run(args.size, args.scale)
 
 if __name__ == '__main__':
     main()
