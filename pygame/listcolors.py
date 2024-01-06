@@ -5,6 +5,8 @@ import os
 import random
 import re
 
+from pprint import pprint
+
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
 
@@ -94,6 +96,8 @@ def sort_key(args):
 def main(argv=None):
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--print', action='store_true')
+
     filtering_group = parser.add_mutually_exclusive_group()
     filtering_group.add_argument('--exclude')
     filtering_group.add_argument('--colorful', action='store_true')
@@ -125,6 +129,8 @@ def main(argv=None):
     elif any([args.cmy, args.hsl, args.hsv, args.rgb, args.hue]):
         colors = sorted(colors, key=sort_key(args))
 
+    if args.print:
+        pprint([key for key, _ in colors])
     gui(colors)
 
 if __name__ == '__main__':
