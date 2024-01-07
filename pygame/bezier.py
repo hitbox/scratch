@@ -5,6 +5,8 @@ import math
 import operator as op
 import os
 
+from collections import deque
+
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
 
@@ -22,6 +24,114 @@ RECT_POINTS = [
 RECT_CORNERS = [name for name in RECT_POINTS if 'mid' not in name]
 rect_points = op.attrgetter(*RECT_POINTS)
 rect_corners = op.attrgetter(*RECT_CORNERS)
+
+class Engine:
+
+    def __init__(self):
+        self.running = False
+
+    def run(self, state):
+        state.start(self)
+        self.running = True
+        while self.running:
+            state.update()
+
+    def stop(self):
+        self.running = False
+
+
+class DemoPath:
+
+    def __init__(self, path, nsamples):
+        self.path = path
+        self.nsamples = nsamples
+
+    def start(self, engine):
+        self.engine = engine
+        self.screen = pygame.display.get_surface()
+        self.window = self.screen.get_rect()
+        self.clock = pygame.time.Clock()
+        self.framerate = 60
+        self.elapsed = None
+
+        self.path_index = 0
+        self.path_time = 0
+        self.lines = [
+            path_item.point_at(t / self.nsamples)
+            for path_item in self.path
+            for t in range(self.nsamples)
+        ]
+
+    def update(self):
+        self.elapsed = self.clock.tick(self.framerate)
+        self.events()
+        path_item = self.path[self.path_index]
+        point = path_item.point_at(self.path_time / self.nsamples)
+
+        self.screen.fill('black')
+        pygame.draw.lines(self.screen, 'blue', False, self.lines)
+        pygame.draw.circle(self.screen, 'red', point, 10)
+        pygame.display.flip()
+
+        if self.path_time + 1 == self.nsamples:
+            self.path_time = 0
+            self.path_index = (self.path_index + 1) % len(self.path)
+        else:
+            self.path_time += 1
+
+    def events(self):
+        for event in pygame.event.get():
+            event_name = pygame.event.event_name(event.type)
+            method_name = 'do_' + event_name.lower()
+            method = getattr(self, method_name, None)
+            if method is not None:
+                method(event)
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygame.event.post(pygame.event.Event(pygame.QUIT))
+
+
+class move_absolute:
+
+    def __init__(self, start, end):
+        self.start = start
+        self.end = end
+
+    def __repr__(self):
+        return f'M({self.start}, {self.end})'
+
+    def endpoint(self):
+        return self.end
+
+    def point_at(self, time):
+        a = pygame.Vector2(self.start)
+        b = pygame.Vector2(self.end)
+        return mix(time, a, b)
+
+
+class cubic_curve_absolute:
+
+    def __init__(self, p1, c1, c2, p2):
+        self.p1 = p1
+        self.c1 = c1
+        self.c2 = c2
+        self.p2 = p2
+
+    def __repr__(self):
+        return f'C({self.p1}, {self.c1}, {self.c2}, {self.p2})'
+
+    def endpoint(self):
+        return self.p2
+
+    def point_at(self, time):
+        points = (self.p1, self.c1, self.c2, self.p2)
+        control_points = list(map(pygame.Vector2, points))
+        return bezier(control_points, time)
+
 
 class samples:
 
@@ -215,10 +325,47 @@ def run():
         # weird place for updates
         point_samples.update()
 
+def parse_path(string):
+    path = []
+    items = deque(string.split())
+
+    def take(n):
+        for _ in range(n):
+            yield items.popleft()
+
+    while items:
+        command = items.popleft()
+        if command in 'M':
+            if path:
+                start = path[-1].endpoint()
+            else:
+                start = (0,)*2
+            end = tuple(map(int, take(2)))
+            path.append(move_absolute(start, end))
+        elif command in 'C':
+            if path:
+                start = path[-1].endpoint()
+            else:
+                start = (0,)*2
+            # take two, three times
+            args = (tuple(map(int, take(2))) for _ in range(3))
+            path.append(cubic_curve_absolute(start, *args))
+    return path
+
 def main(argv=None):
     parser = argparse.ArgumentParser()
+    parser.add_argument('path')
+    parser.add_argument('--samples', type=int, default=100)
     args = parser.parse_args(argv)
-    run()
+
+    path = parse_path(args.path)
+
+    state = DemoPath(path, args.samples)
+    engine = Engine()
+
+    pygame.display.set_mode((800,)*2)
+
+    engine.run(state)
 
 if __name__ == '__main__':
     main()
