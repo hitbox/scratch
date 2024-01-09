@@ -1,5 +1,7 @@
 import argparse
+import collections as coll
 import itertools as it
+import math
 import random
 import re
 
@@ -11,42 +13,46 @@ from pygamelib import pygame
 
 from pygame.color import THECOLORS
 
-def get_blitables(font, window, color_items):
-    text_sizes = (font.size(name) for name, _ in color_items)
-    text_size = pygame.Vector2(*map(max, zip(*text_sizes)))
-    text_size.x *= 2
-    text_size.y *= 3
+def render_color(font, color, name, scale):
+    size = pygame.Vector2(font.size(name)).elementwise() * scale
+    image = pygame.Surface(tuple(size), pygame.SRCALPHA)
+    image.fill(color)
+    rect = image.get_rect()
+    text = font.render(name, True, 'white', color.lerp('black', 0.50))
+    image.blit(text, text.get_rect(center=rect.center))
+    return image
 
-    images = [pygame.Surface(text_size, pygame.SRCALPHA) for _ in color_items]
-    rects = [image.get_rect() for image in images]
-    text_background = pygame.Color(0,0,0,20)
-    for image, rect, (name, color) in zip(images, rects, color_items):
+def get_blitables(font, window, colors, gap=0, scale=1):
+    names = list(map(pygamelib.color_name, colors))
+    sizes = zip(*map(font.size, names))
+    text_size = pygame.Vector2(*map(max, sizes))
+    text_size *= scale
+
+    images = (pygame.Surface(text_size, pygame.SRCALPHA) for _ in colors)
+    for image, color, name in zip(images, colors, names):
+        rect = image.get_rect()
         color = pygame.Color(color)
         image.fill(color)
-        text = font.render(name, True, 'white', color.lerp((0,0,0), 0.25))
+        text = font.render(name, True, 'white', color.lerp('black', 0.50))
         image.blit(text, text.get_rect(center=rect.center))
+        yield (image, rect)
 
-    rects[0].midtop = window.midtop
-    for r1, r2 in it.pairwise(rects):
-        r2.midtop = (r1.centerx, r1.bottom + 10)
-
-    return zip(images, rects)
-
-def gui(colors):
-    color_items = [(color, pygamelib.color_name(color)) for color in colors]
+def gui(colors, names):
+    assert len(colors) == len(names)
     pygame.font.init()
     screen = pygame.display.set_mode((800,)*2)
     window = screen.get_rect()
     clock = pygame.time.Clock()
-    font = pygame.font.SysFont('monospace', 24)
+    font = pygame.font.SysFont('monospace', 20)
 
-    blitables = list(get_blitables(font, window, color_items))
-    max_bottom = max(rect.bottom for _, rect in blitables)
+    ncols = math.isqrt(len(colors)) // 4
 
-    offset = pygame.Vector2((0,-max_bottom // 2 - window.height // 2))
+    sizes = list(map(pygame.Vector2, map(font.size, names)))
+    images = [render_color(font, color, name, (1.25, 4)) for name, color in zip(names, colors)]
+    rects = [image.get_rect() for image in images]
+    pygamelib.arrange_columns(rects, ncols, 'centerx', 'centery')
 
-    y_speed = max(rect.height for image, rect in blitables) * 2
-
+    offset = pygame.Vector2()
     framerate = 60
     elapsed = 0
     running = True
@@ -57,10 +63,15 @@ def gui(colors):
             elif event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_ESCAPE, pygame.K_q):
                     pygame.event.post(pygame.event.Event(pygame.QUIT))
-            elif event.type == pygame.MOUSEWHEEL:
-                offset.y += event.y * y_speed
+            elif event.type == pygame.MOUSEMOTION:
+                if event.buttons[0]:
+                    offset += event.rel
+        mouse_buttons = pygame.mouse.get_pressed()
+        if mouse_buttons[0]:
+            x, y = pygame.mouse.get_pos()
+            pygame.mouse.set_pos(x % window.width, y % window.height)
         screen.fill('black')
-        for image, rect in blitables:
+        for image, rect in zip(images, rects):
             screen.blit(image, offset + rect.topleft)
         pygame.display.flip()
         elapsed = clock.tick(framerate)
@@ -89,7 +100,9 @@ def main(argv=None):
             def exclude(name):
                 return not pygamelib.interesting_color(name)
 
-    colors = [name for name, color in THECOLORS.items() if not exclude(name)]
+    items = ((name, color) for name, color in THECOLORS.items() if not exclude(name))
+    names, colors = zip(*items)
+    colors = list(map(pygame.Color, colors))
 
     if args.shuffle:
         random.shuffle(colors)
@@ -103,7 +116,7 @@ def main(argv=None):
 
     if args.print:
         pprint([key for key, _ in colors])
-    gui(colors)
+    gui(colors, names)
 
 if __name__ == '__main__':
     main()
