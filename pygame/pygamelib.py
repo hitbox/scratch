@@ -1,5 +1,6 @@
 import contextlib
 import itertools as it
+import math
 import operator as op
 import os
 
@@ -74,6 +75,16 @@ def maxsides(*rects):
     """
     return aggsides(max, *rects)
 
+def wrap(rects):
+    tops, rights, bottoms, lefts = zip(*map(sides, rects))
+    x = min(lefts)
+    y = min(tops)
+    right = max(rights)
+    bottom = max(bottoms)
+    width = right - x
+    height = bottom - y
+    return (x, y, width, height)
+
 def iter_rect_diffs(rect, inside):
     """
     Generate eight rects resulting from "subtracting" `rect` from `inside`.
@@ -125,6 +136,13 @@ points = op.attrgetter(*POINTS)
 
 sides = op.attrgetter(*SIDES)
 
+def sides(rect):
+    # overwrite to remain compatible with four-tuple rects
+    left, top, w, h = rect
+    right = left + w
+    bottom = top + h
+    return (top, right, bottom, left)
+
 class MethodName:
     """
     Callable to create a method name from a pygame event.
@@ -146,6 +164,9 @@ def dispatch(obj, event):
         method(event)
 
 default_methodname = MethodName(prefix='do_')
+
+def quit():
+    pygame.event.post(pygame.event.Event(pygame.QUIT))
 
 class Engine:
 
@@ -203,3 +224,56 @@ def interesting_color(color):
     """
     color = pygame.Color(color)
     return len(set(color[:3])) != 1
+
+def enumerate_grid(iterable, ncols):
+    for index, item in enumerate(iterable):
+        j, i = divmod(index, ncols)
+        yield ((i, j), item)
+
+def select_row(items, ncols, row):
+    for (i, j), item in enumerate_grid(items, ncols):
+        if j == row:
+            yield item
+
+def select_col(items, ncols, col):
+    for (i, j), item in enumerate_grid(items, ncols):
+        if i == col:
+            yield item
+
+def flow_leftright(rects):
+    for r1, r2 in it.pairwise(rects):
+        r2.left = r1.right
+
+def flow_topbottom(rects):
+    for r1, r2 in it.pairwise(rects):
+        r2.top = r1.bottom
+
+def arrange_columns(rects, ncols, colattr, rowattr):
+    # TODO
+    # - (row, col) may be more intuitive and easier in the programming
+
+    # pygame.Rect is unhashable
+    nrows = math.ceil(len(rects) / ncols)
+
+    row_rects = [list(select_row(rects, ncols, row)) for row in range(nrows)]
+    col_rects = [list(select_col(rects, ncols, col)) for col in range(ncols)]
+
+    col_wraps = list(map(pygame.Rect, map(wrap, col_rects)))
+    row_wraps = list(map(pygame.Rect, map(wrap, row_rects)))
+
+    flow_leftright(col_wraps)
+    flow_topbottom(row_wraps)
+
+    for column, _rects in zip(col_wraps, col_rects):
+        for rect in _rects:
+            setattr(rect, colattr, getattr(column, colattr))
+
+    for row, _rects in zip(row_wraps, row_rects):
+        for rect in _rects:
+            setattr(rect, rowattr, getattr(row, rowattr))
+
+def make_blitables_from_font(lines, font, color, antialias=True):
+    images = [font.render(line, antialias, color) for line in lines]
+    rects = [image.get_rect() for image in images]
+    flow_topbottom(rects)
+    return zip(images, rects)
