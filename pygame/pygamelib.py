@@ -3,6 +3,7 @@ import itertools as it
 import math
 import operator as op
 import os
+import unittest
 
 # silence and import pygame
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
@@ -11,6 +12,38 @@ with contextlib.redirect_stdout(open(os.devnull, 'w')):
 # clean up namespace
 del contextlib
 del os
+
+class TestGroupbyColumns(unittest.TestCase):
+
+    def test_vs_sloppy(self):
+        # testing newer groupby columns function against older working one
+        items = 'abcdabcdabcd'
+        ncols = 5
+        result1 = groupby_columns(items, ncols)
+        result2 = groupby_columns_reference(items, ncols)
+        self.assertEqual(result1, result2)
+
+
+def intargs(string):
+    return map(int, string.replace(',', ' ').split())
+
+class sizetype:
+
+    def __init__(self, n=2):
+        self.n = n
+
+    def __call__(self, string):
+        size = tuple(intargs(string))
+        while len(size) < self.n:
+            size += size
+        return size
+
+
+def rect_type(string):
+    """
+    pygame Rect arguments as from command line or text file.
+    """
+    return pygame.Rect(*intargs(string))
 
 def is_point_name(name):
     """
@@ -225,21 +258,6 @@ def interesting_color(color):
     color = pygame.Color(color)
     return len(set(color[:3])) != 1
 
-def enumerate_grid(iterable, ncols):
-    for index, item in enumerate(iterable):
-        j, i = divmod(index, ncols)
-        yield ((i, j), item)
-
-def select_row(items, ncols, row):
-    for (i, j), item in enumerate_grid(items, ncols):
-        if j == row:
-            yield item
-
-def select_col(items, ncols, col):
-    for (i, j), item in enumerate_grid(items, ncols):
-        if i == col:
-            yield item
-
 def flow_leftright(rects):
     for r1, r2 in it.pairwise(rects):
         r2.left = r1.right
@@ -248,29 +266,80 @@ def flow_topbottom(rects):
     for r1, r2 in it.pairwise(rects):
         r2.top = r1.bottom
 
+def enumerate_grid(iterable, ncols):
+    for index, item in enumerate(iterable):
+        rowcol = divmod(index, ncols)
+        yield (rowcol, item)
+
+def select_row(items, ncols, row):
+    for (j, i), item in enumerate_grid(items, ncols):
+        if j == row:
+            yield item
+
+def select_col(items, ncols, col):
+    for (j, i), item in enumerate_grid(items, ncols):
+        if i == col:
+            yield item
+
+def sorted_groupby(iterable, key=None, reverse=False):
+    """
+    Convenience for sorting and then grouping.
+    """
+    return it.groupby(sorted(iterable, key=key, reverse=reverse), key=key)
+
+def groupby_columns_reference(items, ncols):
+    # the original effort that worked
+    nrows = math.ceil(len(items) / ncols)
+    rows = [list(select_row(items, ncols, row)) for row in range(nrows)]
+    cols = [list(select_col(items, ncols, col)) for col in range(ncols)]
+    return (rows, cols)
+
+def groupby_columns(items, ncols):
+    # two tuples matched by index to items
+    def rowcol(index):
+        return divmod(index, ncols)
+
+    rows, cols = zip(*map(rowcol, range(len(items))))
+
+    # NOTE
+    # - must consider duplicate items
+    # - would like to do something like `list.index(item)` for the key func but
+    #   it returns the first match
+    # - so keep the item and row or col indexes together and strip them later.
+    first = op.itemgetter(0)
+    rows = sorted_groupby(zip(rows, items), key=first)
+    cols = sorted_groupby(zip(cols, items), key=first)
+
+    # consume groupings, ignorning key, and then stripping the key associated
+    # with items off
+    rows = [[item for _, item in group] for _, group in rows]
+    cols = [[item for _, item in group] for _, group in cols]
+
+    return (rows, cols)
+
 def arrange_columns(rects, ncols, colattr, rowattr):
-    # TODO
-    # - (row, col) may be more intuitive and easier in the programming
+    """
+    :param rects: update rects arranged in a grid
+    :param ncols: number of columns
+    :param colattr: attribute to align rects in columns
+    :param rowattr: attribute to align rects in rows
+    """
+    row_rects, col_rects = groupby_columns(rects, ncols)
 
-    # pygame.Rect is unhashable
-    nrows = math.ceil(len(rects) / ncols)
-
-    row_rects = [list(select_row(rects, ncols, row)) for row in range(nrows)]
-    col_rects = [list(select_col(rects, ncols, col)) for col in range(ncols)]
-
-    col_wraps = list(map(pygame.Rect, map(wrap, col_rects)))
     row_wraps = list(map(pygame.Rect, map(wrap, row_rects)))
+    col_wraps = list(map(pygame.Rect, map(wrap, col_rects)))
 
-    flow_leftright(col_wraps)
     flow_topbottom(row_wraps)
+    flow_leftright(col_wraps)
+
+    # align item rects inside their cells
+    for row, _rects in zip(row_wraps, row_rects):
+        for rect in _rects:
+            setattr(rect, rowattr, getattr(row, rowattr))
 
     for column, _rects in zip(col_wraps, col_rects):
         for rect in _rects:
             setattr(rect, colattr, getattr(column, colattr))
-
-    for row, _rects in zip(row_wraps, row_rects):
-        for rect in _rects:
-            setattr(rect, rowattr, getattr(row, rowattr))
 
 def make_blitables_from_font(lines, font, color, antialias=True):
     images = [font.render(line, antialias, color) for line in lines]
