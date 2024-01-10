@@ -1,44 +1,13 @@
 import argparse
-import contextlib
 import itertools as it
 import math
 import operator as op
-import os
 
 from collections import deque
 
-with contextlib.redirect_stdout(open(os.devnull, 'w')):
-    import pygame
+import pygamelib
 
-RECT_POINTS = [
-    'topleft',
-    'midtop',
-    'topright',
-    'midright',
-    'bottomright',
-    'midbottom',
-    'bottomleft',
-    'midleft',
-]
-
-RECT_CORNERS = [name for name in RECT_POINTS if 'mid' not in name]
-rect_points = op.attrgetter(*RECT_POINTS)
-rect_corners = op.attrgetter(*RECT_CORNERS)
-
-class Engine:
-
-    def __init__(self):
-        self.running = False
-
-    def run(self, state):
-        state.start(self)
-        self.running = True
-        while self.running:
-            state.update()
-
-    def stop(self):
-        self.running = False
-
+from pygamelib import pygame
 
 class DemoPath:
 
@@ -81,11 +50,7 @@ class DemoPath:
 
     def events(self):
         for event in pygame.event.get():
-            event_name = pygame.event.event_name(event.type)
-            method_name = 'do_' + event_name.lower()
-            method = getattr(self, method_name, None)
-            if method is not None:
-                method(event)
+            pygamelib.dispatch(self, event)
 
     def do_quit(self, event):
         self.engine.stop()
@@ -361,7 +326,7 @@ def main(argv=None):
     path = parse_path(args.path)
 
     state = DemoPath(path, args.samples)
-    engine = Engine()
+    engine = pygamelib.Engine()
 
     pygame.display.set_mode((800,)*2)
 
