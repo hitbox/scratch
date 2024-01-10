@@ -169,6 +169,9 @@ points = op.attrgetter(*POINTS)
 
 sides = op.attrgetter(*SIDES)
 
+def rects(images, **kwargs):
+    return map(op.methodcaller('get_rect'), images, **kwargs)
+
 def sides(rect):
     # overwrite to remain compatible with four-tuple rects
     left, top, w, h = rect
@@ -190,16 +193,22 @@ class MethodName:
         return method_name
 
 
+default_methodname = MethodName(prefix='do_')
+
 def dispatch(obj, event):
     method_name = default_methodname(event)
     method = getattr(obj, method_name, None)
     if method is not None:
         method(event)
 
-default_methodname = MethodName(prefix='do_')
+def _post(event_type):
+    pygame.event.post(pygame.event.Event(event_type))
 
-def quit():
-    pygame.event.post(pygame.event.Event(pygame.QUIT))
+def post_quit():
+    _post(pygame.QUIT)
+
+def post_videoexpose():
+    _post(pygame.VIDEOEXPOSE)
 
 class Engine:
 
@@ -216,6 +225,47 @@ class Engine:
         self.running = False
 
 
+class BrowseBase:
+    """
+    Convenience state to display blitables, drag to move, and quit cleanly.
+    """
+
+    def start(self, engine):
+        self.engine = engine
+        self.screen = pygame.display.get_surface()
+        self.window = self.screen.get_rect()
+        self.clock = pygame.time.Clock()
+        self.framerate = 60
+        if not hasattr(self, 'offset'):
+            self.offset = pygame.Vector2()
+
+    def update(self):
+        self.clock.tick(self.framerate)
+        for event in pygame.event.get():
+            dispatch(self, event)
+
+    @property
+    def blits(self):
+        return ((image, rect.topleft - self.offset) for image, rect in self._blits)
+
+    def do_videoexpose(self, event):
+        self.screen.fill('black')
+        self.screen.blits(self.blits)
+        pygame.display.flip()
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            post_quit()
+
+    def do_mousemotion(self, event):
+        if event.buttons[0]:
+            self.offset -= event.rel
+            post_videoexpose()
+
+
 class ColorSpace:
     """
     Convenience to get one of the space representations of a pygame color,
@@ -227,11 +277,14 @@ class ColorSpace:
 
     def __init__(self, space):
         assert space in self.spaces
-
-        attr = space
-        if space in ('hsl', 'hsv'):
-            attr += 'a'
-        self.get_attr = op.attrgetter(attr)
+        if space == 'rgb':
+            # for whatever reason these are all separate in pygame.Color
+            self.get_attr = op.attrgetter(*space)
+        else:
+            attr = space
+            if space in ('hsl', 'hsv'):
+                attr += 'a'
+            self.get_attr = op.attrgetter(attr)
 
     def __call__(self, color):
         color = pygame.Color(color)
@@ -258,13 +311,13 @@ def interesting_color(color):
     color = pygame.Color(color)
     return len(set(color[:3])) != 1
 
-def flow_leftright(rects):
+def flow_leftright(rects, gap=0):
     for r1, r2 in it.pairwise(rects):
-        r2.left = r1.right
+        r2.left = r1.right + gap
 
-def flow_topbottom(rects):
+def flow_topbottom(rects, gap=0):
     for r1, r2 in it.pairwise(rects):
-        r2.top = r1.bottom
+        r2.top = r1.bottom + gap
 
 def enumerate_grid(iterable, ncols):
     for index, item in enumerate(iterable):
@@ -317,6 +370,11 @@ def groupby_columns(items, ncols):
 
     return (rows, cols)
 
+def rowcolwraps(row_rects, col_rects):
+    row_wraps = list(map(pygame.Rect, map(wrap, row_rects)))
+    col_wraps = list(map(pygame.Rect, map(wrap, col_rects)))
+    return (row_wraps, col_wraps)
+
 def arrange_columns(rects, ncols, colattr, rowattr):
     """
     :param rects: update rects arranged in a grid
@@ -346,3 +404,34 @@ def make_blitables_from_font(lines, font, color, antialias=True):
     rects = [image.get_rect() for image in images]
     flow_topbottom(rects)
     return zip(images, rects)
+
+def render_color(
+    font,
+    fill_color,
+    name,
+    scale,
+    text_color = 'white',
+    shade_color = 'black',
+    shade_amount = 0.50,
+    text_align = 'center',
+):
+    """
+    Render an image with the name of the color it is filled with.
+    """
+    size = pygame.Vector2(font.size(name)).elementwise() * scale
+    image = pygame.Surface(tuple(size), pygame.SRCALPHA)
+    image.fill(fill_color)
+    rect = image.get_rect()
+    background = fill_color.lerp(shade_color, shade_amount)
+    text = font.render(name, True, text_color, background)
+    pos = text.get_rect(**{text_align: getattr(rect, text_align)})
+    image.blit(text, pos)
+    return image
+
+def centered_offset(rects, window):
+    """
+    Offset vector for a window rect centered on a group of rects.
+    """
+    rect = pygame.Rect(wrap(rects))
+    rect.center = window.center
+    return -pygame.Vector2(rect.topleft)

@@ -1,5 +1,4 @@
 import argparse
-import collections as coll
 import itertools as it
 import math
 import random
@@ -13,72 +12,105 @@ from pygamelib import pygame
 
 from pygame.color import THECOLORS
 
-def render_color(font, color, name, scale):
-    size = pygame.Vector2(font.size(name)).elementwise() * scale
-    image = pygame.Surface(tuple(size), pygame.SRCALPHA)
-    image.fill(color)
-    rect = image.get_rect()
-    text = font.render(name, True, 'white', color.lerp('black', 0.50))
-    image.blit(text, text.get_rect(center=rect.center))
-    return image
+class ColorGrid(pygamelib.BrowseBase):
 
-def get_blitables(font, window, colors, gap=0, scale=1):
-    names = list(map(pygamelib.color_name, colors))
-    sizes = zip(*map(font.size, names))
-    text_size = pygame.Vector2(*map(max, sizes))
-    text_size *= scale
+    def __init__(self, blits, offset=None):
+        self._blits = blits
+        if offset is None:
+            offset = pygame.Vector2()
+        self.offset = offset
 
-    images = (pygame.Surface(text_size, pygame.SRCALPHA) for _ in colors)
-    for image, color, name in zip(images, colors, names):
-        rect = image.get_rect()
-        color = pygame.Color(color)
-        image.fill(color)
-        text = font.render(name, True, 'white', color.lerp('black', 0.50))
-        image.blit(text, text.get_rect(center=rect.center))
-        yield (image, rect)
 
-def gui(colors, names):
+def _arrange(rects):
+    # needed to pull the arrange_columns function apart to add gaps and resize
+    # the arranged rects
+    ncols = math.isqrt(len(rects)) // 2
+    rows, cols = pygamelib.groupby_columns(rects, ncols)
+    row_wraps, col_wraps = pygamelib.rowcolwraps(rows, cols)
+
+    for rowwrap in row_wraps:
+        rowwrap.height *= 4
+
+    for colwrap in col_wraps:
+        colwrap.width *= 1.10
+
+    pygamelib.flow_topbottom(row_wraps, 20)
+    pygamelib.flow_leftright(col_wraps, 20)
+
+    for rowwrap, _rects in zip(row_wraps, rows, strict=True):
+        for rect in _rects:
+            rect.height = rowwrap.height
+            rect.centery = rowwrap.centery
+
+    for colwrap, _rects in zip(col_wraps, cols, strict=True):
+        for rect in _rects:
+            rect.width = colwrap.width
+            rect.left = colwrap.left
+
+def run(size, colors, names, font_size):
     assert len(colors) == len(names)
     pygame.font.init()
-    screen = pygame.display.set_mode((800,)*2)
-    window = screen.get_rect()
-    clock = pygame.time.Clock()
-    font = pygame.font.SysFont('monospace', 20)
+    font = pygame.font.SysFont('monospace', font_size)
 
-    ncols = math.isqrt(len(colors)) // 4
+    rects = [pygame.Rect((0,)*2, font.size(name)) for name in names]
+    _arrange(rects)
 
-    sizes = list(map(pygame.Vector2, map(font.size, names)))
-    images = [render_color(font, color, name, (1.25, 4)) for name, color in zip(names, colors)]
-    rects = [image.get_rect() for image in images]
-    pygamelib.arrange_columns(rects, ncols, 'centerx', 'centery')
+    def _render_image(name, color, rect):
+        color = pygame.Color(color)
+        result = pygame.Surface(rect.size)
+        result.fill(color)
+        rect = result.get_rect()
+        text = font.render(name, True, 'white', color.lerp('black', 0.5))
+        result.blit(text, text.get_rect(center=rect.center))
+        return result
 
-    offset = pygame.Vector2()
-    framerate = 60
-    elapsed = 0
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key in (pygame.K_ESCAPE, pygame.K_q):
-                    pygame.event.post(pygame.event.Event(pygame.QUIT))
-            elif event.type == pygame.MOUSEMOTION:
-                if event.buttons[0]:
-                    offset += event.rel
-        mouse_buttons = pygame.mouse.get_pressed()
-        if mouse_buttons[0]:
-            x, y = pygame.mouse.get_pos()
-            pygame.mouse.set_pos(x % window.width, y % window.height)
-        screen.fill('black')
-        for image, rect in zip(images, rects):
-            screen.blit(image, offset + rect.topleft)
-        pygame.display.flip()
-        elapsed = clock.tick(framerate)
+    images = [
+        _render_image(name, color, rect)
+        for name, color, rect in zip(names, colors, rects)
+    ]
+
+    blits = list(zip(images, rects))
+    window = pygame.Rect((0,)*2, size)
+    demo = ColorGrid(blits, offset=pygamelib.centered_offset(rects, window))
+    engine = pygamelib.Engine()
+
+    pygame.display.set_mode(window.size)
+    engine.run(demo)
+
+def exclude_func(args):
+    if not args.exclude and not args.colorful:
+        exclude = lambda name: False
+    elif args.exclude or args.colorful:
+        if args.exclude:
+            exclude = re.compile(args.exclude).search
+        else:
+            def exclude(name):
+                return not pygamelib.interesting_color(name)
+    return exclude
+
+def unique(iterable, key=None):
+    if key is None:
+        def key(item):
+            return item
+    seen = set()
+    for item in iterable:
+        _key = key(item)
+        if _key not in seen:
+            seen.add(_key)
+            yield item
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-
+    parser.add_argument(
+        '--screen-size',
+        type = pygamelib.sizetype(),
+        default = '1024',
+    )
+    parser.add_argument(
+        '--font-size',
+        type = int,
+        default = '15',
+    )
     parser.add_argument('--print', action='store_true')
 
     filtering_group = parser.add_mutually_exclusive_group()
@@ -91,18 +123,11 @@ def main(argv=None):
         ordering_group.add_argument(f'--{space_name}', action='store_true')
     args = parser.parse_args(argv)
 
-    if not args.exclude and not args.colorful:
-        exclude = lambda name: False
-    elif args.exclude or args.colorful:
-        if args.exclude:
-            exclude = re.compile(args.exclude).search
-        else:
-            def exclude(name):
-                return not pygamelib.interesting_color(name)
-
-    items = ((name, color) for name, color in THECOLORS.items() if not exclude(name))
-    names, colors = zip(*items)
-    colors = list(map(pygame.Color, colors))
+    exclude = exclude_func(args)
+    # XXX
+    # - there are dupes in THECOLORS (?)
+    colors = (color for name, color in THECOLORS.items() if not exclude(name))
+    colors = list(map(pygame.Color, unique(colors, tuple)))
 
     if args.shuffle:
         random.shuffle(colors)
@@ -114,9 +139,17 @@ def main(argv=None):
                 colors = sorted(colors, key=color_key)
                 break
 
+    # TODO
+    # - interactive filter
+    # - colors generator
+    # - class to render
+    # - class to arrange grid
+
+    names = list(map(pygamelib.color_name, colors))
     if args.print:
-        pprint([key for key, _ in colors])
-    gui(colors, names)
+        pprint(names)
+
+    run(args.screen_size, colors, names, args.font_size)
 
 if __name__ == '__main__':
     main()
