@@ -225,6 +225,21 @@ class Engine:
         self.running = False
 
 
+class DemoBase:
+
+    def start(self, engine):
+        self.engine = engine
+        self.screen = pygame.display.get_surface()
+        self.window = self.screen.get_rect()
+        self.clock = pygame.time.Clock()
+        self.framerate = 60
+
+    def update(self):
+        self.clock.tick(self.framerate)
+        for event in pygame.event.get():
+            dispatch(self, event)
+
+
 class BrowseBase:
     """
     Convenience state to display blitables, drag to move, and quit cleanly.
@@ -277,12 +292,13 @@ class ColorSpace:
 
     def __init__(self, space):
         assert space in self.spaces
-        if space == 'rgb':
+        self.space = space
+        if self.space == 'rgb':
             # for whatever reason these are all separate in pygame.Color
-            self.get_attr = op.attrgetter(*space)
+            self.get_attr = op.attrgetter(*self.space)
         else:
-            attr = space
-            if space in ('hsl', 'hsv'):
+            attr = self.space
+            if self.space in ('hsl', 'hsv'):
                 attr += 'a'
             self.get_attr = op.attrgetter(attr)
 
@@ -290,6 +306,29 @@ class ColorSpace:
         color = pygame.Color(color)
         return self.get_attr(color)[:3]
 
+def colortext(color_key):
+    if color_key.space in ('cmy', 'hsl', 'hsv'):
+        def _colortext(color):
+            return ' '.join(f'{val:.0f}' for val in color_key(color))
+    else:
+        def _colortext(color):
+            return ' '.join(map(str, color_key(color)))
+    return _colortext
+
+def hue(color):
+    color = pygame.Color(color)
+    hue, *_ = color.hsva
+    return hue
+
+def saturation(color):
+    color = pygame.Color(color)
+    _, saturation, *_ = color.hsva
+    return saturation
+
+def value(color):
+    color = pygame.Color(color)
+    _, _, value, _ = color.hsva
+    return value
 
 # pygame.Color is not hashable
 
@@ -435,3 +474,7 @@ def centered_offset(rects, window):
     rect = pygame.Rect(wrap(rects))
     rect.center = window.center
     return -pygame.Vector2(rect.topleft)
+
+def line_center(line):
+    (x1, y1), (x2, y2) = line
+    return ((x2 - x1) / 2 + x1, (y2 - y1) / 2 + y1)

@@ -47,7 +47,7 @@ def _arrange(rects):
             rect.width = colwrap.width
             rect.left = colwrap.left
 
-def run(size, colors, names, font_size):
+def run(size, colors, names, font_size, colortext):
     assert len(colors) == len(names)
     pygame.font.init()
     font = pygame.font.SysFont('monospace', font_size)
@@ -60,8 +60,25 @@ def run(size, colors, names, font_size):
         result = pygame.Surface(rect.size)
         result.fill(color)
         rect = result.get_rect()
-        text = font.render(name, True, 'white', color.lerp('black', 0.5))
-        result.blit(text, text.get_rect(center=rect.center))
+
+        lines = [f'{name}', colortext(color)]
+        text_images = [
+            font.render(line, True, 'white', color.lerp('black', 0.5))
+            for line in lines
+        ]
+        text_rects = [image.get_rect() for image in text_images]
+
+        for r1, r2 in it.pairwise(text_rects):
+            r2.midtop = r1.midbottom
+
+        orig = pygame.Rect(pygamelib.wrap(text_rects))
+        dest = pygame.Rect(pygamelib.make_rect(orig, center=rect.center))
+        delta = pygame.Vector2(dest.topleft) - orig.topleft
+
+        for image, rect in zip(text_images, text_rects):
+            rect.topleft += delta
+            result.blit(image, rect)
+
         return result
 
     images = [
@@ -104,7 +121,7 @@ def main(argv=None):
     parser.add_argument(
         '--screen-size',
         type = pygamelib.sizetype(),
-        default = '1024',
+        default = '1000',
     )
     parser.add_argument(
         '--font-size',
@@ -119,37 +136,34 @@ def main(argv=None):
 
     ordering_group = parser.add_mutually_exclusive_group()
     ordering_group.add_argument('--shuffle', action='store_true')
-    for space_name in pygamelib.ColorSpace.spaces:
-        ordering_group.add_argument(f'--{space_name}', action='store_true')
+    ordering_group.add_argument('--sort', nargs='+')
     args = parser.parse_args(argv)
 
     exclude = exclude_func(args)
-    # XXX
-    # - there are dupes in THECOLORS (?)
+    # there are dupes in THECOLORS
     colors = (color for name, color in THECOLORS.items() if not exclude(name))
     colors = list(map(pygame.Color, unique(colors, tuple)))
 
+    colortext = str
+
     if args.shuffle:
         random.shuffle(colors)
-    else:
-        for space_name in pygamelib.ColorSpace.spaces:
-            flag = getattr(args, space_name)
-            if flag:
-                color_key = pygamelib.ColorSpace(space_name)
-                colors = sorted(colors, key=color_key)
-                break
+    elif args.sort:
+        keyfuncs = [getattr(pygamelib, key) for key in args.sort]
 
-    # TODO
-    # - interactive filter
-    # - colors generator
-    # - class to render
-    # - class to arrange grid
+        def key(color):
+            return tuple(func(color) for func in keyfuncs)
+
+        colors = sorted(colors, key=key)
+
+        def colortext(color):
+            return ' '.join(f'{func(color):.0f}' for func in keyfuncs)
 
     names = list(map(pygamelib.color_name, colors))
     if args.print:
         pprint(names)
 
-    run(args.screen_size, colors, names, args.font_size)
+    run(args.screen_size, colors, names, args.font_size, colortext)
 
 if __name__ == '__main__':
     main()

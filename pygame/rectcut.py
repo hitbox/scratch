@@ -1,10 +1,8 @@
 import argparse
-import contextlib
 import itertools as it
 import json
 import math
 import operator
-import os
 import random
 import string
 import unittest
@@ -16,8 +14,9 @@ from functools import partial
 from operator import attrgetter
 from types import SimpleNamespace
 
-with contextlib.redirect_stdout(open(os.devnull, 'w')):
-    import pygame
+import pygamelib
+
+from pygamelib import pygame
 
 # events
 STATESWITCH = pygame.event.custom_type()
@@ -216,15 +215,12 @@ class RectStateBase(EventDispatchMixin, BaseState):
 class RectCutState(RectStateBase):
     "Rect cutting state/tool"
 
-    def __init__(self):
-        # XXX: dupes be here with TilingManagerState
+    def __init__(self, rect_renderer):
         self.font = pygame.font.SysFont('arial', 32)
         self.screen = pygame.display.get_surface()
         self.frame = self.screen.get_rect()
-        self.rect_renderer = RectRenderer(global_palettes['beach'])
-        #
+        self.rect_renderer = rect_renderer
         self.started = 0
-        #
         self.rectcut = RectCut()
 
     def start(self):
@@ -702,6 +698,18 @@ def cut_at_position(rect, pos, side):
     remaining = cut_rect_ip(rect, side, amount)
     return remaining
 
+def cut_rect_horz(rect, pos):
+    cx, cy = pos
+    newrect = pygame.Rect(rect.left, cy, rect.width, rect.bottom - cy)
+    rect.height = cy - rect.top
+    return newrect
+
+def cut_rect_vert(rect, pos):
+    cx, cy = pos
+    newrect = pygame.Rect(cx, rect.top, rect.right - cx, rect.height)
+    rect.width = cx - rect.left
+    return newrect
+
 def post_stateswitch(state_class, **data):
     event = pygame.event.Event(STATESWITCH, state_class=state_class, **data)
     pygame.event.post(event)
@@ -754,51 +762,6 @@ def run(
             state.update()
             state.draw()
 
-def start(options):
-    """
-    Initialize and start run loop. Bridge between options and main loop.
-    """
-    pygame.font.init()
-    pygame.display.set_mode(options.size)
-    #run(output_string=options.output, demo_mode=options.demo)
-    run(RectCutState)
-
-def sizetype(string):
-    """
-    Parse string into a tuple of integers.
-    """
-    size = tuple(map(int, string.replace(',', ' ').split()))
-    if len(size) == 1:
-        size += size
-    return size
-
-def cli():
-    # https://halt.software/dead-simple-layouts/
-    # TODO
-    # [X] generic function taking sidename to cut
-    # [ ] non-inplace versions? does that make sense? what's the use?
-    # [X] resize bordering rects like tiling window manager
-    # [ ] limit resizing in tiling mode
-    # [ ] try to keep ratio of rects affected?
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--size',
-        default = '800,800',
-        type = sizetype,
-        help = 'Screen size. Default: %(default)s',
-    )
-    parser.add_argument(
-        '--demo',
-        action = 'store_true',
-        help = 'Automatic demo cutting rects.',
-    )
-    parser.add_argument(
-        '--output',
-        help = 'Format string for frame output.',
-    )
-    args = parser.parse_args()
-    start(args)
-
 # needed to wait for get_adjacent_corners function
 # sides to two-tuple attribute names, forming line for that side
 # e.g.: 'top' -> ('topleft', 'topright')
@@ -810,11 +773,107 @@ SIDES_ADJACENT_CORNERS_GETTERS = {
     side: attrgetter(*attrs) for side, attrs in SIDES_ADJACENT_CORNERS.items()
 }
 
-if __name__ == '__main__':
+def main_old():
     # unsure how to share between states, especially when the engine controls when
     # they're instantiated.
     global_palettes = palettes_from_json('palettes.json')['palettes']
-
     global_rects = []
-
     cli()
+
+class CutTool:
+
+    def __init__(self):
+        self.funcs = it.cycle([cut_rect_horz, cut_rect_vert])
+        self.func = next(self.funcs)
+
+    def preview(self, rects):
+        pass
+
+
+# a tool...
+# - does something to a shape
+# - previews its operation
+#
+
+class Demo(pygamelib.DemoBase):
+
+    def __init__(self, rects):
+        self.rects = rects
+        self.cut_preview = None
+        self.tools = it.cycle([CutTool()])
+        self.tool = next(self.tools)
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygamelib.post_quit()
+
+    def do_videoexpose(self, event):
+        self.screen.fill('black')
+        for rect in self.rects:
+            pygame.draw.rect(self.screen, 'gray', rect, 1)
+        if self.cut_preview is not None:
+            pygame.draw.line(self.screen, 'red', *self.cut_preview)
+        pygame.display.flip()
+
+    def _update_cut_preview(self, pos):
+        for rect in self.rects:
+            if rect.collidepoint(pos):
+                self.tools.preview_line
+                x, y = pos
+                if self.cut_func is cut_rect_horz:
+                    self.cut_preview = ((rect.left, y), (rect.right, y))
+                else:
+                    self.cut_preview = ((x, rect.top), (x, rect.bottom))
+                pygamelib.post_videoexpose()
+                break
+        else:
+            self.cut_preview = None
+
+    def do_mousebuttondown(self, event):
+        if event.button == pygame.BUTTON_RIGHT:
+            # rotate cut
+            self.cut_func = next(self.cut_funcs)
+            self._update_cut_preview(event.pos)
+            pygamelib.post_videoexpose()
+        elif event.button == pygame.BUTTON_LEFT:
+            if self.cut_preview is not None:
+                pos = pygamelib.line_center(self.cut_preview)
+                for rect in self.rects:
+                    if rect.collidepoint(pos):
+                        self.rects.append(self.cut_func(rect, pos))
+                        self._update_cut_preview(pos)
+                        pygamelib.post_videoexpose()
+                        break
+
+    def do_mousemotion(self, event):
+        self._update_cut_preview(event.pos)
+
+
+def run(screen_size):
+    window = pygame.Rect((0,)*2, screen_size)
+    engine = pygamelib.Engine()
+
+    rects = [window.inflate((-100,)*2)]
+    state = Demo(rects)
+
+    pygame.display.set_mode(screen_size)
+    engine.run(state)
+
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--size',
+        default = '800',
+        type = pygamelib.sizetype(),
+        help = 'Screen size. Default: %(default)s',
+    )
+    args = parser.parse_args(argv)
+    run(args.size)
+
+if __name__ == '__main__':
+    main()
+
+# https://halt.software/dead-simple-layouts/
