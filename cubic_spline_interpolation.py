@@ -317,7 +317,7 @@ def run():
         point.y += 200
         pygame.draw.circle(screen, 'darkblue', point, 5, 1)
 
-    for p1, p2 in zip(points, points[1:]):
+    for p1, p2 in pairwise(points):
         pygame.draw.line(screen, 'azure', p1, p2)
     pygame.display.flip()
 
