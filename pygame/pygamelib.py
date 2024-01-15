@@ -443,7 +443,14 @@ def make_blitables_from_font(lines, font, color, antialias=True):
     images = [font.render(line, antialias, color) for line in lines]
     rects = [image.get_rect() for image in images]
     flow_topbottom(rects)
-    return zip(images, rects)
+    return (images, rects)
+
+def move_as_one(rects, **kwargs):
+    orig = pygame.Rect(wrap(rects))
+    dest = make_rect(orig, **kwargs)
+    delta = pygame.Vector2(dest.topleft) - orig.topleft
+    for rect in rects:
+        rect.topleft += delta
 
 def render_color(
     font,
@@ -454,6 +461,7 @@ def render_color(
     shade_color = 'black',
     shade_amount = 0.50,
     text_align = 'center',
+    antialias = True,
 ):
     """
     Render an image with the name of the color it is filled with.
@@ -463,7 +471,7 @@ def render_color(
     image.fill(fill_color)
     rect = image.get_rect()
     background = fill_color.lerp(shade_color, shade_amount)
-    text = font.render(name, True, text_color, background)
+    text = font.render(name, antialias, text_color, background)
     pos = text.get_rect(**{text_align: getattr(rect, text_align)})
     image.blit(text, pos)
     return image
