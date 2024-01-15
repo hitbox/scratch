@@ -37,10 +37,11 @@ class InteractiveInterpreter(code.InteractiveInterpreter):
 class Editor(pygamelib.DemoBase):
 
     def __init__(self):
-        self.font = pygame.font.SysFont('monospace', 24)
+        self.font = pygame.font.SysFont('monospace', 18)
         self.chars = ''
-        self.interactive = InteractiveInterpreter()
         self.more = False
+        self.shapes = list()
+        self.interactive = InteractiveInterpreter(locals=dict(shapes=self.shapes))
 
     def do_quit(self, event):
         self.engine.stop()
@@ -55,7 +56,12 @@ class Editor(pygamelib.DemoBase):
             self.chars += event.unicode
         pygamelib.post_videoexpose()
 
-    def draw_line(self):
+    def draw_shapes(self):
+        for shape, color, *args in self.shapes:
+            func = getattr(pygame.draw, shape)
+            func(self.screen, color, *args)
+
+    def draw_interactive(self):
         if self.more:
             prompt = sys.ps2
         else:
@@ -83,7 +89,8 @@ class Editor(pygamelib.DemoBase):
 
     def do_videoexpose(self, event):
         self.screen.fill('black')
-        self.draw_line()
+        self.draw_shapes()
+        self.draw_interactive()
         pygame.display.flip()
 
 
