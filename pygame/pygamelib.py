@@ -233,9 +233,10 @@ class DemoBase:
         self.window = self.screen.get_rect()
         self.clock = pygame.time.Clock()
         self.framerate = 60
+        self.elapsed = None
 
     def update(self):
-        self.clock.tick(self.framerate)
+        self.elapsed = self.clock.tick(self.framerate)
         for event in pygame.event.get():
             dispatch(self, event)
 
