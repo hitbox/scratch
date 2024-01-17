@@ -82,42 +82,42 @@ def _peers(square):
 
 PEERS = dict(map(_peers, SQUARES))
 
-def eliminate(values, s, d):
+def eliminate(values, square, digit):
     """
-    Eliminate d from values[s]; propagate when values or places <= 2. Return
+    Eliminate digit from values[square]; propagate when values or places <= 2. Return
     values, except return False if a contradiction is detected.
     """
-    if d not in values[s]:
+    if digit not in values[square]:
         # Already eliminated
         return values
-    values[s] = values[s].replace(d,'')
+    values[square] = values[square].replace(digit, '')
     # (1) If a square s is reduced to one value d2, then eliminate d2 from the peers.
-    if len(values[s]) == 0:
+    if len(values[square]) == 0:
         # Contradiction: removed last value
         return False
-    elif len(values[s]) == 1:
-        d2 = values[s]
-        if not all(eliminate(values, s2, d2) for s2 in PEERS[s]):
+    elif len(values[square]) == 1:
+        d2 = values[square]
+        if not all(eliminate(values, s2, d2) for s2 in PEERS[square]):
             return False
     # (2) If a unit u is reduced to only one place for a value d, then put it there.
-    for u in UNITS[s]:
-        dplaces = [s for s in u if d in values[s]]
+    for u in UNITS[square]:
+        dplaces = [square for square in u if digit in values[square]]
         if len(dplaces) == 0:
             # Contradiction: no place for this value
             return False
         elif len(dplaces) == 1:
             # d can only be in one place in unit; assign it there
-            if not assign(values, dplaces[0], d):
+            if not assign(values, dplaces[0], digit):
                 return False
     return values
 
-def assign(values, s, d):
+def assign(values, square, digit):
     """
-    Eliminate all the other values (except d) from values[s] and propagate.
+    Eliminate all the other values (except digit) from values[square] and propagate.
     Return values, except return False if a contradiction is detected.
     """
-    other_values = values[s].replace(d, '')
-    if all(eliminate(values, s, d2) for d2 in other_values):
+    other_values = values[square].replace(digit, '')
+    if all(eliminate(values, square, d2) for d2 in other_values):
         return values
     else:
         return False
