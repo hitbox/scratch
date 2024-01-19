@@ -1,0 +1,16 @@
+# svg-like arguments for pygame.draw.* funcs
+
+circle lemonchiffon1 0 0 100 0
+
+arc dodgerblue 110 -100 200 200 0 45 1
+arc dodgerblue 110 -100 200 200 90 90+45 1
+arc dodgerblue 110 -100 200 200 180 180+45 1
+arc dodgerblue 110 -100 200 200 270 270+45 1
+
+rect orchid 300 0 200 100 0
+rect tomato 300 200 100 300 0
+rect seashell 300 400 100 100 0
+
+line brown 0 0 100 100 4
+
+lines magenta 0 1  100 100  200 200  200 300  300 400  100 400

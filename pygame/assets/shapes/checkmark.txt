@@ -1,0 +1,3 @@
+# name color closed width points...
+lines white 0 1  0 6  2 8  6 0
+
