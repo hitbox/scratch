@@ -801,19 +801,27 @@ class ShapeParser:
                 yield from pygamelib.squircle_shapes(color, (x, y), radius, width, corners)
 
 
+class DrawMixin:
+
+    def draw(self, surf, offset=(0,0)):
+        self.draw_func(surf, *self.draw_args(offset))
+
+
 class Circle(
     namedtuple('CircleBase', 'color center radius width'),
+    DrawMixin,
 ):
+    draw_func = pygame.draw.circle
 
     def scale(self, scale):
         color, (x, y), radius, width = self
         return self.__class__(color, (x*scale, y*scale), radius*scale, width*scale)
 
-    def draw(self, surf, offset=(0,0)):
+    def draw_args(self, offset):
         ox, oy = offset
         color, (x, y), radius, width = self
         center = (x-ox, y-oy)
-        return pygame.draw.circle(surf, color, center, radius, width)
+        return (color, center, radius, width)
 
 
 class Rectangle(
@@ -828,7 +836,9 @@ class Rectangle(
         ' border_bottom_right_radius',
         defaults = [0, -1, -1, -1, -1],
     ),
+    DrawMixin
 ):
+    draw_func = pygame.draw.rect
 
     def scale(self, scale):
         color, rect, width, *borders = self
@@ -836,47 +846,64 @@ class Rectangle(
         # scale borders?
         return self.__class__(color, rect, width*scale, *borders)
 
-    def draw(self, surf, offset=(0,0)):
+    def draw_args(self, offset):
         ox, oy = offset
         color, (x, y, w, h), width, *borders = self
-        return pygame.draw.rect(surf, color, (x-ox, y-oy, w, h), width, *borders)
+        rect = (x-ox, y-oy, w, h)
+        return (color, rect, width, *borders)
 
 
-class Line(namedtuple('LineBase', 'color start end width')):
+class Line(
+    namedtuple('LineBase', 'color start end width'),
+    DrawMixin,
+):
+    draw_func = pygame.draw.line
 
     def scale(self, scale):
         color, (x1, y1), (x2, y2), width = self
-        return self.__class__(color, (x1*scale, y1*scale), (x2*scale, y2*scale), width*scale)
+        start = (x1*scale, y1*scale)
+        end = (x2*scale, y2*scale)
+        return self.__class__(color, start, end, width*scale)
 
-    def draw(self, surf, offset=(0,0)):
+    def draw_args(self, offset):
         ox, oy = offset
         color, (x1, y1), (x2, y2), width = self
-        return pygame.draw.line(surf, color, (x1-ox, y1-oy), (x2-ox, y2-oy), width)
+        start = (x1-ox, y1-oy)
+        end = (x2-ox, y2-oy)
+        return (color, start, end, width)
 
 
-class Lines(namedtuple('LinesBase', 'color closed width points')):
+class Lines(
+    namedtuple('LinesBase', 'color closed width points'),
+    DrawMixin,
+):
+    draw_func = pygame.draw.lines
 
     def scale(self, scale):
         color, closed, width, points = self
         points = tuple((x*scale, y*scale) for x, y in points)
         return self.__class__(color, closed, width*scale, points)
 
-    def draw(self, surf, offset=(0,0)):
+    def draw_args(self, offset):
         ox, oy = offset
         color, closed, width, points = self
         points = tuple((x-ox, y-oy) for x, y in points)
-        return pygame.draw.lines(surf, color, closed, points, width)
+        return (color, closed, points, width)
 
 
-class Arc(namedtuple('ArcBase', 'color rect angle1 angle2 width')):
+class Arc(
+    namedtuple('ArcBase', 'color rect angle1 angle2 width'),
+    DrawMixin,
+):
+    draw_func = pygame.draw.arc
 
     def scale(self, scale):
         color, (x, y, w, h), angle1, angle2, width = self
         rect = (x*scale, y*scale, w*scale, h*scale)
         return self.__class__(color, rect, angle1, angle2, width)
 
-    def draw(self, surf, offset=(0,0)):
+    def draw_args(self, offset):
         ox, oy = offset
         color, (x, y, w, h), angle1, angle2, width = self
         rect = (x-ox, y-oy, w, h)
-        return pygame.draw.arc(surf, color, rect, angle1, angle2, width)
+        return (color, rect, angle1, angle2, width)
