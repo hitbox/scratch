@@ -7,6 +7,8 @@ import string
 import sys
 import unittest
 
+from collections import namedtuple
+
 # silence and import pygame
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
@@ -26,6 +28,28 @@ class TestGroupbyColumns(unittest.TestCase):
         self.assertEqual(result1, result2)
 
 
+class TestMergeRanges(unittest.TestCase):
+
+    def test_empty(self):
+        self.assertEqual(merge_ranges([]), set())
+
+    def test_sequence(self):
+        expect = [(0,3)]
+        test = list(merge_ranges([(0,1),(1,2),(2,3)]))
+        self.assertEqual(test, expect)
+
+    def test_identity(self):
+        ranges = set([(0,1),(2,3),(4,5)])
+        test = merge_ranges(ranges)
+        self.assertEqual(test, ranges)
+
+    def test_overlapping(self):
+        test = merge_ranges([(0,3),(2,5),(3,10)])
+        self.assertEqual(test, set([(0,10)]))
+        test = merge_ranges([(0,10),(1,2),(3,5),(4,8)])
+        self.assertEqual(test, set([(0,10)]))
+
+
 def intargs(string):
     return map(int, string.replace(',', ' ').split())
 
@@ -40,6 +64,19 @@ class sizetype:
             size += size
         return size
 
+
+def chunk(iterable, n):
+    iterable = iter(iterable)
+    stop = False
+    while not stop:
+        chunk = []
+        for _ in range(n):
+            try:
+                chunk.append(next(iterable))
+            except StopIteration:
+                stop = True
+        if chunk:
+            yield tuple(chunk)
 
 def rfinditer(s, subs, *args):
     for sub in subs:
@@ -655,3 +692,191 @@ def centered_offset(rects, window):
 def line_center(line):
     (x1, y1), (x2, y2) = line
     return ((x2 - x1) / 2 + x1, (y2 - y1) / 2 + y1)
+
+def mergeable(range1, range2):
+    start1, stop1 = range1
+    start2, stop2 = range2
+    return not (start1 > stop2 or stop1 < start2)
+
+def merge_ranges(ranges):
+    ranges = set(ranges)
+    if not ranges:
+        return ranges
+    while ranges:
+        combos = it.combinations(ranges, 2)
+        mergeables = set((r1, r2) for r1, r2 in combos if mergeable(r1, r2))
+        if not mergeables:
+            return ranges
+        for r1, r2 in mergeables:
+            if r1 in ranges:
+                ranges.remove(r1)
+            if r2 in ranges:
+                ranges.remove(r2)
+            ranges.add((min(*r1, *r2), max(*r1, *r2)))
+
+def rectquadrants(rect):
+    half_size = (rect.width / 2, rect.height / 2)
+    yield ((rect.x, rect.y), half_size)
+    yield ((rect.centerx, rect.y), half_size)
+    yield ((rect.centerx, rect.centery), half_size)
+    yield ((rect.x, rect.centery), half_size)
+
+def squircle_shapes(color, center, radius, width, corners):
+    """
+    Expand a squircle (square+circle) into simpler component shapes.
+    """
+    filled = width == 0
+    x, y = center
+    rect = pygame.Rect(x - radius, y - radius, radius*2, radius*2)
+    if filled:
+        namedrects = dict(zip(pygamelib.CORNERNAMES, rectquadrants(rect)))
+        rects = set(namedrects[corner] for corner in corners if filled)
+        yield ('ellipse', color, rect, width)
+        for r in rects:
+            yield ('rect', color, r, width)
+    else:
+        # compensate for width > 1
+        # draw.rect automatically does this
+        lines_rect = rect.inflate((-(width-1),)*2)
+        lines = set()
+        getpoint = functools.partial(getattr, lines_rect)
+        for corner in corners:
+            attrpairs = pygamelib.CORNERLINES[corner]
+            for attrpair in attrpairs:
+                lines.add(tuple(map(getpoint, attrpair)))
+        # angle pairs in degrees of quadrants to draw
+        anticorners = [name for name in pygamelib.CORNERNAMES if name not in corners]
+        anglepairs = set(pygamelib.QUADRANT_DEGREES[corner] for corner in anticorners)
+        anglepairs = pygamelib.merge_ranges(anglepairs)
+        for anglepair in anglepairs:
+            angle1, angle2 = map(math.radians, anglepair)
+            yield ('arc', color, rect, angle1, angle2, width)
+        for line in lines:
+            yield ('line', color, *line, width)
+
+class ShapeParser:
+
+    colornames = set(pygame.color.THECOLORS)
+
+    shapenames = set(n for n in dir(pygame.draw) if not n.startswith('_'))
+    shapenames.add('squircle')
+
+    def parse_file(self, file):
+        for line in file:
+            line = line.lstrip()
+            if not line or line.startswith('#'):
+                continue
+            shape = line.split()
+            name, color, *remaining = shape
+            assert name in self.shapenames
+            assert color in self.colornames
+            if name == 'arc':
+                x, y, w, h, angle1, angle2, width = map(eval, remaining)
+                # avoid argument that results in nothing being drawn
+                assert width != 0
+                angle1, angle2 = map(math.radians, [angle1, angle2])
+                yield Arc(color, (x, y, w, h), angle1, angle2, width)
+            elif name == 'circle':
+                x, y, radius, width = map(eval, remaining)
+                yield Circle(color, (x, y), radius, width)
+            elif name == 'line':
+                x1, y1, x2, y2, width = map(eval, remaining)
+                # avoid nothing drawn
+                assert width > 0
+                yield Line(color, (x1, y1), (x2, y2), width)
+            elif name == 'lines':
+                closed, width, *points = map(eval, remaining)
+                closed = bool(closed)
+                # avoid nothing drawn
+                assert width > 0
+                points = tuple(map(tuple, chunk(points, 2)))
+                yield Lines(color, closed, width, points)
+            elif name == 'rect':
+                x, y, w, h, width, *borderargs = map(eval, remaining)
+                yield Rectangle(color, (x, y, w, h), width, *borderargs)
+            elif name == 'squircle':
+                x, y, radius, width, *corners = remaining
+                x, y, radius, width = map(eval, (x, y, radius, width))
+                assert all(corner in pygamelib.CORNERNAMES for corner in corners), corners
+                yield from pygamelib.squircle_shapes(color, (x, y), radius, width, corners)
+
+
+class Circle(
+    namedtuple('CircleBase', 'color center radius width'),
+):
+
+    def scale(self, scale):
+        color, (x, y), radius, width = self
+        return self.__class__(color, (x*scale, y*scale), radius*scale, width*scale)
+
+    def draw(self, surf, offset=(0,0)):
+        ox, oy = offset
+        color, (x, y), radius, width = self
+        center = (x-ox, y-oy)
+        return pygame.draw.circle(surf, color, center, radius, width)
+
+
+class Rectangle(
+    namedtuple(
+        'RectangleBase',
+        'color rect width'
+        # defaults
+        ' border_radius'
+        ' border_top_left_radius'
+        ' border_top_right_radius'
+        ' border_bottom_left_radius'
+        ' border_bottom_right_radius',
+        defaults = [0, -1, -1, -1, -1],
+    ),
+):
+
+    def scale(self, scale):
+        color, rect, width, *borders = self
+        rect = tuple(map(lambda v: v*scale, rect))
+        # scale borders?
+        return self.__class__(color, rect, width*scale, *borders)
+
+    def draw(self, surf, offset=(0,0)):
+        ox, oy = offset
+        color, (x, y, w, h), width, *borders = self
+        return pygame.draw.rect(surf, color, (x-ox, y-oy, w, h), width, *borders)
+
+
+class Line(namedtuple('LineBase', 'color start end width')):
+
+    def scale(self, scale):
+        color, (x1, y1), (x2, y2), width = self
+        return self.__class__(color, (x1*scale, y1*scale), (x2*scale, y2*scale), width*scale)
+
+    def draw(self, surf, offset=(0,0)):
+        ox, oy = offset
+        color, (x1, y1), (x2, y2), width = self
+        return pygame.draw.line(surf, color, (x1-ox, y1-oy), (x2-ox, y2-oy), width)
+
+
+class Lines(namedtuple('LinesBase', 'color closed width points')):
+
+    def scale(self, scale):
+        color, closed, width, points = self
+        points = tuple((x*scale, y*scale) for x, y in points)
+        return self.__class__(color, closed, width*scale, points)
+
+    def draw(self, surf, offset=(0,0)):
+        ox, oy = offset
+        color, closed, width, points = self
+        points = tuple((x-ox, y-oy) for x, y in points)
+        return pygame.draw.lines(surf, color, closed, points, width)
+
+
+class Arc(namedtuple('ArcBase', 'color rect angle1 angle2 width')):
+
+    def scale(self, scale):
+        color, (x, y, w, h), angle1, angle2, width = self
+        rect = (x*scale, y*scale, w*scale, h*scale)
+        return self.__class__(color, rect, angle1, angle2, width)
+
+    def draw(self, surf, offset=(0,0)):
+        ox, oy = offset
+        color, (x, y, w, h), angle1, angle2, width = self
+        rect = (x-ox, y-oy, w, h)
+        return pygame.draw.arc(surf, color, rect, angle1, angle2, width)
