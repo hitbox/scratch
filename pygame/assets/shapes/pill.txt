@@ -1,0 +1,8 @@
+# pill shape with middle band
+
+# top
+rect orangered2 0 0 10 9 0 0 4 4
+# middle
+rect white 0 9 10 3 0
+# bottom
+rect salmon 0 12 10 9 0 0 0 0 4 4

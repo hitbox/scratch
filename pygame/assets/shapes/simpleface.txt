@@ -1,0 +1,13 @@
+# very blocky neutral circle face
+
+# head
+circle lemonchiffon1 4 4 4 0
+
+# left eye
+rect darkgreen 2 2 1 2 0
+
+# right eye
+rect darkgreen 5 2 1 2 0
+
+# mouth
+rect sienna1 1 5 6 1 0

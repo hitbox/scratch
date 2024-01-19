@@ -3,6 +3,8 @@ import itertools as it
 import math
 import operator as op
 import os
+import string
+import sys
 import unittest
 
 # silence and import pygame
@@ -38,6 +40,16 @@ class sizetype:
             size += size
         return size
 
+
+def rfinditer(s, subs, *args):
+    for sub in subs:
+        index = s.rfind(sub, *args)
+        yield index
+
+def finditer(s, subs, *args):
+    for sub in subs:
+        index = s.find(sub, *args)
+        yield index
 
 def rect_type(string):
     """
@@ -169,6 +181,26 @@ points = op.attrgetter(*POINTS)
 
 sides = op.attrgetter(*SIDES)
 
+CORNERNAMES = ['topleft', 'topright', 'bottomright', 'bottomleft']
+
+def steppairs(start, stop, step):
+    for i in range(start, stop, step):
+        yield (i, i+step)
+
+QUADRANT_DEGREES = dict(zip(
+    ['topright', 'topleft', 'bottomleft', 'bottomright'],
+    steppairs(0, 360, 90),
+))
+
+# line pairs as rect attribute names to draw each quadrant of a rect
+
+CORNERLINES = dict(
+    topleft = (('midleft', 'topleft'), ('topleft', 'midtop')),
+    topright = (('midtop', 'topright'), ('topright', 'midright')),
+    bottomright = (('midright', 'bottomright'), ('bottomright', 'midbottom')),
+    bottomleft = (('midbottom', 'bottomleft'), ('bottomleft', 'midleft')),
+)
+
 def rects(images, **kwargs):
     return map(op.methodcaller('get_rect'), images, **kwargs)
 
@@ -241,6 +273,140 @@ class DemoBase:
             dispatch(self, event)
 
 
+class TestInputLine(unittest.TestCase):
+
+    def setUp(self):
+        self.input_line = InputLine()
+
+    def test_addchar(self):
+        self.input_line.addchar('a')
+        self.assertEqual(self.input_line.line, 'a')
+
+    def test_insert_after_left(self):
+        self.input_line.addchar('b')
+        self.input_line.caretleft()
+        self.input_line.addchar('a')
+        self.assertEqual(self.input_line.line, 'ab')
+
+    def test_insert_after_right(self):
+        self.input_line.addchar('a')
+        self.input_line.addchar('c')
+        self.input_line.caretleft()
+        self.input_line.caretleft()
+        self.input_line.caretright()
+        self.input_line.addchar('b')
+        self.assertEqual(self.input_line.line, 'abc')
+
+    def test_backspace(self):
+        self.input_line.addchar('a')
+        self.input_line.addchar('b')
+        self.input_line.backspace()
+        self.assertEqual(self.input_line.line, 'a')
+
+
+class InputLine:
+
+    def __init__(self):
+        self.line = ''
+        self.caret = None
+        self.jumpchars = string.punctuation + string.whitespace
+
+    def split(self):
+        if self.caret is None:
+            return (self.line, '')
+        else:
+            return (self.line[:self.caret], self.line[self.caret:])
+
+    def addchar(self, char):
+        before, after = self.split()
+        self.line = before + char + after
+        if self.caret is not None:
+            self.caret += 1
+
+    def backspace(self):
+        before, after = self.split()
+        self.line = before[:-1] + after
+        if self.caret is not None:
+            self.caret -= 1
+
+    def delete(self):
+        before, after = self.split()
+        self.line = before + after[1:]
+
+    def caretleft(self):
+        if self.caret is None:
+            self.caret = len(self.line) - 1
+        if self.caret > 0:
+            self.caret -= 1
+
+    def caretright(self):
+        if self.caret is not None:
+            self.caret += 1
+
+    def jumpleft(self):
+        indexes = rfinditer(self.line, self.jumpchars, 0, self.caret)
+        indexes = [index for index in indexes if index > -1]
+        self.caret = max(indexes, default=0)
+
+    def jumpright(self):
+        if self.caret is not None:
+            indexes = finditer(self.line, self.jumpchars, self.caret+1, None)
+            indexes = [index for index in indexes if index > -1]
+            self.caret = min(indexes, default=None)
+
+
+class Readline:
+
+    def __init__(self, linecallback=None):
+        self.linecallback = linecallback
+        self.more = False
+        self.input_index = 0
+        self.input_lines = [InputLine()]
+
+    def prompt(self):
+        if self.more:
+            return sys.ps2
+        else:
+            return sys.ps1
+
+    def input_line(self):
+        return self.input_lines[self.input_index].line
+
+    def full_input_line(self):
+        return self.prompt() + self.input_line()
+
+    def do_keydown(self, event):
+        input_line = self.input_lines[self.input_index]
+        if event.key == pygame.K_RETURN:
+            if input_line.line or self.more:
+                if callable(self.linecallback):
+                    self.linecallback(input_line.line)
+                self.input_index += 1
+                self.input_lines.append(InputLine())
+        elif event.key == pygame.K_BACKSPACE:
+            input_line.backspace()
+        elif event.key == pygame.K_DELETE:
+            input_line.delete()
+        elif event.key == pygame.K_UP:
+            if self.input_index > 0:
+                self.input_index -= 1
+        elif event.key == pygame.K_DOWN:
+            if self.input_index < len(self.input_lines) - 1:
+                self.input_index += 1
+        elif event.key == pygame.K_LEFT:
+            if event.mod & pygame.KMOD_CTRL:
+                input_line.jumpleft()
+            else:
+                input_line.caretleft()
+        elif event.key == pygame.K_RIGHT:
+            if event.mod & pygame.KMOD_CTRL:
+                input_line.jumpright()
+            else:
+                input_line.caretright()
+        else:
+            input_line.addchar(event.unicode)
+
+
 class BrowseBase:
     """
     Convenience state to display blitables, drag to move, and quit cleanly.
@@ -262,6 +428,8 @@ class BrowseBase:
 
     @property
     def blits(self):
+        # TODO
+        # - make subclasses implement drawing
         return ((image, rect.topleft - self.offset) for image, rect in self._blits)
 
     def do_videoexpose(self, event):
