@@ -13,8 +13,24 @@ class ShapeBrowser(pygamelib.BrowseBase):
         self._shapes = shapes
         self.update_shapes_scale()
 
+    def shapes(self):
+        # TODO
+        # return the shapes
+        # replace <use> with a copy of their reference with attributes updated from <use>
+        pass
+
+    def update_use(self, attr):
+        for shape in self._shapes:
+            if isinstance(shape, pygamelib.Use):
+                other = shape.getref(self._shapes)
+                setattr(shape, attr, getattr(other, attr, None))
+
     def update_shapes_scale(self):
-        self.shapes = [shape.scale(self.scale) for shape in self._shapes]
+        self.update_use('scale')
+        self.shapes = [
+            shape.scale(self.scale) for shape in self._shapes
+            if hasattr(shape, 'scale') and shape.scale
+        ]
 
     def do_videoexpose(self, event):
         self.draw()
@@ -27,8 +43,10 @@ class ShapeBrowser(pygamelib.BrowseBase):
 
     def draw(self):
         self.screen.fill('black')
+        self.update_use('draw')
         for shape in self.shapes:
-            shape.draw(self.screen, self.offset)
+            if hasattr(shape, 'draw') and shape.draw:
+                shape.draw(self.screen, self.offset)
         text = self.font.render(f'{self.scale}', True, 'white')
         rect = text.get_rect()
         self.screen.blit(text, rect)
@@ -71,12 +89,7 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
-    if args.shapes:
-        shape_parser = pygamelib.ShapeParser()
-        shapes = list(shape_parser.parse_file(args.shapes))
-    else:
-        shapes = None
-
+    shapes = list(pygamelib.parse_xml(args.shapes))
     run(args.screen_size, shapes, args.scale, args.offset)
 
 if __name__ == '__main__':
