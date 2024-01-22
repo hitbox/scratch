@@ -4,12 +4,13 @@ import math
 import operator as op
 
 from collections import deque
+from collections import namedtuple
 
 import pygamelib
 
 from pygamelib import pygame
 
-class DemoPath:
+class BezierDemo(pygamelib.DemoBase):
 
     def __init__(self, path, nsamples):
         self.path = path
@@ -32,21 +33,25 @@ class DemoPath:
         ]
 
     def update(self):
-        self.elapsed = self.clock.tick(self.framerate)
-        self.events()
-        path_item = self.path[self.path_index]
-        point = path_item.point_at(self.path_time / self.nsamples)
-
-        self.screen.fill('black')
-        pygame.draw.lines(self.screen, 'blue', False, self.lines)
-        pygame.draw.circle(self.screen, 'red', point, 10)
-        pygame.display.flip()
-
+        super().update()
+        self.draw()
         if self.path_time + 1 == self.nsamples:
             self.path_time = 0
             self.path_index = (self.path_index + 1) % len(self.path)
         else:
             self.path_time += 1
+
+    def draw(self):
+        path_item = self.path[self.path_index]
+        t = self.path_time / self.nsamples
+        point = pygame.Vector2(path_item.point_at(t))
+        normal = pygame.Vector2(path_item.derivative_at(t)).rotate(90)
+
+        self.screen.fill('black')
+        pygame.draw.lines(self.screen, 'blue', False, self.lines)
+        pygame.draw.circle(self.screen, 'red', point, 10)
+        pygame.draw.line(self.screen, 'magenta', point, point + normal, 1)
+        pygame.display.flip()
 
     def events(self):
         for event in pygame.event.get():
@@ -62,41 +67,56 @@ class DemoPath:
 
 class move_absolute:
 
-    def __init__(self, start, end):
-        self.start = start
-        self.end = end
+    def __init__(self, p0, p1):
+        self.p0 = p0
+        self.p1 = p1
 
-    def __repr__(self):
-        return f'M({self.start}, {self.end})'
-
-    def endpoint(self):
-        return self.end
+    def end(self):
+        return self.p1
 
     def point_at(self, time):
-        a = pygame.Vector2(self.start)
-        b = pygame.Vector2(self.end)
+        a = pygame.Vector2(self.p0)
+        b = pygame.Vector2(self.p1)
         return mix(time, a, b)
 
+    def derivative_at(self, time):
+        return self.point_at(time)
 
-class cubic_curve_absolute:
 
-    def __init__(self, p1, c1, c2, p2):
+class cubic_curve_absolute_class:
+
+    def __init__(self, p0, p1, p2, p3):
+        self.p0 = p0
         self.p1 = p1
-        self.c1 = c1
-        self.c2 = c2
         self.p2 = p2
-
-    def __repr__(self):
-        return f'C({self.p1}, {self.c1}, {self.c2}, {self.p2})'
-
-    def endpoint(self):
-        return self.p2
+        self.p3 = p3
 
     def point_at(self, time):
-        points = (self.p1, self.c1, self.c2, self.p2)
-        control_points = list(map(pygame.Vector2, points))
-        return bezier(control_points, time)
+        return cubic_bezier(self.p0, self.p1, self.p2, self.p3, time)
 
+    def derivative_at(self, time):
+        return cubic_bezier_derivative(self.p0, self.p1, self.p2, self.p3, time)
+
+
+class cubic_curve_absolute_namedtuple(
+    namedtuple(
+        'cubic_curve_absolute_namedtuple',
+        'p0 p1 p2 p3',
+    ),
+):
+    __slots__ = ()
+
+    def end(self):
+        return self.p3
+
+    def point_at(self, time):
+        return cubic_bezier(self.p0, self.p1, self.p2, self.p3, time)
+
+    def derivative_at(self, time):
+        return cubic_bezier_derivative(self.p0, self.p1, self.p2, self.p3, time)
+
+
+cubic_curve_absolute = cubic_curve_absolute_namedtuple
 
 class samples:
 
@@ -132,6 +152,35 @@ def bezier(control_points, t):
         coefficient = math.comb(degree, index) * (1-t)**(degree-index) * t**index
         position += point * coefficient
     return position
+
+def cubic_bezier(p0, p1, p2, p3, t):
+    """
+    Return position on cubic bezier curve at time t.
+    """
+    one_minus_t = 1 - t
+    b0 = one_minus_t * one_minus_t * one_minus_t # (1 - t) ** 3
+    b1 = 3 * one_minus_t * one_minus_t * t # 3 * (1 - t) ** 2
+    b2 = 3 * one_minus_t * t * t # 3 * (1 - t) * t ** 2
+    b3 = t * t * t # t ** 3
+    # NOTE: unpacking is slower than getitem indexing
+    x = b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0]
+    y = b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1]
+    return (x, y)
+
+def cubic_bezier_derivative(p0, p1, p2, p3, t):
+    one_minus_t = 1 - t
+    # -3 * (1 - t) ** 2
+    b0 = -3 * one_minus_t * one_minus_t
+    # 3 * (1 - t) ** 2 - 6 * (1 - t) * t
+    b1 = 3 * one_minus_t * one_minus_t - 6 * one_minus_t * t
+    # 6 * (1 - t) * t -3 * t ** 2
+    b2 = 6 * one_minus_t * t - 3 * t * t
+    # 3 * t ** 2
+    b3 = 3 * t * t
+
+    dx = b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0]
+    dy = b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1]
+    return (dx, dy)
 
 def bezier_tangent(control_points, t):
     # rewrite of above
@@ -302,14 +351,14 @@ def parse_path(string):
         command = items.popleft()
         if command in 'M':
             if path:
-                start = path[-1].endpoint()
+                start = path[-1].end()
             else:
                 start = (0,)*2
             end = tuple(map(int, take(2)))
             path.append(move_absolute(start, end))
         elif command in 'C':
             if path:
-                start = path[-1].endpoint()
+                start = path[-1].end()
             else:
                 start = (0,)*2
             # take two, three times
@@ -325,7 +374,7 @@ def main(argv=None):
 
     path = parse_path(args.path)
 
-    state = DemoPath(path, args.samples)
+    state = BezierDemo(path, args.samples)
     engine = pygamelib.Engine()
 
     pygame.display.set_mode((800,)*2)
