@@ -1,4 +1,5 @@
 import argparse
+import itertools as it
 
 import pygamelib
 
@@ -7,9 +8,9 @@ from pygamelib import pygame
 
 class WireRoute(pygamelib.DemoBase):
 
-    def __init__(self, rects, wire):
+    def __init__(self, rects, wire_points):
         self.rects = rects
-        self.wire = wire
+        self.wire_points = wire_points
         self._intersects = set()
 
     def do_quit(self, event):
@@ -26,11 +27,12 @@ class WireRoute(pygamelib.DemoBase):
 
     def update(self):
         super().update()
-        line = self.wire[-2:] + [pygame.mouse.get_pos()]
         self._intersects.clear()
-        for rect in self.rects:
-            for intersection in pygamelib.line_rect_intersections(line, rect):
-                self._intersects.add(intersection)
+        points = self.wire_points + [pygame.mouse.get_pos()]
+        for line in it.pairwise(points):
+            for rect in self.rects:
+                for intersection in pygamelib.line_rect_intersections(line, rect):
+                    self._intersects.add(intersection)
 
     def draw(self):
         self.screen.fill('black')
@@ -44,12 +46,17 @@ class WireRoute(pygamelib.DemoBase):
             pygame.draw.rect(self.screen, 'azure', rect, 1)
 
     def draw_line(self):
-        points = self.wire + [pygame.mouse.get_pos()]
+        points = self.wire_points + [pygame.mouse.get_pos()]
         pygame.draw.lines(self.screen, 'azure', False, points)
 
     def draw_intersects(self):
-        for point in self._intersects:
-            pygame.draw.circle(self.screen, 'magenta', point, 4)
+
+        def distance_from_start(point):
+            return pygame.Vector2(point).distance_to(self.wire_points[0])
+
+        points = sorted(self._intersects, key=distance_from_start)
+        for point, color in zip(points, it.chain(['magenta'], it.repeat('red'))):
+            pygame.draw.circle(self.screen, color, point, 4)
 
 
 def make_rects(frame, thickness):
@@ -142,13 +149,13 @@ def run(display_size):
     thickness = min(frame.size) / 8
     rects = make_rects(frame, thickness)
 
-    wire = [
+    wire_points = [
         (
             rects[-2].right + (rects[-1].left - rects[-2].right) / 2,
             rects[-1].bottom + thickness,
         ),
     ]
-    state = WireRoute(rects, wire)
+    state = WireRoute(rects, wire_points)
 
     pygame.display.set_mode(display_size)
 
