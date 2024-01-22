@@ -1,3 +1,4 @@
+import argparse
 import contextlib
 import itertools as it
 import math
@@ -6,6 +7,7 @@ import os
 import string
 import sys
 import unittest
+import xml.etree.ElementTree as ET
 
 from collections import namedtuple
 
@@ -79,11 +81,13 @@ def chunk(iterable, n):
             yield tuple(chunk)
 
 def rfinditer(s, subs, *args):
+    # many version of str.rfind
     for sub in subs:
         index = s.rfind(sub, *args)
         yield index
 
 def finditer(s, subs, *args):
+    # many version of str.find
     for sub in subs:
         index = s.find(sub, *args)
         yield index
@@ -218,9 +222,25 @@ points = op.attrgetter(*POINTS)
 
 sides = op.attrgetter(*SIDES)
 
+def side_lines(rect):
+    rect = pygame.Rect(rect)
+    yield (rect.topleft, rect.topright)
+    yield (rect.topright, rect.bottomright)
+    yield (rect.bottomright, rect.bottomleft)
+    yield (rect.bottomleft, rect.topleft)
+
+def line_rect_intersections(line, rect):
+    (x3, y3), (x4, y4) = line
+    for rectline in side_lines(rect):
+        (x1, y1), (x2, y2) = rectline
+        intersection = line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4)
+        if intersection:
+            yield intersection
+
 CORNERNAMES = ['topleft', 'topright', 'bottomright', 'bottomleft']
 
 def steppairs(start, stop, step):
+    # range(0, 360, 30) -> (0, 30), (30, 60), ..., (330, 360)
     for i in range(start, stop, step):
         yield (i, i+step)
 
@@ -716,9 +736,13 @@ def merge_ranges(ranges):
 
 def rectquadrants(rect):
     half_size = (rect.width / 2, rect.height / 2)
+    # topleft
     yield ((rect.x, rect.y), half_size)
+    # topright
     yield ((rect.centerx, rect.y), half_size)
+    # bottomright
     yield ((rect.centerx, rect.centery), half_size)
+    # bottomleft
     yield ((rect.x, rect.centery), half_size)
 
 def squircle_shapes(color, center, radius, width, corners):
@@ -807,19 +831,27 @@ class DrawMixin:
         self.draw_func(surf, *self.draw_args(offset))
 
 
+class Use(namedtuple('UseBase', 'href'), DrawMixin):
+
+    def getref(self, shapes):
+        for shape in shapes:
+            if hasattr(shape, 'id') and shape.id == self.href[:1]:
+                return shape
+
+
 class Circle(
-    namedtuple('CircleBase', 'color center radius width'),
+    namedtuple('CircleBase', 'color center radius width id', defaults=[None]),
     DrawMixin,
 ):
     draw_func = pygame.draw.circle
 
     def scale(self, scale):
-        color, (x, y), radius, width = self
-        return self.__class__(color, (x*scale, y*scale), radius*scale, width*scale)
+        color, (x, y), radius, width, *rest = self
+        return self.__class__(color, (x*scale, y*scale), radius*scale, width*scale, *rest)
 
     def draw_args(self, offset):
         ox, oy = offset
-        color, (x, y), radius, width = self
+        color, (x, y), radius, width, *rest = self
         center = (x-ox, y-oy)
         return (color, center, radius, width)
 
@@ -833,8 +865,10 @@ class Rectangle(
         ' border_top_left_radius'
         ' border_top_right_radius'
         ' border_bottom_left_radius'
-        ' border_bottom_right_radius',
-        defaults = [0, -1, -1, -1, -1],
+        ' border_bottom_right_radius'
+        ' id'
+        ,
+        defaults = [0, -1, -1, -1, -1, None],
     ),
     DrawMixin
 ):
@@ -907,3 +941,131 @@ class Arc(
         color, (x, y, w, h), angle1, angle2, width = self
         rect = (x-ox, y-oy, w, h)
         return (color, rect, angle1, angle2, width)
+
+
+def parse_xml(xmlfile):
+    tree = ET.parse(xmlfile)
+    root = tree.getroot()
+
+    def parse_fill(node):
+        fill = child.attrib.get('fill', 'false')
+        assert fill in ('true', 'false')
+        fill = fill == 'true'
+        if fill:
+            width = 0
+        else:
+            # TODO
+            width = 1
+        return width
+
+    for shape in root.iter('shape'):
+        for child in shape.iter():
+            if child.tag == 'arc':
+                pass
+            elif child.tag == 'circle':
+                x = int(child.attrib.get('x', '0'))
+                y = int(child.attrib.get('y', '0'))
+                center = (x, y)
+                radius = int(child.attrib.get('radius', '0'))
+                color = child.attrib['color']
+                width = parse_fill(child)
+                yield Circle(color, center, radius, width)
+            elif child.tag == 'rect':
+                color = child.attrib['color']
+                x = int(child.attrib.get('x', '0'))
+                y = int(child.attrib.get('y', '0'))
+                w = int(child.attrib.get('width', '0'))
+                h = int(child.attrib.get('height', '0'))
+                width = parse_fill(child)
+                border_kwargs = {
+                    key: child.attrib[key]
+                    for key in Rectangle._field_defaults
+                    if key in child.attrib
+                }
+                yield Rectangle(color, (x, y, w, h), width, **border_kwargs)
+            elif child.tag == 'use':
+                yield Use(child.attrib['href'])
+
+def command_line_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--display-size',
+        type = sizetype(),
+        default = '800',
+    )
+    return parser
+
+def line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):
+    # https://www.jeffreythompson.org/collision-detection/line-line.php
+    d = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
+    if d == 0:
+        return
+    a = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / d
+    b = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / d
+    if 0 <= a <= 1 and 0 <= b <= 1:
+        x = x1 + (a * (x2 - x1))
+        y = y1 + (b * (y2 - y1))
+        return (x, y)
+
+#def line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):
+#    a1 = pygame.Vector2(x1, y1)
+#    a2 = pygame.Vector2(x2, y2)
+#    b1 = pygame.Vector2(x3, y3)
+#    b2 = pygame.Vector2(x4, y4)
+#    d = (b2.y - b1.y) * (a2.x - a1.x) - (b2.x - b1.x) * (a2.y - a1.y)
+#    if d == 0:
+#        return
+#    a = ((b2.x - b1.x) * (a1.y - b1.y) - (b2.y - b1.y) * (a1.x - b1.x)) / d
+#    b = ((a2.x - a1.x) * (a1.y - b1.y) - (a2.y - a1.y) * (a1.x - b1.x)) / d
+#    if 0 <= a <= 1 and 0 <= b <= 1:
+#        x = a1.x + (a * (a2.x - a1.x))
+#        y = a1.y + (b * (a2.y - a1.y))
+#        return (x, y)
+
+def orientation(p, q, r):
+    """
+    Function to find the orientation of triplet (p, q, r).
+    The function returns the following values:
+    0: Collinear points
+    1: Clockwise points
+    2: Counterclockwise points
+    """
+    val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1])
+    if val == 0:
+        # Collinear
+        return 0
+    elif val > 0:
+        # clockwise
+        return 1
+    else:
+        # counterclockwise
+        return 2
+
+def find_intersection(p1, q1, p2, q2):
+    """
+    Function to find the intersection point of two line segments.
+    Returns None if the line segments do not intersect.
+    """
+    o1 = orientation(p1, q1, p2)
+    o2 = orientation(p1, q1, q2)
+    o3 = orientation(p2, q2, p1)
+    o4 = orientation(p2, q2, q1)
+
+    if o1 == o2 or o3 == o4:
+        # no intersect
+        return
+
+    # General case - segments intersect
+    # Calculate the intersection point
+    det = (q1[0] - p1[0]) * (q2[1] - p2[1]) - (q2[0] - p2[0]) * (q1[1] - p1[1])
+    if det == 0:
+        # line segments are parallel
+        return
+
+    t = ((p2[0] - p1[0]) * (q2[1] - p2[1]) - (p2[1] - p1[1]) * (q2[0] - p2[0])) / det
+    intersection_point = (p1[0] + t * (q1[0] - p1[0]), p1[1] + t * (q1[1] - p1[1]))
+    return intersection_point
+
+def line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):
+    # works!
+    return find_intersection((x1, y1), (x2, y2), (x3, y3), (x4, y4))
