@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<pygame>
+    <shape id="eye">
+        <rect width="20" height="45" fill="true" color="palegreen4"><!-- eye --></rect>
+        <rect width="10" height="10" fill="true" color="darkgreen"><!-- pupil --></rect>
+        <rect width="10" height="10" fill="true" color="lightgreen"><!-- highlight --></rect>
+    </shape>
+    <shape id="smiley">
+        <circle radius="100" fill="true" color="lemonchiffon1"></circle>
+
+        <use href="#eye" x="-30" y="-50"></use>
+        <use href="#eye" x="+10" y="-50"></use>
+
+        <rect x="-10" y="5" width="20" height="5" fill="true" color="lemonchiffon4"><!-- nose --></rect>
+        <rect x="-60" y="30" width="120" height="20" fill="true" color="sienna1"><!-- mouth --></rect>
+    </shape>
+</pygame>
