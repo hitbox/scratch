@@ -735,15 +735,31 @@ def merge_ranges(ranges):
             ranges.add((min(*r1, *r2), max(*r1, *r2)))
 
 def rectquadrants(rect):
-    half_size = (rect.width / 2, rect.height / 2)
+    x, y, w, h = rect
+    hw = w / 2
+    hh = h / 2
     # topleft
-    yield ((rect.x, rect.y), half_size)
+    yield (x, y, hw, hh)
     # topright
-    yield ((rect.centerx, rect.y), half_size)
+    yield (hw, y, hw, hh)
     # bottomright
-    yield ((rect.centerx, rect.centery), half_size)
+    yield (hw, hh, hw, hh)
     # bottomleft
-    yield ((rect.x, rect.centery), half_size)
+    yield (x, hh, hw, hh)
+
+def rectwalls(rect):
+    """
+    Generate square rects from a rect's sides.
+    """
+    x, y, w, h = rect
+    # top
+    yield (x, y - w, w, w)
+    # right
+    yield (x + w, y, h, h)
+    # bottom
+    yield (x, y + h, w, w)
+    # left
+    yield (x - h, y, h, h)
 
 def squircle_shapes(color, center, radius, width, corners):
     """
@@ -1006,21 +1022,6 @@ def line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):
         x = x1 + (a * (x2 - x1))
         y = y1 + (b * (y2 - y1))
         return (x, y)
-
-#def line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):
-#    a1 = pygame.Vector2(x1, y1)
-#    a2 = pygame.Vector2(x2, y2)
-#    b1 = pygame.Vector2(x3, y3)
-#    b2 = pygame.Vector2(x4, y4)
-#    d = (b2.y - b1.y) * (a2.x - a1.x) - (b2.x - b1.x) * (a2.y - a1.y)
-#    if d == 0:
-#        return
-#    a = ((b2.x - b1.x) * (a1.y - b1.y) - (b2.y - b1.y) * (a1.x - b1.x)) / d
-#    b = ((a2.x - a1.x) * (a1.y - b1.y) - (a2.y - a1.y) * (a1.x - b1.x)) / d
-#    if 0 <= a <= 1 and 0 <= b <= 1:
-#        x = a1.x + (a * (a2.x - a1.x))
-#        y = a1.y + (b * (a2.y - a1.y))
-#        return (x, y)
 
 def orientation(p, q, r):
     """
