@@ -6,11 +6,11 @@ import pygamelib
 from pygame import Vector2
 from pygamelib import pygame
 
-class WireRoute(pygamelib.DemoBase):
+class LineRectsDemo(pygamelib.DemoBase):
 
-    def __init__(self, rects, wire_points):
+    def __init__(self, rects, line_start):
         self.rects = rects
-        self.wire_points = wire_points
+        self.line_start = line_start
         self._intersects = set()
 
     def do_quit(self, event):
@@ -28,11 +28,10 @@ class WireRoute(pygamelib.DemoBase):
     def update(self):
         super().update()
         self._intersects.clear()
-        points = self.wire_points + [pygame.mouse.get_pos()]
-        for line in it.pairwise(points):
-            for rect in self.rects:
-                for intersection in pygamelib.line_rect_intersections(line, rect):
-                    self._intersects.add(intersection)
+        line = (self.line_start, pygame.mouse.get_pos())
+        for rect in self.rects:
+            for intersection in pygamelib.line_rect_intersections(line, rect):
+                self._intersects.add(intersection)
 
     def draw(self):
         self.screen.fill('black')
@@ -46,13 +45,12 @@ class WireRoute(pygamelib.DemoBase):
             pygame.draw.rect(self.screen, 'azure', rect, 1)
 
     def draw_line(self):
-        points = self.wire_points + [pygame.mouse.get_pos()]
-        pygame.draw.lines(self.screen, 'azure', False, points)
+        pygame.draw.line(self.screen, 'mediumorchid', self.line_start, pygame.mouse.get_pos())
 
     def draw_intersects(self):
 
         def distance_from_start(point):
-            return pygame.Vector2(point).distance_to(self.wire_points[0])
+            return pygame.Vector2(point).distance_to(self.line_start)
 
         points = sorted(self._intersects, key=distance_from_start)
         for point, color in zip(points, it.chain(['magenta'], it.repeat('red'))):
@@ -143,29 +141,27 @@ def make_rects(frame, thickness):
     )
     return rects
 
-def run(display_size):
+def run_linerect(display_size):
     frame = pygame.Rect((0,)*2, display_size)
     frame.inflate_ip((-min(display_size)*0.5,)*2)
     thickness = min(frame.size) / 8
     rects = make_rects(frame, thickness)
-
-    wire_points = [
-        (
-            rects[-2].right + (rects[-1].left - rects[-2].right) / 2,
-            rects[-1].bottom + thickness,
-        ),
-    ]
-    state = WireRoute(rects, wire_points)
-
+    line_start = (
+        rects[-2].right + (rects[-1].left - rects[-2].right) / 2,
+        rects[-1].bottom + thickness,
+    )
+    state = LineRectsDemo(rects, line_start)
     pygame.display.set_mode(display_size)
-
     engine = pygamelib.Engine()
     engine.run(state)
 
 def main(argv=None):
     parser = pygamelib.command_line_parser()
+    parser.add_argument('demo', choices=['linerect'], default='linerect')
     args = parser.parse_args(argv)
-    run(args.display_size)
+
+    if args.demo == 'linerect':
+        run_linerect(args.display_size)
 
 if __name__ == '__main__':
     main()
