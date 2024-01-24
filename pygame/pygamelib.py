@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 from collections import namedtuple
 
-# silence and import pygame
+# silently import pygame
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
 
@@ -121,6 +121,7 @@ def opposites(indexable):
     Generate two-tuples of items and their opposite from an indexable. Opposite
     being halfway around the indexable.
     """
+    # XXX: `opposite_item` func below
     n = len(indexable)
     assert n % 2 == 0
     half_n = n // 2
@@ -200,6 +201,8 @@ def surrounding(rect):
         kwargs = {oppo: getattr(rect, attr)}
         # ...create new rect of the same size, aligned to the opposite point
         yield make_rect(size=rect.size, **kwargs)
+    # TODO
+    # - this is like rectwalls
 
 def area(rect):
     return rect.width * rect.height
@@ -211,7 +214,21 @@ def overlaps(rects):
             yield (r1, r2, clipping)
 
 # clockwise ordered rect side attribute names mapped with their opposites
-SIDES = dict(opposites(['top', 'right', 'bottom', 'left']))
+SIDENAMES = ['top', 'right', 'bottom', 'left']
+SIDES = dict(opposites(SIDENAMES))
+
+def opposite_item(list_, item):
+    """
+    Return the item halfway around the indexable from the given item.
+    """
+    # XXX: `opposites` func above
+    n = len(list_)
+    assert n % 2 == 0
+    index = list_.index(item)
+    return list_[(index + n // 2) % n]
+
+# opposite sides by index
+SIDENAMES_OPPO = [opposite_item(SIDENAMES, item) for item in SIDENAMES]
 
 # clockwise ordered rect point attribute names mapped with their opposites
 POINTS = dict(opposites(tuple(point_attrs(tuple(SIDES)))))
@@ -571,7 +588,7 @@ interesting_colors_pattern = r'gr[ae]y|white|black|silver|light|medium|dark|\d|r
 
 def interesting_color(color):
     """
-    Ignoring alpha, rgb values are not all the same.
+    rgb values are not all the same meaning *NOT* some shade of white.
     """
     color = pygame.Color(color)
     return len(set(color[:3])) != 1
@@ -760,6 +777,61 @@ def rectwalls(rect):
     yield (x, y + h, w, w)
     # left
     yield (x - h, y, h, h)
+
+def aboverect(reference, other):
+    return other.bottom < reference.top
+
+def rightofrect(reference, other):
+    return other.left > reference.right
+
+def belowrect(reference, other):
+    return other.top > reference.bottom
+
+def leftofrect(reference, other):
+    return other.right < reference.left
+
+def within_horiz(left, right, rect):
+    return not (rect.left > right or rect.right < left)
+
+def within_vert(top, bottom, rect):
+    return not (rect.bottom < top or rect.top > bottom)
+
+class nearestrect:
+
+    def __init__(self, refkey, otherkey, comp, extreme):
+        self.refkey = refkey
+        self.otherkey = otherkey
+        self.comp = comp
+        self.extreme = extreme
+
+    def __call__(self, reference, rects):
+        assert reference not in rects
+        reference = pygame.Rect(reference)
+
+        otherattr = op.attrgetter(self.otherkey)
+        refattr = op.attrgetter(self.refkey)
+
+        def key(rect):
+            return otherattr(pygame.Rect(rect))
+
+        def predicate(other):
+            return self.comp(key(other), refattr(reference))
+
+        rects = filter(predicate, rects)
+        return self.extreme(rects, key=key, default=None)
+
+
+nearestabove = nearestrect('top', 'bottom', op.lt, max)
+nearestrightof = nearestrect('right', 'left', op.gt, min)
+nearestbelow = nearestrect('bottom', 'top', op.lt, min)
+nearestleftof = nearestrect('left', 'right', op.lt, max)
+
+nearest_for_side = {
+    'top': nearestabove,
+    'right': nearestrightof,
+    'bottom': nearestbelow,
+    'left': nearestleftof,
+}
 
 def squircle_shapes(color, center, radius, width, corners):
     """
