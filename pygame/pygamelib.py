@@ -116,6 +116,12 @@ def point_attrs(sides):
         else:
             yield 'mid' + side
 
+def mix(x, a, b):
+    return a * (1 - x) + b * x
+
+def remap(x, a, b, c, d):
+    return x*(d-c)/(b-a) + c-a*(d-c)/(b-a)
+
 def opposites(indexable):
     """
     Generate two-tuples of items and their opposite from an indexable. Opposite
