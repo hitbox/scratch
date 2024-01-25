@@ -39,7 +39,7 @@ class Demo:
         self.buffer = pygame.Surface(size)
         self.world = self.buffer.get_rect()
         self.space = self.world.inflate((-min(self.world.size)//3,)*2)
-        self.walls = list(pygamelib.surrounding(self.space))
+        self.walls = list(pygamelib.rectwalls(self.space))
 
         refrect = self.space.inflate((-min(self.space.size)//1.25,)*2)
         refrect.normalize()
