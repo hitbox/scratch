@@ -117,9 +117,15 @@ def point_attrs(sides):
             yield 'mid' + side
 
 def mix(x, a, b):
+    """
+    Return the percent of x between a and b.
+    """
     return a * (1 - x) + b * x
 
 def remap(x, a, b, c, d):
+    """
+    Return x from range a and b to range c and d.
+    """
     return x*(d-c)/(b-a) + c-a*(d-c)/(b-a)
 
 def opposites(indexable):
@@ -590,7 +596,19 @@ def color_name(color):
     color = pygame.Color(color)
     return COLORSTHE[tuple(color)]
 
-interesting_colors_pattern = r'gr[ae]y|white|black|silver|light|medium|dark|\d|red|green|blue'
+interesting_colors_pattern = '|'.join([
+    r'\d',
+    'black',
+    'blue',
+    'dark',
+    'gr[ae]y',
+    'green',
+    'light',
+    'medium',
+    'red',
+    'silver',
+    'white',
+])
 
 def interesting_color(color):
     """
