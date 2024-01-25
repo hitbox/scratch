@@ -8,12 +8,6 @@ import pygamelib
 from pygame import Vector2
 from pygamelib import pygame
 
-# extremity function for finding the random range limit
-# needs a name
-EXTREMES = [min, max, min, max]
-OPPOKEYS = list(map(op.attrgetter, pygamelib.SIDENAMES_OPPO))
-COMPS = [op.lt, op.gt, op.gt, op.lt]
-
 class Demo(pygamelib.DemoBase):
 
     def __init__(self, n, frame, makerects, colors):
@@ -133,7 +127,8 @@ def random_touching_rects(n, frame):
                 break
         else:
             # stored as tuples for hashability
-            rects.append(tuple(newrect))
+            newrect = tuple(newrect)
+            rects.append(newrect)
     return rects
 
 def run(display_size):
