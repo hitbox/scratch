@@ -991,7 +991,7 @@ def squircle_shapes(color, center, radius, width, corners):
     x, y = center
     rect = pygame.Rect(x - radius, y - radius, radius*2, radius*2)
     if filled:
-        namedrects = dict(zip(pygamelib.CORNERNAMES, rectquadrants(rect)))
+        namedrects = dict(zip(CORNERNAMES, rectquadrants(rect)))
         rects = set(namedrects[corner] for corner in corners if filled)
         yield ('ellipse', color, rect, width)
         for r in rects:
@@ -1003,13 +1003,13 @@ def squircle_shapes(color, center, radius, width, corners):
         lines = set()
         getpoint = functools.partial(getattr, lines_rect)
         for corner in corners:
-            attrpairs = pygamelib.CORNERLINES[corner]
+            attrpairs = CORNERLINES[corner]
             for attrpair in attrpairs:
                 lines.add(tuple(map(getpoint, attrpair)))
         # angle pairs in degrees of quadrants to draw
-        anticorners = [name for name in pygamelib.CORNERNAMES if name not in corners]
-        anglepairs = set(pygamelib.QUADRANT_DEGREES[corner] for corner in anticorners)
-        anglepairs = pygamelib.merge_ranges(anglepairs)
+        anticorners = [name for name in CORNERNAMES if name not in corners]
+        anglepairs = set(QUADRANT_DEGREES[corner] for corner in anticorners)
+        anglepairs = merge_ranges(anglepairs)
         for anglepair in anglepairs:
             angle1, angle2 = map(math.radians, anglepair)
             yield ('arc', color, rect, angle1, angle2, width)
@@ -1059,8 +1059,8 @@ class ShapeParser:
             elif name == 'squircle':
                 x, y, radius, width, *corners = remaining
                 x, y, radius, width = map(eval, (x, y, radius, width))
-                assert all(corner in pygamelib.CORNERNAMES for corner in corners), corners
-                yield from pygamelib.squircle_shapes(color, (x, y), radius, width, corners)
+                assert all(corner in CORNERNAMES for corner in corners), corners
+                yield from squircle_shapes(color, (x, y), radius, width, corners)
 
 
 class DrawMixin:
@@ -1292,3 +1292,185 @@ def find_intersection(p1, q1, p2, q2):
 def line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):
     # works!
     return find_intersection((x1, y1), (x2, y2), (x3, y3), (x4, y4))
+
+def random_point(rect):
+    l, t, w, h = rect
+    r = l + w
+    b = t + h
+    x = random.randint(l, r)
+    y = random.randint(t, b)
+    return (x, y)
+
+def random_rect(inside):
+    l, t, w, h = inside
+    r = l + w
+    b = t + h
+    x1 = random.randint(l, r)
+    y1 = random.randint(t, b)
+    x2 = random.randint(l, r)
+    y2 = random.randint(t, b)
+    # NOTE
+    # - check and flip fastest in benchmarks
+    if x2 < x1:
+        x1, x2 = x2, x1
+    if y2 < y1:
+        y1, y2 = y2, y1
+    return (x1, y1, x2 - x1, y2 - y1)
+
+def random_rect_from_empties(empties):
+    if len(empties) < 2:
+        return random_rect(empties[0])
+
+    empty1, empty2 = random.sample(empties, 2)
+    x1, y1 = random_point(empty1)
+    x2, y2 = random_point(empty2)
+    if x2 < x1:
+        x1, x2 = x2, x1
+    if y2 < y1:
+        y1, y2 = y2, y1
+    return (x1, y1, x2 - x1, y2 - y1)
+
+class RectsGenerator:
+    """
+    Generate some number of non-overlapping rects.
+    """
+
+    def __init__(self, n, minwidth, minheight):
+        assert n > 0
+        self.n = n
+        self.minwidth = minwidth
+        self.minheight = minheight
+        self.failures = 0
+
+    def __call__(self, inside, maxfail=1000):
+        rects = []
+        empties = [inside]
+        self.failures = 0
+        while len(rects) < self.n and maxfail - self.failures > 0:
+            rect = pygame.Rect(random_rect_from_empties(empties))
+            if (
+                rect.width > self.minwidth
+                and
+                rect.height > self.minheight
+                and
+                not any(other.colliderect(rect) for other in rects)
+            ):
+                rects.append(rect)
+                empties = find_empty_space(rects, inside)
+                empties = merge_all_rects(empties)
+            else:
+                self.failures += 1
+        empties = list(map(pygame.Rect, empties))
+        return (rects, empties)
+
+
+def subtract_rect(space, rect):
+    remaining_space = []
+    # Check for overlap in the x-axis
+    if rect.x < space.x + space.width and rect.x + rect.width > space.x:
+        # Subtract space to the left of the rectangle
+        if rect.x > space.x:
+            remaining_space.append(
+                Rect(space.x, space.y, rect.x - space.x, space.height)
+            )
+        # Subtract space to the right of the rectangle
+        if rect.x + rect.width < space.x + space.width:
+            remaining_space.append(
+                Rect(
+                    rect.x + rect.width,
+                    space.y,
+                    space.x + space.width - (rect.x + rect.width),
+                    space.height,
+                )
+            )
+    else:
+        remaining_space.append(space)
+    updated_space = []
+    # Check for overlap in the y-axis
+    for space in remaining_space:
+        if rect.y < space.y + space.height and rect.y + rect.height > space.y:
+            # Subtract space above the rectangle
+            if rect.y > space.y:
+                updated_space.append(
+                    Rect(space.x, space.y, space.width, rect.y - space.y)
+                )
+            # Subtract space below the rectangle
+            if rect.y + rect.height < space.y + space.height:
+                updated_space.append(
+                    Rect(
+                        space.x,
+                        rect.y + rect.height,
+                        space.width,
+                        space.y + space.height - (rect.y + rect.height)
+                    )
+                )
+        else:
+            updated_space.append(space)
+    return updated_space
+
+def subtract_rect(a, b):
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    remaining = []
+    # Check for overlap in the x-axis
+    if bx < ax + aw and bx + bw > ax:
+        # Subtract space to the left of the rectangle
+        if bx > ax:
+            remaining.append((ax, ay, bx - ax, ah))
+        # Subtract space to the right of the rectangle
+        if bx + bw < ax + aw:
+            remaining.append((bx + bw, ay, ax + aw - (bx + bw), ah))
+    else:
+        # No overlap in the x-axis, retain the original space
+        remaining.append(a)
+    updated_space = []
+    # Check for overlap in the y-axis
+    for space in remaining:
+        ax, ay, aw, ah = space
+        if by < ay + ah and by + bh > ay:
+            # Subtract space above the rectangle
+            if by > ay:
+                updated_space.append((ax, ay, aw, by - ay))
+            # Subtract space below the rectangle
+            if by + bh < ay + ah:
+                updated_space.append((ax, by + bh, aw, ay + ah - (by + bh)))
+        else:
+            # No overlap in the y-axis, retain the remaining space
+            updated_space.append(space)
+    return updated_space
+
+def subtract_rect(empty, rect_to_subtract):
+    empty = pygame.Rect(empty)
+    rect_to_subtract = pygame.Rect(rect_to_subtract)
+    clip = empty.clip(rect_to_subtract)
+    if not all(clip.size):
+        # no intersection
+        yield empty
+    else:
+        if empty.left < clip.left:
+            # left rect
+            yield (empty.left, empty.top, clip.left - empty.left, empty.height)
+        if empty.right > clip.right:
+            # right rect
+            yield (clip.right, empty.top, empty.right - clip.right, empty.height)
+        if empty.top < clip.top:
+            # top rect including left- and right-top
+            minright = min(empty.right, clip.right)
+            maxleft = max(empty.left, clip.left)
+            yield (maxleft, empty.top, minright - maxleft, clip.top - empty.top)
+        if empty.bottom > clip.bottom:
+            # bottom rect including left- and right-bottom
+            minright = min(empty.right, clip.right)
+            maxleft = max(empty.left, clip.left)
+            yield (maxleft, clip.bottom, minright - maxleft, empty.bottom - clip.bottom)
+
+def subtract_rect_from_empties(empties, rect_to_subtract):
+    for empty in empties:
+        for space in subtract_rect(empty, rect_to_subtract):
+            yield space
+
+def find_empty_space(rects, inside):
+    empties = [inside]
+    for rect in rects:
+        empties = list(subtract_rect_from_empties(empties, rect))
+    return empties
