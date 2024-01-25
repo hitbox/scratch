@@ -4,6 +4,7 @@ import itertools as it
 import math
 import operator as op
 import os
+import random
 import string
 import sys
 import unittest
@@ -50,6 +51,77 @@ class TestMergeRanges(unittest.TestCase):
         self.assertEqual(test, set([(0,10)]))
         test = merge_ranges([(0,10),(1,2),(3,5),(4,8)])
         self.assertEqual(test, set([(0,10)]))
+
+
+class TestMergeRects(unittest.TestCase):
+
+    def test_merge_rects_none(self):
+        self.assertIsNone(
+            merge_rects((0, 0, 10, 10), (15, 15, 10, 10))
+        )
+
+    def test_merge_rects_leftright(self):
+        self.assertEqual(
+            merge_rects((0, 0, 10, 10), (10, 0, 10, 10)),
+            (0, 0, 20, 10),
+        )
+        self.assertEqual(
+            merge_rects((10, 0, 10, 10), (0, 0, 10, 10)),
+            (0, 0, 20, 10),
+        )
+
+    def test_merge_rects_topbottom(self):
+        self.assertEqual(
+            merge_rects((0, 0, 10, 10), (0, 10, 10, 10)),
+            (0, 0, 10, 20),
+        )
+
+    def test_merge_rects_diagonal_is_none(self):
+        # diagonals do not merge
+        self.assertIsNone(
+            merge_rects((0, 0, 10, 10), (10, 10, 10, 10)),
+        )
+
+
+class TestMergeAllRects(unittest.TestCase):
+
+    def test_merge_all_none(self):
+        no_merges_rects = [
+            (0, 0, 10, 10),
+            (20, 0, 10, 10),
+            (0, 20, 10, 10),
+        ]
+        self.assertEqual(
+            merge_all_rects(no_merges_rects),
+            no_merges_rects,
+        )
+
+    def test_merge_all_square(self):
+        square = [
+            (0, 0, 10, 10),
+            (10, 0, 10, 10),
+            (0, 10, 10, 10),
+            (10, 10, 10, 10),
+        ]
+        self.assertEqual(
+            merge_all_rects(square),
+            [(0, 0, 20, 20)],
+        )
+
+    def test_merge_all_four_to_two(self):
+        rects = [
+            (0, 0, 10, 10),
+            (10, 0, 10, 10),
+            (20, 20, 10, 10),
+        ]
+        # set to disregard order
+        self.assertEqual(
+            set(merge_all_rects(rects)),
+            set([
+                (0, 0, 20, 10),
+                (20, 20, 10, 10),
+            ]),
+        )
 
 
 def intargs(string):
@@ -184,40 +256,33 @@ def wrap(rects):
     height = bottom - y
     return (x, y, width, height)
 
-def iter_rect_diffs(rect, inside):
+def iter_rect_diffs(inside, outside):
     """
-    Generate eight rects resulting from "subtracting" `rect` from `inside`.
+    Generate eight rects resulting from "subtracting" `inside` from `outside`.
     """
-    _, minright, minbottom, _ = minsides(rect, inside)
-    maxtop, _, _, maxleft = maxsides(rect, inside)
+    inside, outside = map(pygame.Rect, [inside, outside])
+    _, minright, minbottom, _ = minsides(inside, outside)
+    maxtop, _, _, maxleft = maxsides(inside, outside)
     # topleft
-    yield from_points(*inside.topleft, *rect.topleft)
+    yield from_points(*outside.topleft, *inside.topleft)
     # top
-    yield from_points(maxleft, inside.top, minright, rect.top)
+    yield from_points(maxleft, outside.top, minright, inside.top)
     # topright
-    yield from_points(minright, inside.top, inside.right, rect.top)
+    yield from_points(minright, outside.top, outside.right, inside.top)
     # right
-    yield from_points(minright, maxtop, inside.right, minbottom)
+    yield from_points(minright, maxtop, outside.right, minbottom)
     # bottomright
-    yield from_points(*rect.bottomright, *inside.bottomright)
+    yield from_points(*inside.bottomright, *outside.bottomright)
     # bottom
-    yield from_points(maxleft, rect.bottom, minright, inside.bottom)
+    yield from_points(maxleft, inside.bottom, minright, outside.bottom)
     # bottomleft
-    yield from_points(inside.left, rect.bottom, rect.left, inside.bottom)
+    yield from_points(outside.left, inside.bottom, inside.left, outside.bottom)
     # left
-    yield from_points(inside.left, maxtop, rect.left, minbottom)
-
-def surrounding(rect):
-    # going around the original rect's points...
-    for attr, oppo in POINTS.items():
-        kwargs = {oppo: getattr(rect, attr)}
-        # ...create new rect of the same size, aligned to the opposite point
-        yield make_rect(size=rect.size, **kwargs)
-    # TODO
-    # - this is like rectwalls
+    yield from_points(outside.left, maxtop, inside.left, minbottom)
 
 def area(rect):
-    return rect.width * rect.height
+    _, _, w, h = rect
+    return w * h
 
 def overlaps(rects):
     for r1, r2 in it.combinations(rects, 2):
@@ -536,6 +601,33 @@ class BrowseBase:
             post_videoexpose()
 
 
+class RectRenderer:
+    """
+    Simple rect renderer with highlighting.
+    """
+
+    def __init__(self, offset=(0,0), highlight=None, highlight_color='magenta'):
+        self.offset = pygame.Vector2(offset)
+        self.highlight = highlight
+        self.highlight_color = highlight_color
+
+    def __call__(self, surface, color, fill, rects):
+        ox, oy = self.offset
+        drawn_rects = []
+        for rect in rects:
+            if rect is self.highlight:
+                _color = self.highlight_color
+                _fill = 0
+            else:
+                _color = color
+                _fill = fill
+            (x, y, w, h) = rect
+            rect = (x+ox, y+oy, w, h)
+            drawn = pygame.draw.rect(surface, _color, rect, _fill)
+            drawn_rects.append(drawn)
+        return drawn_rects
+
+
 class ColorSpace:
     """
     Convenience to get one of the space representations of a pygame color,
@@ -755,6 +847,9 @@ def line_center(line):
     return ((x2 - x1) / 2 + x1, (y2 - y1) / 2 + y1)
 
 def mergeable(range1, range2):
+    """
+    Are these ranges overlapping?
+    """
     start1, stop1 = range1
     start2, stop2 = range2
     return not (start1 > stop2 or stop1 < start2)
@@ -774,6 +869,52 @@ def merge_ranges(ranges):
             if r2 in ranges:
                 ranges.remove(r2)
             ranges.add((min(*r1, *r2), max(*r1, *r2)))
+
+def mergeable_rects(r1, r2):
+    t1, t1, w1, h1 = r1
+    t2, t2, w2, h2 = r2
+    r1 = t1 + w1
+    b1 = t1 + h1
+    r2 = t2 + w2
+    b2 = t2 + h2
+    return (
+        # same width sharing top or bottom
+        (w1 == w2 and (t1 == b2 or t2 == b1))
+        or
+        # same height sharing left or right
+        (h1 == h2 and (t1 == r2 or t2 == r1))
+    )
+
+def merge_rects(rect1, rect2):
+    l1, t1, w1, h1 = rect1
+    l2, t2, w2, h2 = rect2
+    r1 = l1 + w1
+    b1 = t1 + h1
+    r2 = l2 + w2
+    b2 = t2 + h2
+    if (w1 == w2 and l1 == l2 and (t1 == b2 or t2 == b1)):
+        # same width, same left and sharing top/bottom
+        return (l1, min(t1, t2), w1, h1 + h2)
+    elif (h1 == h2 and t1 == t2 and (l1 == r2 or l2 == r1)):
+        # same height, same top and sharing left/right
+        return (min(l1, l2), t1, w1 + w2, h1)
+
+def merge_all_rects(rects):
+    merged = list(rects)
+    while len(merged) > 1:
+        for rect1, rect2 in it.combinations(merged, 2):
+            merge_result = merge_rects(rect1, rect2)
+            if merge_result:
+                if rect1 in merged:
+                    merged.remove(rect1)
+                if rect2 in merged:
+                    merged.remove(rect2)
+                merged.append(merge_result)
+                break
+        else:
+            # nothing merged because no break so stop
+            break
+    return merged
 
 def rectquadrants(rect):
     x, y, w, h = rect

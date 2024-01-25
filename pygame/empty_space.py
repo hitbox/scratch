@@ -1,4 +1,3 @@
-import argparse
 import itertools as it
 import operator as op
 import random
@@ -11,6 +10,50 @@ from pygamelib import pygame
 
 COLORS = list(filter(pygamelib.interesting_color, pygame.color.THECOLORS))
 sides = op.attrgetter('top', 'right', 'bottom', 'left')
+
+class Demo(pygamelib.DemoBase):
+
+    def __init__(self, inside, rects_generator):
+        self.inside = inside
+        self.rects_generator = rects_generator
+        self.rect_renderer = pygamelib.RectRenderer()
+        self.update_rects()
+
+    def update_rects(self):
+        self.rects, self.empties = self.rects_generator(self.inside)
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            self.engine.stop()
+        else:
+            self.update_rects()
+            pygamelib.post_videoexpose()
+
+    def do_mousemotion(self, event):
+        if event.buttons[0]:
+            self.rect_renderer.offset += event.rel
+            pygamelib.post_videoexpose()
+        elif not any(event.buttons):
+            for rect in self.rects + self.empties:
+                if rect.collidepoint(event.pos):
+                    self.rect_renderer.highlight = rect
+                    pygamelib.post_videoexpose()
+                    break
+            else:
+                self.rect_renderer.highlight = None
+
+    def do_videoexpose(self, event):
+        self.draw()
+
+    def draw(self):
+        self.screen.fill('black')
+        self.rect_renderer(self.screen, 'white', 0, self.rects)
+        self.rect_renderer(self.screen, 'red', 1, self.empties)
+        pygame.display.flip()
+
 
 def find_empty_space(rectangles, inside):
     empties = [inside]
@@ -42,11 +85,8 @@ def subtract_rect(empties, rect_to_subtract):
             maxleft = max(empty.left, clip.left)
             yield (maxleft, clip.bottom, minright - maxleft, empty.bottom - clip.bottom)
 
-def area(rect):
-    return rect.width * rect.height
-
 def rect_from_points(x1, y1, x2, y2):
-    return (x1, y1, x2 - x1, y2 - x1)
+    return (x1, y1, x2 - x1, y2 - y1)
 
 def rand_rect_point(rect):
     top, right, bottom, left = sides(rect)
@@ -55,146 +95,53 @@ def rand_rect_point(rect):
 def rand_endpoints(inside):
     return (*rand_rect_point(inside), *rand_rect_point(inside))
 
-def unionable(r1, r2):
-    top1, right1, bottom1, left1 = sides(r1)
-    top2, right2, bottom2, left2 = sides(r2)
-    return (
-        (top1 == bottom2 and r1.width == r2.width)
-        or
-        (right1 == left2 and r1.height == r2.height)
-        or
-        (bottom1 == top2 and r1.width == r2.width)
-        or
-        (left1 == right2 and r1.height == r2.height)
-    )
-
-def defrag_rects(r1, r2):
-    if unionable:
-        yield r1.union(r2)
-    else:
-        yield r1
-        yield r2
-
 def random_rect(inside):
     endpoints = rand_endpoints(inside)
     rect = pygame.Rect(rect_from_points(*endpoints))
     rect.normalize()
     return rect
 
-def generate_random_rects(nrects):
-    rects = set()
-    while len(rects) < nrects:
-        if not window.contains(rect):
-            continue
+def random_rects(inside, nrects, minwidth=0, minheight=0):
+    rects = []
+    while nrects > 0:
+        rect = random_rect(inside)
         if (
-            rect.width > 1
+            rect.width > minwidth
             and
-            rect.height > 1
+            rect.height > minheight
             and
             not any(other.colliderect(rect) for other in rects)
         ):
-            rects.add(rect)
             yield rect
+            rects.append(rect)
+            nrects -= 1
 
-def defrag_rects(rects):
-    while True:
-        for r1, r2 in it.combinations(rects, 2):
-            if unionable(r1, r2):
-                rects.append(r1.union(r2))
-                rects.remove(r1)
-                rects.remove(r2)
-                break
-        else:
-            # nothing unioned, stop trying
-            break
+class RectsGenerator:
 
-def find_empty_space2(rects, inside):
-    tops, rights, bottoms, lefts = zip(*map(sides, rects))
+    def __init__(self, n, minwidth, minheight):
+        self.n = n
+        self.minwidth = minwidth
+        self.minheight = minheight
 
-    tops += (inside.bottom,)
-    rights += (inside.left,)
-    bottoms += (inside.top,)
-    lefts += (inside.right,)
+    def __call__(self, inside):
+        rects = list(random_rects(inside, self.n, self.minwidth, self.minheight))
+        # negative rects
+        empty_space_rects = list(find_empty_space(rects, inside))
+        assert empty_space_rects
+        # because the rect subtraction function is not aware of already
+        # "subtracted" rects, it generates excessive rects
+        empty_space_rects = pygamelib.merge_all_rects(empty_space_rects)
+        empty_space_rects = list(map(pygame.Rect, empty_space_rects))
+        return (rects, empty_space_rects)
 
-    xsides = lefts + rights
-    ysides = tops + bottoms
 
-    def is_valid(rect):
-        return (
-            all(rect.size)
-            and
-            rect not in result
-            and
-            inside.contains(rect)
-            and
-            not any(rect.colliderect(other) for other in rects)
-            and
-            not any(
-                negrect.contains(rect) or negrect.colliderect(rect)
-                for negrect in result
-            )
-        )
-
-    result = list()
-    while True:
-        negs = list()
-        for x1, x2 in it.combinations(xsides, 2):
-            for y1, y2 in it.combinations(ysides, 2):
-                rect = pygame.Rect(rect_from_points(x1, y1, x2, y2))
-                rect.normalize()
-                if is_valid(rect):
-                    negs.append(rect)
-                rect = pygame.Rect(rect_from_points(x2, y2, x1, y1))
-                rect.normalize()
-                if is_valid(rect):
-                    negs.append(rect)
-        if not negs:
-            break
-        biggest = sorted(negs, key=area)[-1]
-        result.append(biggest)
-    return result
-
-def run(rects, empty_space_rects):
-    pygame.font.init()
-    clock = pygame.time.Clock()
-    framerate = 60
-    font = pygame.font.SysFont('monospace', 20)
-    screen = pygame.display.get_surface()
-    window = screen.get_rect()
-
-    colors = random.sample(COLORS, len(rects))
-    i = 0
-    running = True
-    while running:
-        elapsed = clock.tick(framerate)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
-                    i = (i - 1) % len(empty_space_rects)
-                elif event.key == pygame.K_RIGHT:
-                    i = (i + 1) % len(empty_space_rects)
-                else:
-                    pygame.event.post(pygame.event.Event(pygame.QUIT))
-        screen.fill('black')
-        for rect, color in zip(rects, colors, strict=True):
-            pygame.draw.rect(screen, color, rect, 0)
-            image = font.render(f'{color}', True, 'black', 'white')
-            screen.blit(image, image.get_rect(center=rect.center))
-
-        highlight = empty_space_rects[i]
-        pygame.draw.rect(screen, 'magenta', highlight, 0)
-        image = font.render(f'{i=}/{len(empty_space_rects)-1}', True, 'white')
-        rect = image.get_rect(topleft=highlight.topright).clamp(window)
-        screen.blit(image, rect)
-        pygame.display.flip()
-
-def size_type(string):
-    size = tuple(map(int, string.replace(',', ' ').split()))
-    if len(size) < 2:
-        size *= 2
-    return size
+def run(display_size, nrects):
+    window = pygame.Rect((0,)*2, display_size)
+    space = window.inflate((-min(window.size)*.25,)*2)
+    engine = pygamelib.Engine()
+    state = Demo(space, RectsGenerator(nrects, 100, 100))
+    pygame.display.set_mode(window.size)
+    engine.run(state)
 
 def main(argv=None):
     parser = pygamelib.command_line_parser()
@@ -204,28 +151,7 @@ def main(argv=None):
     if args.nrects > len(COLORS):
         parser.error('Invalid nrects')
 
-    window = pygame.Rect((0,)*2, args.display_size)
-
-    random.seed(0)
-    rects = []
-    while len(rects) < args.nrects:
-        rect = random_rect(window)
-        if (
-            window.contains(rect)
-            and
-            not any(other.colliderect(rect) for other in rects)
-        ):
-            rects.append(rect)
-
-    # negative rects
-    empty_space_rects = list(find_empty_space(rects, window))
-    assert empty_space_rects
-
-    defrag_rects(empty_space_rects)
-    empty_space_rects = sorted(empty_space_rects)
-
-    pygame.display.set_mode(window.size)
-    run(rects, empty_space_rects)
+    run(args.display_size, args.nrects)
 
 if __name__ == '__main__':
     main()
