@@ -870,21 +870,6 @@ def merge_ranges(ranges):
                 ranges.remove(r2)
             ranges.add((min(*r1, *r2), max(*r1, *r2)))
 
-def mergeable_rects(r1, r2):
-    t1, t1, w1, h1 = r1
-    t2, t2, w2, h2 = r2
-    r1 = t1 + w1
-    b1 = t1 + h1
-    r2 = t2 + w2
-    b2 = t2 + h2
-    return (
-        # same width sharing top or bottom
-        (w1 == w2 and (t1 == b2 or t2 == b1))
-        or
-        # same height sharing left or right
-        (h1 == h2 and (t1 == r2 or t2 == r1))
-    )
-
 def merge_rects(rect1, rect2):
     l1, t1, w1, h1 = rect1
     l2, t2, w2, h2 = rect2
