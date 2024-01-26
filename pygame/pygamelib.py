@@ -366,7 +366,7 @@ def area(rect):
     return w * h
 
 def overlaps(rects):
-    for r1, r2 in it.combinations(rects, 2):
+    for r1, r2 in it.combinations(map(pygame.Rect, rects), 2):
         clipping = r1.clip(r2)
         if clipping:
             yield (r1, r2, clipping)
