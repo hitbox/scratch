@@ -1,14 +1,6 @@
-import itertools as it
-import operator as op
-import random
-
-from pprint import pprint
-
 import pygamelib
 
 from pygamelib import pygame
-
-sides = op.attrgetter('top', 'right', 'bottom', 'left')
 
 class Demo(pygamelib.DemoBase):
 
@@ -53,11 +45,11 @@ class Demo(pygamelib.DemoBase):
         self.rect_renderer(self.screen, 'white', 0, self.rects)
         self.rect_renderer(self.screen, 'red', 1, self.empties)
         for index, rect in enumerate(self.rects):
+            pygame.draw.circle(self.screen, 'limegreen', rect.center, 5, 0)
             label = self.font.render(str(index), True, 'brown')
             rect = label.get_rect(center=rect.center)
             rect.clamp_ip(self.inside)
             self.screen.blit(label, rect)
-            pygame.draw.circle(self.screen, 'limegreen', rect.center, 5, 0)
         pygame.display.flip()
 
 
@@ -76,7 +68,6 @@ def main(argv=None):
     parser = pygamelib.command_line_parser()
     parser.add_argument('--nrects', type=int, default=1)
     args = parser.parse_args(argv)
-
     run(args.display_size, args.nrects)
 
 if __name__ == '__main__':
