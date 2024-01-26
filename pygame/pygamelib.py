@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+import enum
 import itertools as it
 import math
 import operator as op
@@ -121,6 +122,86 @@ class TestMergeAllRects(unittest.TestCase):
                 (0, 0, 20, 10),
                 (20, 20, 10, 10),
             ]),
+        )
+
+
+class TestTouching(unittest.TestCase):
+
+    def test_itertouching_none(self):
+        self.assertEqual(
+            set(itertouching((0,0,10,10), [(20,20,10,10)])),
+            set(),
+        )
+
+    def test_itertouching_topbottom(self):
+        self.assertEqual(
+            set(itertouching((0,0,10,10), [(0,-10,10,10)])),
+            {(0,-10,10,10)},
+        )
+
+    def test_itertouching_bottomtop(self):
+        self.assertEqual(
+            set(itertouching((0,0,10,10), [(0,10,10,10)])),
+            {(0,10,10,10)},
+        )
+
+    def test_itertouching_leftright(self):
+        self.assertEqual(
+            set(itertouching((0,0,10,10), [(10,0,10,10)])),
+            {(10,0,10,10)},
+        )
+
+    def test_itertouching_rightleft(self):
+        self.assertEqual(
+            set(itertouching((0,0,10,10), [(-10,0,10,10)])),
+            {(-10,0,10,10)},
+        )
+
+    def test_itertouching_complex(self):
+        self.assertEqual(
+            set(itertouching(
+                (0,0,10,10),
+                [
+                    (-5, 10, 10, 10), # below, right to mid
+                    (5, 10, 10, 10), # below, left at mid
+                    (10, -5, 10, 10), # above, to right, bottom mid height
+                    (10, 5, 10, 10), # right of, top at mid height
+                    (20, 20, 10, 10), # not touching
+                ]
+            )),
+            {
+                (-5, 10, 10, 10),
+                (5, 10, 10, 10),
+                (10, -5, 10, 10),
+                (10, 5, 10, 10),
+            },
+        )
+
+
+class TestFloodRectPair(unittest.TestCase):
+
+    def test_largest_visible_pair_right_to_left(self):
+        self.assertEqual(
+            largest_visible_pair((0,0,10,10), (10,5,10,10)),
+            (0,5,20,5),
+        )
+
+    def test_largest_visible_pair_left_to_right(self):
+        self.assertEqual(
+            largest_visible_pair((0,0,10,10), (-10,5,10,10)),
+            (-10,5,20,5),
+        )
+
+    def test_largest_visible_pair_top_to_bottom(self):
+        self.assertEqual(
+            largest_visible_pair((0,0,10,10), (5,-10,10,10)),
+            (5,-10,5,20),
+        )
+
+    def test_largest_visible_pair_bottom_to_top(self):
+        self.assertEqual(
+            largest_visible_pair((0,0,10,10), (5,10,10,10)),
+            (5,0,5,20),
         )
 
 
@@ -1410,7 +1491,6 @@ class RectsGenerator:
             randrect = (x1, y1, x2 - x1, y2 - y1)
 
         x, y, w, h = randrect
-        #x, y, w, h = random_rect_from_empties(self.empties)
         if (
             w < self.minwidth or h < self.minheight or
             any(map(pygame.Rect(x, y, w, h).colliderect, self.rects))
@@ -1467,3 +1547,80 @@ def find_empty_space(rects, inside):
     for rect in rects:
         empties = list(subtract_rect_from_empties(empties, rect))
     return empties
+
+def extremities(rect):
+    left, top, width, width = rect
+    right = left + width
+    bottom = top + width
+    return (left, top, right, bottom)
+
+class TouchingRects(enum.Enum):
+    TOP_BOTTOM = enum.auto()
+    BOTTOM_TOP = enum.auto()
+    LEFT_RIGHT = enum.auto()
+    RIGHT_LEFT = enum.auto()
+
+
+def is_touching(rect1, rect2):
+    rect1left, rect1top, rect1width, rect1width = rect1
+    rect1right = rect1left + rect1width
+    rect1bottom = rect1top + rect1width
+    rect2left, rect2top, rect2width, rect2width = rect2
+    rect2right = rect2left + rect2width
+    rect2bottom = rect2top + rect2width
+    if rect1left < rect2right and rect1right > rect2left:
+        # within horizontal
+        if rect1top == rect2bottom:
+            return TouchingRects.TOP_BOTTOM
+        elif rect1bottom == rect2top:
+            return TouchingRects.BOTTOM_TOP
+    elif rect1top < rect2bottom and rect1bottom > rect2top:
+        # within vertical
+        if rect1left == rect2right:
+            return TouchingRects.LEFT_RIGHT
+        elif rect1right == rect2left:
+            return TouchingRects.RIGHT_LEFT
+
+def itertouching(rect, others):
+    rectleft, recttop, rectwidth, rectheight = rect
+    rectright = rectleft + rectwidth
+    rectbottom = recttop + rectheight
+
+    def recurse(other):
+        rest = set(map(tuple, others))
+        rest.remove(tuple(other))
+        return itertouching(other, rest)
+
+    for other in others:
+        otherleft, othertop, otherwidth, otherheight = other
+        otherright = otherleft + otherwidth
+        otherbottom = othertop + otherheight
+        if is_touching(rect, other):
+            yield other
+            yield from recurse(other)
+
+def largest_visible_pair(rect1, rect2):
+    touching = is_touching(rect1, rect2)
+    if not touching:
+        return rect1
+    left, top, right, bottom = extremities(rect1)
+    if touching == TouchingRects.RIGHT_LEFT:
+        _, top2, right, bottom2 = extremities(rect2)
+        top = max(top, top2)
+        bottom = min(bottom, bottom2)
+    elif touching == TouchingRects.LEFT_RIGHT:
+        left, top2, _, bottom2 = extremities(rect2)
+        top = max(top, top2)
+        bottom = min(bottom, bottom2)
+    elif touching == TouchingRects.TOP_BOTTOM:
+        left2, top, right2, _ = extremities(rect2)
+        left = max(left, left2)
+        right = min(right, right2)
+    elif touching == TouchingRects.BOTTOM_TOP:
+        left2, _, right2, bottom = extremities(rect2)
+        left = max(left, left2)
+        right = min(right, right2)
+    return (left, top, right - left, bottom - top)
+
+def floodrects(rect, others):
+    pass
