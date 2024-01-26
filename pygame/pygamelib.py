@@ -362,7 +362,7 @@ def sides(rect):
     bottom = top + h
     return (top, right, bottom, left)
 
-class MethodName:
+class EventMethodName:
     """
     Callable to create a method name from a pygame event.
     """
@@ -376,7 +376,7 @@ class MethodName:
         return method_name
 
 
-default_methodname = MethodName(prefix='do_')
+default_methodname = EventMethodName(prefix='do_')
 
 def dispatch(obj, event):
     method_name = default_methodname(event)
@@ -653,6 +653,7 @@ class ColorSpace:
         color = pygame.Color(color)
         return self.get_attr(color)[:3]
 
+
 def colortext(color_key):
     if color_key.space in ('cmy', 'hsl', 'hsv'):
         def _colortext(color):
@@ -877,12 +878,17 @@ def merge_rects(rect1, rect2):
     b1 = t1 + h1
     r2 = l2 + w2
     b2 = t2 + h2
-    if (w1 == w2 and l1 == l2 and (t1 == b2 or t2 == b1)):
+    if w1 == w2 and l1 == l2 and (t1 == b2 or t2 == b1):
         # same width, same left and sharing top/bottom
         return (l1, min(t1, t2), w1, h1 + h2)
-    elif (h1 == h2 and t1 == t2 and (l1 == r2 or l2 == r1)):
+    elif h1 == h2 and t1 == t2 and (l1 == r2 or l2 == r1):
         # same height, same top and sharing left/right
         return (min(l1, l2), t1, w1 + w2, h1)
+
+def has_mergeable(rects):
+    for rect1, rect2 in it.combinations(rects, 2):
+        if merge_rects(rect1, rect2):
+            return True
 
 def merge_all_rects(rects):
     merged = list(rects)
@@ -1321,7 +1327,10 @@ def random_rect_from_empties(empties):
     if len(empties) < 2:
         return random_rect(empties[0])
 
-    empty1, empty2 = random.sample(empties, 2)
+    # using choice so that the same empty may be selected
+    #empty1, empty2 = random.sample(empties, 2)
+    empty1 = random.choice(empties)
+    empty2 = random.choice(empties)
     x1, y1 = random_point(empty1)
     x2, y2 = random_point(empty2)
     if x2 < x1:
@@ -1341,109 +1350,86 @@ class RectsGenerator:
         self.minwidth = minwidth
         self.minheight = minheight
         self.failures = 0
+        self.maxfail = None
+        self.rects = None
+        self.empties = None
 
-    def __call__(self, inside, maxfail=1000):
-        rects = []
-        empties = [inside]
+    def reset(self, inside, maxfail=1000):
+        self.inside = inside
+        self.maxfail = maxfail
+        self.rects = []
+        self.empties = [inside]
         self.failures = 0
-        while len(rects) < self.n and maxfail - self.failures > 0:
-            rect = pygame.Rect(random_rect_from_empties(empties))
-            if (
-                rect.width > self.minwidth
-                and
-                rect.height > self.minheight
-                and
-                not any(other.colliderect(rect) for other in rects)
-            ):
-                rects.append(rect)
-                empties = find_empty_space(rects, inside)
-                empties = merge_all_rects(empties)
-            else:
-                self.failures += 1
-        empties = list(map(pygame.Rect, empties))
-        return (rects, empties)
 
-
-def subtract_rect(space, rect):
-    remaining_space = []
-    # Check for overlap in the x-axis
-    if rect.x < space.x + space.width and rect.x + rect.width > space.x:
-        # Subtract space to the left of the rectangle
-        if rect.x > space.x:
-            remaining_space.append(
-                Rect(space.x, space.y, rect.x - space.x, space.height)
+    def is_resolved(self):
+        return (
+            (
+                # reached goal or...
+                len(self.rects) == self.n
+                or
+                # ...failed to limit
+                self.maxfail - self.failures == 0
             )
-        # Subtract space to the right of the rectangle
-        if rect.x + rect.width < space.x + space.width:
-            remaining_space.append(
-                Rect(
-                    rect.x + rect.width,
-                    space.y,
-                    space.x + space.width - (rect.x + rect.width),
-                    space.height,
-                )
-            )
-    else:
-        remaining_space.append(space)
-    updated_space = []
-    # Check for overlap in the y-axis
-    for space in remaining_space:
-        if rect.y < space.y + space.height and rect.y + rect.height > space.y:
-            # Subtract space above the rectangle
-            if rect.y > space.y:
-                updated_space.append(
-                    Rect(space.x, space.y, space.width, rect.y - space.y)
-                )
-            # Subtract space below the rectangle
-            if rect.y + rect.height < space.y + space.height:
-                updated_space.append(
-                    Rect(
-                        space.x,
-                        rect.y + rect.height,
-                        space.width,
-                        space.y + space.height - (rect.y + rect.height)
-                    )
-                )
-        else:
-            updated_space.append(space)
-    return updated_space
+            and
+            # no mergeables
+            not has_mergeable(self.empties)
+        )
 
-def subtract_rect(a, b):
-    ax, ay, aw, ah = a
-    bx, by, bw, bh = b
-    remaining = []
-    # Check for overlap in the x-axis
-    if bx < ax + aw and bx + bw > ax:
-        # Subtract space to the left of the rectangle
-        if bx > ax:
-            remaining.append((ax, ay, bx - ax, ah))
-        # Subtract space to the right of the rectangle
-        if bx + bw < ax + aw:
-            remaining.append((bx + bw, ay, ax + aw - (bx + bw), ah))
-    else:
-        # No overlap in the x-axis, retain the original space
-        remaining.append(a)
-    updated_space = []
-    # Check for overlap in the y-axis
-    for space in remaining:
-        ax, ay, aw, ah = space
-        if by < ay + ah and by + bh > ay:
-            # Subtract space above the rectangle
-            if by > ay:
-                updated_space.append((ax, ay, aw, by - ay))
-            # Subtract space below the rectangle
-            if by + bh < ay + ah:
-                updated_space.append((ax, by + bh, aw, ay + ah - (by + bh)))
+    def update(self):
+        if has_mergeable(self.empties):
+            self.merge_one()
         else:
-            # No overlap in the y-axis, retain the remaining space
-            updated_space.append(space)
-    return updated_space
+            self.one_random()
+
+    def merge_one(self):
+        # merge one and return
+        for rect1, rect2 in it.combinations(self.empties, 2):
+            merged = merge_rects(rect1, rect2)
+            if merged:
+                if rect1 in self.empties:
+                    self.empties.remove(rect1)
+                if rect2 in self.empties:
+                    self.empties.remove(rect2)
+                self.empties.append(pygame.Rect(merged))
+                return
+
+    def one_random(self):
+        r1 = random.choice(self.empties)
+        if r1.width >= self.minwidth and r1.height >= self.minheight:
+            randrect = random_rect(r1)
+        else:
+            rest = set(map(tuple, self.empties))
+            rest.remove(tuple(r1))
+            r2 = random.choice(list(rest))
+            x1, y1 = random_point(r1)
+            x2, y2 = random_point(r2)
+            if x1 > x2:
+                x1, x2 = x2, x1
+            if y1 > y2:
+                y1, y2 = y2, y1
+            randrect = (x1, y1, x2 - x1, y2 - y1)
+
+        x, y, w, h = randrect
+        #x, y, w, h = random_rect_from_empties(self.empties)
+        if (
+            w < self.minwidth or h < self.minheight or
+            any(map(pygame.Rect(x, y, w, h).colliderect, self.rects))
+        ):
+            self.failures += 1
+        else:
+            newrect = pygame.Rect(x, y, w, h)
+            self.rects.append(newrect)
+            empties = subtract_rect_from_empties(self.empties, newrect)
+            self.empties = list(map(pygame.Rect, empties))
+
 
 def subtract_rect(empty, rect_to_subtract):
+    """
+    Subdivide `empty` by `rect_to_subtract`.
+    """
     empty = pygame.Rect(empty)
-    rect_to_subtract = pygame.Rect(rect_to_subtract)
     clip = empty.clip(rect_to_subtract)
-    if not all(clip.size):
+    if not clip:
         # no intersection
         yield empty
     else:
@@ -1465,11 +1451,18 @@ def subtract_rect(empty, rect_to_subtract):
             yield (maxleft, clip.bottom, minright - maxleft, empty.bottom - clip.bottom)
 
 def subtract_rect_from_empties(empties, rect_to_subtract):
+    """
+    Subdivide all the rects in empties by rect_to_subtract.
+    """
     for empty in empties:
-        for space in subtract_rect(empty, rect_to_subtract):
-            yield space
+        for rect in subtract_rect(empty, rect_to_subtract):
+            yield rect
 
 def find_empty_space(rects, inside):
+    """
+    Subdivide the `inside` rect by all rects and return a list of rects
+    representing the negative space.
+    """
     empties = [inside]
     for rect in rects:
         empties = list(subtract_rect_from_empties(empties, rect))
