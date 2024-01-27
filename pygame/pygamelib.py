@@ -205,6 +205,37 @@ class TestFloodRectPair(unittest.TestCase):
         )
 
 
+class TestInputLine(unittest.TestCase):
+
+    def setUp(self):
+        self.input_line = InputLine()
+
+    def test_addchar(self):
+        self.input_line.addchar('a')
+        self.assertEqual(self.input_line.line, 'a')
+
+    def test_insert_after_left(self):
+        self.input_line.addchar('b')
+        self.input_line.caretleft()
+        self.input_line.addchar('a')
+        self.assertEqual(self.input_line.line, 'ab')
+
+    def test_insert_after_right(self):
+        self.input_line.addchar('a')
+        self.input_line.addchar('c')
+        self.input_line.caretleft()
+        self.input_line.caretleft()
+        self.input_line.caretright()
+        self.input_line.addchar('b')
+        self.assertEqual(self.input_line.line, 'abc')
+
+    def test_backspace(self):
+        self.input_line.addchar('a')
+        self.input_line.addchar('b')
+        self.input_line.backspace()
+        self.assertEqual(self.input_line.line, 'a')
+
+
 def intargs(string):
     return map(int, string.replace(',', ' ').split())
 
@@ -419,6 +450,7 @@ def steppairs(start, stop, step):
     for i in range(start, stop, step):
         yield (i, i+step)
 
+# counter-clockwise degrees
 QUADRANT_DEGREES = dict(zip(
     ['topright', 'topleft', 'bottomleft', 'bottomright'],
     steppairs(0, 360, 90),
@@ -503,37 +535,6 @@ class DemoBase:
         self.elapsed = self.clock.tick(self.framerate)
         for event in pygame.event.get():
             dispatch(self, event)
-
-
-class TestInputLine(unittest.TestCase):
-
-    def setUp(self):
-        self.input_line = InputLine()
-
-    def test_addchar(self):
-        self.input_line.addchar('a')
-        self.assertEqual(self.input_line.line, 'a')
-
-    def test_insert_after_left(self):
-        self.input_line.addchar('b')
-        self.input_line.caretleft()
-        self.input_line.addchar('a')
-        self.assertEqual(self.input_line.line, 'ab')
-
-    def test_insert_after_right(self):
-        self.input_line.addchar('a')
-        self.input_line.addchar('c')
-        self.input_line.caretleft()
-        self.input_line.caretleft()
-        self.input_line.caretright()
-        self.input_line.addchar('b')
-        self.assertEqual(self.input_line.line, 'abc')
-
-    def test_backspace(self):
-        self.input_line.addchar('a')
-        self.input_line.addchar('b')
-        self.input_line.backspace()
-        self.assertEqual(self.input_line.line, 'a')
 
 
 class InputLine:
@@ -995,9 +996,9 @@ def rectquadrants(rect):
     # topleft
     yield (x, y, hw, hh)
     # topright
-    yield (hw, y, hw, hh)
+    yield (x + hw, y, hw, hh)
     # bottomright
-    yield (hw, hh, hw, hh)
+    yield (x + hw, hh, hw, hh)
     # bottomleft
     yield (x, hh, hw, hh)
 
@@ -1110,6 +1111,8 @@ class ShapeParser:
     shapenames = set(n for n in dir(pygame.draw) if not n.startswith('_'))
     shapenames.add('squircle')
 
+    # this is messed up
+    # the id field was removed from Rectangle
     def parse_file(self, file):
         for line in file:
             line = line.lstrip()
@@ -1152,120 +1155,121 @@ class ShapeParser:
 
 class DrawMixin:
 
-    def draw(self, surf, offset=(0,0)):
-        self.draw_func(surf, *self.draw_args(offset))
+    def draw(self, surf, color, width, offset=(0,0)):
+        self.draw_func(surf, *self.draw_args(color, width, offset))
 
 
-class Use(namedtuple('UseBase', 'href'), DrawMixin):
+class Arc(
+    namedtuple('ArcBase', 'rect angle1 angle2'),
+    DrawMixin,
+):
+    draw_func = pygame.draw.arc
 
-    def getref(self, shapes):
-        for shape in shapes:
-            if hasattr(shape, 'id') and shape.id == self.href[:1]:
-                return shape
+    def scale(self, scale):
+        color, (x, y, w, h), angle1, angle2 = self
+        rect = (x*scale, y*scale, w*scale, h*scale)
+        return self.__class__(rect, angle1, angle2)
+
+    def draw_args(self, color, width, offset):
+        ox, oy = offset
+        (x, y, w, h), angle1, angle2 = self
+        rect = (x-ox, y-oy, w, h)
+        return (color, rect, angle1, angle2, width)
 
 
 class Circle(
-    namedtuple('CircleBase', 'color center radius width id', defaults=[None]),
+    namedtuple('CircleBase', 'center radius'),
     DrawMixin,
 ):
     draw_func = pygame.draw.circle
 
     def scale(self, scale):
-        color, (x, y), radius, width, *rest = self
-        return self.__class__(color, (x*scale, y*scale), radius*scale, width*scale, *rest)
+        (x, y), radius, *rest = self
+        return self.__class__((x*scale, y*scale), radius*scale, *rest)
 
-    def draw_args(self, offset):
+    def draw_args(self, color, width, offset):
         ox, oy = offset
         color, (x, y), radius, width, *rest = self
         center = (x-ox, y-oy)
         return (color, center, radius, width)
 
 
-class Rectangle(
-    namedtuple(
-        'RectangleBase',
-        'color rect width'
-        # defaults
-        ' border_radius'
-        ' border_top_left_radius'
-        ' border_top_right_radius'
-        ' border_bottom_left_radius'
-        ' border_bottom_right_radius'
-        ' id'
-        ,
-        defaults = [0, -1, -1, -1, -1, None],
-    ),
-    DrawMixin
-):
-    draw_func = pygame.draw.rect
-
-    def scale(self, scale):
-        color, rect, width, *borders = self
-        rect = tuple(map(lambda v: v*scale, rect))
-        # scale borders?
-        return self.__class__(color, rect, width*scale, *borders)
-
-    def draw_args(self, offset):
-        ox, oy = offset
-        color, (x, y, w, h), width, *borders = self
-        rect = (x-ox, y-oy, w, h)
-        return (color, rect, width, *borders)
-
-
 class Line(
-    namedtuple('LineBase', 'color start end width'),
+    namedtuple('LineBase', 'start end'),
     DrawMixin,
 ):
     draw_func = pygame.draw.line
 
     def scale(self, scale):
-        color, (x1, y1), (x2, y2), width = self
+        (x1, y1), (x2, y2) = self
         start = (x1*scale, y1*scale)
         end = (x2*scale, y2*scale)
-        return self.__class__(color, start, end, width*scale)
+        return self.__class__(start, end)
 
-    def draw_args(self, offset):
+    def draw_args(self, color, width, offset):
         ox, oy = offset
-        color, (x1, y1), (x2, y2), width = self
+        (x1, y1), (x2, y2) = self
         start = (x1-ox, y1-oy)
         end = (x2-ox, y2-oy)
         return (color, start, end, width)
 
 
 class Lines(
-    namedtuple('LinesBase', 'color closed width points'),
+    namedtuple('LinesBase', 'closed points'),
     DrawMixin,
 ):
     draw_func = pygame.draw.lines
 
     def scale(self, scale):
-        color, closed, width, points = self
+        closed, points = self
         points = tuple((x*scale, y*scale) for x, y in points)
-        return self.__class__(color, closed, width*scale, points)
+        return self.__class__(closed, points)
 
-    def draw_args(self, offset):
+    def draw_args(self, color, width, offset):
         ox, oy = offset
-        color, closed, width, points = self
+        closed, points = self
         points = tuple((x-ox, y-oy) for x, y in points)
         return (color, closed, points, width)
 
 
-class Arc(
-    namedtuple('ArcBase', 'color rect angle1 angle2 width'),
+class Rectangle(
+    namedtuple(
+        'RectangleBase',
+        'rect'
+        # defaults
+        ' border_radius'
+        ' border_top_left_radius'
+        ' border_top_right_radius'
+        ' border_bottom_left_radius'
+        ' border_bottom_right_radius'
+        ,
+        defaults = [0, -1, -1, -1, -1],
+    ),
     DrawMixin,
 ):
-    draw_func = pygame.draw.arc
+    draw_func = pygame.draw.rect
 
     def scale(self, scale):
-        color, (x, y, w, h), angle1, angle2, width = self
-        rect = (x*scale, y*scale, w*scale, h*scale)
-        return self.__class__(color, rect, angle1, angle2, width)
+        rect, *borders = self
+        rect = tuple(map(lambda v: v*scale, rect))
+        # scale borders?
+        return self.__class__(rect, *borders)
 
-    def draw_args(self, offset):
+    def draw_args(self, color, width, offset):
         ox, oy = offset
-        color, (x, y, w, h), angle1, angle2, width = self
+        (x, y, w, h), *borders = self
         rect = (x-ox, y-oy, w, h)
-        return (color, rect, angle1, angle2, width)
+        return (color, rect, width, *borders)
+
+
+class Use(namedtuple('UseBase', 'href'), DrawMixin):
+    # TODO
+    # - trying to do something like svg <use> tags
+
+    def getref(self, shapes):
+        for shape in shapes:
+            if hasattr(shape, 'id') and shape.id == self.href[:1]:
+                return shape
 
 
 def parse_xml(xmlfile):
@@ -1624,3 +1628,93 @@ def largest_visible_pair(rect1, rect2):
 
 def floodrects(rect, others):
     pass
+
+def circlepoint(center, radius, angle):
+    # in screen space
+    cx, cy = center
+    return (
+        cx + math.cos(angle) * radius,
+        cy + -math.sin(angle) * radius,
+    )
+
+def circle_slope_tangent(center, point):
+    cx, cy = center
+    x, y = point
+    derivative_x = 2 * (x - cx)
+    derivative_y = 2 * (y - cy)
+    slope = derivative_x / derivative_y
+    return slope
+
+def intersection_point(point1, slope1, point2, slope2):
+    """
+    Intersection point of two lines described by two points and two slopes.
+    """
+    x1, y1 = point1
+    x2, y2 = point2
+    b1 = y1 - slope1 * x1
+    b2 = y2 - slope2 * x2
+    x = (b2 - b1) / (slope1 - slope2)
+    y = slope1 * x + b1
+    return (x, y)
+
+def intersection_point(point1, slope1, point2, slope2):
+    x1, y1 = point1
+    x2, y2 = point2
+
+    # Check if the slopes are equal (parallel lines)
+    if slope1 == slope2:
+        return None  # Lines are parallel, no intersection
+
+    # Calculate the x-coordinate of the intersection point
+    intersection_x = (slope2 * x2 - y2 - slope1 * x1 + y1) / (slope2 - slope1)
+
+    # Calculate the y-coordinate using either line equation
+    intersection_y = slope1 * (intersection_x - x1) + y1
+
+    return intersection_x, intersection_y
+
+class HeartShape:
+
+    def __init__(self, cleft_angle=None):
+        # the angle from the center of each of the two top quadrant rects
+        if cleft_angle is None:
+            cleft_angle = 45
+        self.cleft_angle = cleft_angle
+
+    def __call__(self, inside):
+        inside = pygame.Rect(inside)
+        assert inside.width == inside.height
+        quads = map(pygame.Rect, rectquadrants(inside))
+        topleft_quad, topright_quad, _, _ = quads
+        # top quads need to overlap to make the arcs meet center-top
+        radius = topleft_quad.width / 2
+        dx = (
+            topleft_quad.right
+            - (
+                topleft_quad.centerx
+                + math.cos(math.radians(self.cleft_angle))
+                * radius
+            )
+        )
+        topleft_quad.move_ip(+dx, 0)
+        topright_quad.move_ip(-dx, 0)
+
+        yield Arc(
+            rect = topleft_quad,
+            angle1 = math.radians(self.cleft_angle),
+            angle2 = math.radians(self.cleft_angle+180),
+        )
+        yield Arc(
+            rect = topright_quad,
+            angle1 = math.radians(-self.cleft_angle),
+            angle2 = math.radians(-self.cleft_angle+180),
+        )
+
+        p1 = circlepoint(topleft_quad.center, radius, math.radians(self.cleft_angle+180))
+        p2 = circlepoint(topright_quad.center, radius, math.radians(-self.cleft_angle))
+        slope_tangent1 = circle_slope_tangent(topleft_quad.center, p1)
+        slope_tangent2 = circle_slope_tangent(topright_quad.center, p2)
+        x, y = intersection_point(p1, -slope_tangent1, p2, -slope_tangent2)
+
+        # pointy bottom part
+        yield Lines(closed=False, points=[p1, (x,y), p2])
