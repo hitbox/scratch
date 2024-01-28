@@ -918,8 +918,10 @@ def render_color(
     return image
 
 def circle_surface(radius, color, flags=pygame.SRCALPHA):
-    surface = pygame.Surface((radius*2,)*2, flags)
-    pygame.draw.circle(surface, color, (radius,)*2, radius)
+    size = (radius*2,)*2
+    surface = pygame.Surface(size, flags)
+    center = (radius,)*2
+    pygame.draw.circle(surface, color, center, radius)
     return surface
 
 def centered_offset(rects, window):
@@ -1524,20 +1526,28 @@ def subtract_rect(empty, rect_to_subtract):
     else:
         if empty.left < clip.left:
             # left rect
-            yield (empty.left, empty.top, clip.left - empty.left, empty.height)
+            width = clip.left - empty.left
+            height = empty.height
+            yield (empty.left, empty.top, width, height)
         if empty.right > clip.right:
             # right rect
-            yield (clip.right, empty.top, empty.right - clip.right, empty.height)
+            width = empty.right - clip.right
+            height = empty.height
+            yield (clip.right, empty.top, width, height)
         if empty.top < clip.top:
             # top rect including left- and right-top
             minright = min(empty.right, clip.right)
             maxleft = max(empty.left, clip.left)
-            yield (maxleft, empty.top, minright - maxleft, clip.top - empty.top)
+            width = minright - maxleft
+            height = clip.top - empty.top
+            yield (maxleft, empty.top, width, height)
         if empty.bottom > clip.bottom:
             # bottom rect including left- and right-bottom
             minright = min(empty.right, clip.right)
             maxleft = max(empty.left, clip.left)
-            yield (maxleft, clip.bottom, minright - maxleft, empty.bottom - clip.bottom)
+            width = minright - maxleft
+            height = empty.bottom - clip.bottom
+            yield (maxleft, clip.bottom, width, height)
 
 def subtract_rect_from_empties(empties, rect_to_subtract):
     """
@@ -1651,24 +1661,12 @@ def circle_slope_tangent(center, point):
     return slope
 
 def intersection_point(point1, slope1, point2, slope2):
-    """
-    Intersection point of two lines described by two points and two slopes.
-    """
-    x1, y1 = point1
-    x2, y2 = point2
-    b1 = y1 - slope1 * x1
-    b2 = y2 - slope2 * x2
-    x = (b2 - b1) / (slope1 - slope2)
-    y = slope1 * x + b1
-    return (x, y)
-
-def intersection_point(point1, slope1, point2, slope2):
-    x1, y1 = point1
-    x2, y2 = point2
-
     # Check if the slopes are equal (parallel lines)
     if slope1 == slope2:
         return None  # Lines are parallel, no intersection
+
+    x1, y1 = point1
+    x2, y2 = point2
 
     # Calculate the x-coordinate of the intersection point
     intersection_x = (slope2 * x2 - y2 - slope1 * x1 + y1) / (slope2 - slope1)
