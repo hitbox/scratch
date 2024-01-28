@@ -182,25 +182,25 @@ class TestFloodRectPair(unittest.TestCase):
 
     def test_largest_visible_pair_right_to_left(self):
         self.assertEqual(
-            largest_visible_pair((0,0,10,10), (10,5,10,10)),
+            largest_contiguous((0,0,10,10), (10,5,10,10)),
             (0,5,20,5),
         )
 
     def test_largest_visible_pair_left_to_right(self):
         self.assertEqual(
-            largest_visible_pair((0,0,10,10), (-10,5,10,10)),
+            largest_contiguous((0,0,10,10), (-10,5,10,10)),
             (-10,5,20,5),
         )
 
     def test_largest_visible_pair_top_to_bottom(self):
         self.assertEqual(
-            largest_visible_pair((0,0,10,10), (5,-10,10,10)),
+            largest_contiguous((0,0,10,10), (5,-10,10,10)),
             (5,-10,5,20),
         )
 
     def test_largest_visible_pair_bottom_to_top(self):
         self.assertEqual(
-            largest_visible_pair((0,0,10,10), (5,10,10,10)),
+            largest_contiguous((0,0,10,10), (5,10,10,10)),
             (5,0,5,20),
         )
 
@@ -465,6 +465,13 @@ CORNERLINES = dict(
     bottomleft = (('midbottom', 'bottomleft'), ('bottomleft', 'midleft')),
 )
 
+def corners(rect):
+    x, y, w, h = rect
+    yield (x, y)
+    yield (x + w, y)
+    yield (x + w, y + h)
+    yield (x, y + h)
+
 def rects(images, **kwargs):
     return map(op.methodcaller('get_rect'), images, **kwargs)
 
@@ -474,6 +481,25 @@ def sides(rect):
     right = left + w
     bottom = top + h
     return (top, right, bottom, left)
+
+def named_sides(rect):
+    return zip(SIDENAMES, sides(rect))
+
+def top(rect):
+    _, top, _, _ = rect
+    return top
+
+def right(rect):
+    x, _, w, _ = rect
+    return x + w
+
+def bottom(rect):
+    _, y, _, h = rect
+    return y + h
+
+def left(rect):
+    left, _, _, _ = rect
+    return left
 
 class EventMethodName:
     """
@@ -1510,7 +1536,7 @@ class RectsGenerator:
         else:
             newrect = pygame.Rect(x, y, w, h)
             self.rects.append(newrect)
-            empties = subtract_rect_from_empties(self.empties, newrect)
+            empties = subtract_rect_from_all(self.empties, newrect)
             self.empties = list(map(pygame.Rect, empties))
 
 
@@ -1549,7 +1575,7 @@ def subtract_rect(empty, rect_to_subtract):
             height = empty.bottom - clip.bottom
             yield (maxleft, clip.bottom, width, height)
 
-def subtract_rect_from_empties(empties, rect_to_subtract):
+def subtract_rect_from_all(empties, rect_to_subtract):
     """
     Subdivide all the rects in empties by rect_to_subtract.
     """
@@ -1564,14 +1590,17 @@ def find_empty_space(rects, inside):
     """
     empties = [inside]
     for rect in rects:
-        empties = list(subtract_rect_from_empties(empties, rect))
+        empties = list(subtract_rect_from_all(empties, rect))
     return empties
 
 def extremities(rect):
-    left, top, width, width = rect
+    """
+    Clockwise sides of rect starting from top.
+    """
+    left, top, width, height = rect
     right = left + width
-    bottom = top + width
-    return (left, top, right, bottom)
+    bottom = top + height
+    return (top, right, bottom, left)
 
 class TouchingRects(enum.Enum):
     TOP_BOTTOM = enum.auto()
@@ -1618,7 +1647,10 @@ def itertouching(rect, others):
             yield other
             yield from recurse(other)
 
-def largest_visible_pair(rect1, rect2):
+def largest_contiguous(rect1, rect2):
+    """
+    Largest contiguous space inside touching rects.
+    """
     touching = is_touching(rect1, rect2)
     if not touching:
         return rect1
