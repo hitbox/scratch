@@ -917,6 +917,11 @@ def render_color(
     image.blit(text, pos)
     return image
 
+def circle_surface(radius, color, flags=pygame.SRCALPHA):
+    surface = pygame.Surface((radius*2,)*2, flags)
+    pygame.draw.circle(surface, color, (radius,)*2, radius)
+    return surface
+
 def centered_offset(rects, window):
     """
     Offset vector for a window rect centered on a group of rects.
