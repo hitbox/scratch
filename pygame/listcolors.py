@@ -113,14 +113,21 @@ def parse_args(argv=None):
 def main():
     args = parse_args()
 
-    sort_expr = compile(args.sort, '<sort>', 'eval')
-    filter_expr = compile(args.filter, '<filter>', 'eval')
+    if args.filter:
+        filter_expr = compile(args.filter, '<filter>', 'eval')
+        def predicate(color):
+            return eval(filter_expr, {'color': color})
+    else:
+        # always true
+        predicate = lambda color: True
 
-    def predicate(color):
-        return eval(filter_expr, {'color': color})
-
-    def sort_key(color):
-        return eval(sort_expr, {'color': color})
+    if args.sort:
+        sort_expr = compile(args.sort, '<sort>', 'eval')
+        def sort_key(color):
+            return eval(sort_expr, {'color': color})
+    else:
+        # identity as tuple
+        sort_key = lambda i: tuple(i)
 
     colors = map(pygame.Color, THECOLORS.values())
     colors = sorted(filter(predicate, colors), key=sort_key)
