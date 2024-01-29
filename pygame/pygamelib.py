@@ -736,32 +736,6 @@ class RectRenderer:
         return drawn_rects
 
 
-class ColorSpace:
-    """
-    Convenience to get one of the space representations of a pygame color,
-    minus the alpha if present.
-    """
-
-    spaces = ['cmy', 'hsl', 'hsv', 'rgb']
-    remove_alpha = ['hsl', 'hsv', 'rgb']
-
-    def __init__(self, space):
-        assert space in self.spaces
-        self.space = space
-        if self.space == 'rgb':
-            # for whatever reason these are all separate in pygame.Color
-            self.get_attr = op.attrgetter(*self.space)
-        else:
-            attr = self.space
-            if self.space in ('hsl', 'hsv'):
-                attr += 'a'
-            self.get_attr = op.attrgetter(attr)
-
-    def __call__(self, color):
-        color = pygame.Color(color)
-        return self.get_attr(color)[:3]
-
-
 def colortext(color_key):
     if color_key.space in ('cmy', 'hsl', 'hsv'):
         def _colortext(color):
