@@ -133,6 +133,7 @@ def main(argv=None):
     filtering_group = parser.add_mutually_exclusive_group()
     filtering_group.add_argument('--exclude')
     filtering_group.add_argument('--colorful', action='store_true')
+    filtering_group.add_argument('--filter')
 
     ordering_group = parser.add_mutually_exclusive_group()
     ordering_group.add_argument('--shuffle', action='store_true')
@@ -148,16 +149,25 @@ def main(argv=None):
 
     if args.shuffle:
         random.shuffle(colors)
-    elif args.sort:
-        keyfuncs = [getattr(pygamelib, key) for key in args.sort]
+    else:
+        if args.filter:
 
-        def key(color):
-            return tuple(func(color) for func in keyfuncs)
+            def predicate(color):
+                context = {n:getattr(color, n) for n in dir(color) if not n.startswith('_')}
+                return eval(args.filter, context)
 
-        colors = sorted(colors, key=key)
+            colors = filter(predicate, colors)
 
-        def colortext(color):
-            return ' '.join(f'{func(color):.0f}' for func in keyfuncs)
+        if args.sort:
+            keyfuncs = [getattr(pygamelib, key) for key in args.sort]
+
+            def key(color):
+                return tuple(func(color) for func in keyfuncs)
+
+            colors = sorted(colors, key=key)
+
+            def colortext(color):
+                return ' '.join(f'{func(color):.0f}' for func in keyfuncs)
 
     names = list(map(pygamelib.color_name, colors))
     if args.print:
