@@ -48,7 +48,7 @@ class Demo(pygamelib.DemoBase):
             pygamelib.post_videoexpose()
         elif not any(event.buttons):
             rects = self.rects_generator.rects + self.rects_generator.empties
-            for rect in rects:
+            for rect in map(pygame.Rect, rects):
                 if rect.collidepoint(event.pos):
                     self.rect_renderer.highlight = rect
                     break
@@ -65,25 +65,19 @@ class Demo(pygamelib.DemoBase):
         self.rect_renderer(self.screen, 'red', 1, self.rects_generator.empties)
         inside = self.inside.move(self.rect_renderer.offset)
 
-        text = f'failures={self.rects_generator.failures}'
+        texts = [
+            f'failures={self.rects_generator.failures}',
+            f'subdividing={self.rects_generator.subdivide_stack}',
+            f'merging={self.rects_generator.merge_stack}',
+        ]
         if self.rects_generator.is_resolved():
-            text += ' resolved'
-
-        failures = self.font.render(text, True, 'black', 'white')
-        self.screen.blit(failures, failures.get_rect(bottomleft=self.window.bottomleft))
-
-        for index, rect in enumerate(self.rects_generator.rects):
-            rect = rect.move(self.rect_renderer.offset)
-            label = self.font.render(str(index), True, 'black', 'white')
-            rect = label.get_rect(center=rect.center)
-            rect.clamp_ip(inside)
-            self.screen.blit(label, rect)
-
-        for rect in self.rects_generator.rects + self.rects_generator.empties:
-            if rect is self.rect_renderer.highlight:
-                label = self.font.render(str(rect), True, 'black', 'white')
-                self.screen.blit(label, label.get_rect(bottomleft=rect.topleft))
-
+            texts.append('resolved')
+        lines = [self.font.render(text, True, 'white') for text in texts]
+        rects = [line.get_rect() for line in lines]
+        pygamelib.flow_topbottom(rects)
+        pygamelib.move_as_one(rects, bottomleft=self.window.bottomleft)
+        for image, rect in zip(lines, rects):
+            self.screen.blit(image, rect)
         pygame.display.flip()
 
 
@@ -94,8 +88,13 @@ def run(display_size, nrects):
     window = pygame.Rect((0,)*2, display_size)
     space = window.inflate((-min(window.size)*.25,)*2)
     engine = pygamelib.Engine()
-    font = pygame.font.SysFont('monospace', 24)
-    rects_generator = pygamelib.RectsGenerator(nrects, minwidth=10, minheight=10)
+    font = pygame.font.SysFont('monospace', 20)
+    rects_generator = pygamelib.RectsGenerator(
+        space,
+        nrects,
+        minwidth=10,
+        minheight=10,
+    )
     state = Demo(font, space, rects_generator)
     pygame.display.set_mode(window.size)
     engine.run(state)
