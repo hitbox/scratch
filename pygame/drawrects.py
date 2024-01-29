@@ -106,7 +106,7 @@ class Demo(pygamelib.DemoBase):
                 pygamelib.post_videoexpose()
 
     def generate_contiguous_rects(self):
-        rects = generate_contiguous(self.rects)
+        rects = pygamelib.generate_contiguous(self.rects)
         self.contiguous_rects = sorted(rects, key=pygamelib.area, reverse=True)
         self.contiguous_index = 0
 
@@ -149,47 +149,6 @@ class Demo(pygamelib.DemoBase):
             pygame.draw.rect(self.screen, 'magenta', rect, 1)
         pygame.display.flip()
 
-
-def generate_contiguous(rects):
-    _rects = list(map(pygame.Rect, rects))
-    tops, rights, bottoms, lefts = zip(*map(pygamelib.extremities, rects))
-    bounding = (min(lefts), min(tops), max(rights) - min(lefts), max(bottoms) - min(tops))
-    negative_space = list(map(pygame.Rect, pygamelib.find_empty_space(rects, bounding)))
-    generated = set()
-    for top, right, bottom, left in it.product(tops, rights, bottoms, lefts):
-        if left > right:
-            left, right = right, left
-        if top > bottom:
-            top, bottom = bottom, top
-
-        width = right - left
-        height = bottom - top
-        if width == 0 or height == 0:
-            continue
-        if not any(rect.collidepoint((left, top)) for rect in _rects):
-            continue
-        if not any(rect.collidepoint((right-1, top)) for rect in _rects):
-            continue
-        if not any(rect.collidepoint((right-1, bottom-1)) for rect in _rects):
-            continue
-        if not any(rect.collidepoint((left, bottom-1)) for rect in _rects):
-            continue
-
-        newrect = (left, top, width, height)
-        # not just one of the existing rects
-        if newrect in rects:
-            continue
-        # not already generated
-        if newrect in generated:
-            continue
-        # this rect is not completely contained by an existing one
-        if any(rect.contains(newrect) for rect in map(pygame.Rect, rects)):
-            continue
-        if any(negative.colliderect(newrect) for negative in negative_space):
-            continue
-
-        yield newrect
-        generated.add(newrect)
 
 def run(display_size, savepath):
     window = pygame.Rect((0,0), display_size)
