@@ -986,6 +986,19 @@ def merge_ranges(ranges):
                 ranges.remove(r2)
             ranges.add((min(*r1, *r2), max(*r1, *r2)))
 
+def is_adjacent(rect1, rect2):
+    l1, t1, w1, h1 = rect1
+    l2, t2, w2, h2 = rect2
+    r1 = l1 + w1
+    b1 = t1 + h1
+    r2 = l2 + w2
+    b2 = t2 + h2
+    return (
+        (w1 == w2 and l1 == l2 and (t1 == b2 or t2 == b1))
+        or
+        (h1 == h2 and t1 == t2 and (l1 == r2 or l2 == r1))
+    )
+
 def merge_rects(rect1, rect2):
     l1, t1, w1, h1 = rect1
     l2, t2, w2, h2 = rect2
@@ -1462,7 +1475,8 @@ class RectsGenerator:
     Generate some number of non-overlapping rects.
     """
 
-    def __init__(self, n, minwidth, minheight):
+    def __init__(self, space, n, minwidth, minheight):
+        self.space = space
         assert n > 0
         self.n = n
         self.minwidth = minwidth
@@ -1470,7 +1484,9 @@ class RectsGenerator:
         self.failures = 0
         self.maxfail = None
         self.rects = None
-        self.empties = None
+        self.empties = [self.space]
+        self.subdivide_stack = None
+        self.merge_stack = None
 
     def reset(self, inside, maxfail=1000):
         self.inside = inside
@@ -1481,98 +1497,102 @@ class RectsGenerator:
 
     def is_resolved(self):
         return (
-            (
-                # reached goal or...
-                len(self.rects) == self.n
-                or
-                # ...failed to limit
-                self.maxfail - self.failures == 0
-            )
-            and
-            # no mergeables
-            not has_mergeable(self.empties)
+            len(self.rects) == self.n
+            and not self.subdivide_stack
+            and not self.merge_stack
         )
 
     def update(self):
-        if has_mergeable(self.empties):
-            self.merge_one()
-        else:
-            self.one_random()
+        if self.subdivide_stack:
+            self.update_subdivide_stack()
+        elif self.merge_stack:
+            self.update_merge_stack()
+        elif len(self.rects) < self.n:
+            self.update_random()
 
-    def merge_one(self):
-        # merge one and return
-        for rect1, rect2 in it.combinations(self.empties, 2):
-            merged = merge_rects(rect1, rect2)
-            if merged:
-                if rect1 in self.empties:
-                    self.empties.remove(rect1)
-                if rect2 in self.empties:
-                    self.empties.remove(rect2)
-                self.empties.append(pygame.Rect(merged))
-                return
+    def update_subdivide_stack(self):
+        # process one item from stack of pairs of rects to subtract from others
+        space, subtract = self.subdivide_stack.pop()
+        if not self.subdivide_stack:
+            # done subdividing init merging stack
+            self.merge_stack = [
+                (r1, r2)
+                for r1, r2 in it.combinations(self.empties, 2)
+                if is_adjacent(r1, r2)
+            ]
+        self.empties.remove(space)
+        self.empties.extend(subtract_rect(space, subtract))
 
-    def one_random(self):
-        r1 = random.choice(self.empties)
-        if r1.width >= self.minwidth and r1.height >= self.minheight:
-            randrect = random_rect(r1)
-        else:
-            rest = set(map(tuple, self.empties))
-            rest.remove(tuple(r1))
-            r2 = random.choice(list(rest))
-            x1, y1 = random_point(r1)
-            x2, y2 = random_point(r2)
-            if x1 > x2:
-                x1, x2 = x2, x1
-            if y1 > y2:
-                y1, y2 = y2, y1
-            randrect = (x1, y1, x2 - x1, y2 - y1)
+    def update_merge_stack(self):
+        # process one pair of rects to merge
+        r1, r2 = self.merge_stack.pop()
+        if r1 in self.empties:
+            self.empties.remove(r1)
+        if r2 in self.empties:
+            self.empties.remove(r2)
+        merged = merge_rects(r1, r2)
+        self.empties.append(merged)
 
-        x, y, w, h = randrect
-        if (
-            w < self.minwidth or h < self.minheight or
-            any(map(pygame.Rect(x, y, w, h).colliderect, self.rects))
-        ):
-            self.failures += 1
-        else:
-            newrect = pygame.Rect(x, y, w, h)
+    def update_random(self):
+        for newrect in self.random_generator():
             self.rects.append(newrect)
-            empties = subtract_rect_from_all(self.empties, newrect)
-            self.empties = list(map(pygame.Rect, empties))
+            self.subdivide_stack = [
+                (empty, newrect)
+                for empty in map(pygame.Rect, self.empties)
+                if empty.colliderect(newrect)
+            ]
+            break
+
+    def random_generator(self):
+        for empty in map(pygame.Rect, generate_contiguous(self.empties)):
+            if empty.width >= self.minwidth and empty.height >= self.minheight:
+                while True:
+                    x1, y1 = random_point(empty)
+                    x2, y2 = random_point(empty)
+                    if x1 > x2:
+                        x1, x2 = x2, x1
+                    if y1 > y2:
+                        y1, y2 = y2, y1
+                    width = x2 - x1
+                    height = y2 - y1
+                    if width >= self.minwidth and height >= self.minheight:
+                        yield (x1, y1, width, height)
+                        break
 
 
-def subtract_rect(empty, rect_to_subtract):
+def subtract_rect(space, rect_to_subtract):
     """
-    Subdivide `empty` by `rect_to_subtract`.
+    Subdivide `space` by `rect_to_subtract`.
     """
-    empty = pygame.Rect(empty)
-    clip = empty.clip(rect_to_subtract)
+    space = pygame.Rect(space)
+    clip = space.clip(rect_to_subtract)
     if not clip:
         # no intersection
-        yield empty
+        yield space
     else:
-        if empty.left < clip.left:
+        if space.left < clip.left:
             # left rect
-            width = clip.left - empty.left
-            height = empty.height
-            yield (empty.left, empty.top, width, height)
-        if empty.right > clip.right:
+            width = clip.left - space.left
+            height = space.height
+            yield (space.left, space.top, width, height)
+        if space.right > clip.right:
             # right rect
-            width = empty.right - clip.right
-            height = empty.height
-            yield (clip.right, empty.top, width, height)
-        if empty.top < clip.top:
+            width = space.right - clip.right
+            height = space.height
+            yield (clip.right, space.top, width, height)
+        if space.top < clip.top:
             # top rect including left- and right-top
-            minright = min(empty.right, clip.right)
-            maxleft = max(empty.left, clip.left)
+            minright = min(space.right, clip.right)
+            maxleft = max(space.left, clip.left)
             width = minright - maxleft
-            height = clip.top - empty.top
-            yield (maxleft, empty.top, width, height)
-        if empty.bottom > clip.bottom:
+            height = clip.top - space.top
+            yield (maxleft, space.top, width, height)
+        if space.bottom > clip.bottom:
             # bottom rect including left- and right-bottom
-            minright = min(empty.right, clip.right)
-            maxleft = max(empty.left, clip.left)
+            minright = min(space.right, clip.right)
+            maxleft = max(space.left, clip.left)
             width = minright - maxleft
-            height = empty.bottom - clip.bottom
+            height = space.bottom - clip.bottom
             yield (maxleft, clip.bottom, width, height)
 
 def subtract_rect_from_all(empties, rect_to_subtract):
@@ -1673,14 +1693,60 @@ def largest_contiguous(rect1, rect2):
         right = min(right, right2)
     return (left, top, right - left, bottom - top)
 
+def generate_contiguous(rects):
+    _rects = list(map(pygame.Rect, rects))
+    tops, rights, bottoms, lefts = zip(*map(extremities, rects))
+    bounding = (min(lefts), min(tops), max(rights) - min(lefts), max(bottoms) - min(tops))
+    negative_space = list(map(pygame.Rect, find_empty_space(rects, bounding)))
+    generated = set()
+    for top, right, bottom, left in it.product(tops, rights, bottoms, lefts):
+        if left > right:
+            left, right = right, left
+        if top > bottom:
+            top, bottom = bottom, top
+
+        width = right - left
+        height = bottom - top
+        # ignore zero dimensions
+        if width == 0 or height == 0:
+            continue
+        if not any(rect.collidepoint((left, top)) for rect in _rects):
+            continue
+        if not any(rect.collidepoint((right-1, top)) for rect in _rects):
+            continue
+        if not any(rect.collidepoint((right-1, bottom-1)) for rect in _rects):
+            continue
+        if not any(rect.collidepoint((left, bottom-1)) for rect in _rects):
+            continue
+
+        newrect = (left, top, width, height)
+        ## not just one of the existing rects
+        #if newrect in rects:
+        #    continue
+        # not already generated
+        if newrect in generated:
+            continue
+        ## this rect is not completely contained by an existing one
+        #if any(rect.contains(newrect) for rect in map(pygame.Rect, rects)):
+        #    continue
+        # ignore new rect that collides with negative space
+        if any(negative.colliderect(newrect) for negative in negative_space):
+            continue
+
+        yield newrect
+        generated.add(newrect)
+
 def floodrects(rect, others):
     pass
+
+def reduce(rect, f):
+    return rect.inflate(*map(lambda d: -d*f, pygame.Rect(rect).size))
 
 def circlepoint(center, radius, angle):
     # in screen space
     cx, cy = center
     return (
-        cx + math.cos(angle) * radius,
+        cx + +math.cos(angle) * radius,
         cy + -math.sin(angle) * radius,
     )
 
