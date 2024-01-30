@@ -762,10 +762,7 @@ def value(color):
 
 # pygame.Color is not hashable
 
-COLORSTHE = {
-    tuple(pygame.Color(color)): name
-    for name, color in pygame.color.THECOLORS.items()
-}
+COLORSTHE = {color: name for name, color in pygame.color.THECOLORS.items()}
 
 def color_name(color):
     color = pygame.Color(color)
@@ -893,6 +890,12 @@ def move_as_one(rects, **kwargs):
     for rect in rects:
         rect.topleft += delta
 
+def monospace_font(size, bold=False, italic=False):
+    # init is very cheap removes a pain point
+    # timeit: 10000000 loops, best of 5: 24.1 nsec per loop
+    pygame.font.init()
+    return pygame.font.SysFont('monospace', size, bold, italic)
+
 def render_text(
     font,
     size,
@@ -940,6 +943,9 @@ def centered_offset(rects, window):
     """
     Offset vector for a window rect centered on a group of rects.
     """
+    if not isinstance(window, pygame.Rect):
+        # assume it is a size
+        window = pygame.Rect((0,)*2, window)
     rect = pygame.Rect(wrap(rects))
     rect.center = window.center
     return -pygame.Vector2(rect.topleft)
@@ -1347,13 +1353,12 @@ def parse_xml(xmlfile):
             elif child.tag == 'use':
                 yield Use(child.attrib['href'])
 
+def add_display_size_option(parser, default='800'):
+    parser.add_argument('--display-size', type=sizetype(), default=default)
+
 def command_line_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--display-size',
-        type = sizetype(),
-        default = '800',
-    )
+    add_display_size_option(parser)
     return parser
 
 def line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):

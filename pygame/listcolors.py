@@ -65,11 +65,10 @@ def _arrange(rects, ncols):
 
 def run(display_size, colors, names, font_size, colortext):
     assert len(colors) == len(names)
-    pygame.font.init()
-    font = pygame.font.SysFont('monospace', font_size)
+    font = pygamelib.monospace_font(font_size)
 
     rects = [pygame.Rect((0,)*2, font.size(name)) for name in names]
-    ncols = math.isqrt(len(rects)) // 2
+    ncols = math.isqrt(len(rects))
     _arrange(rects, ncols)
 
     images = [pygamelib.render_text(font, rect.size, color, 'white', name)
@@ -77,61 +76,68 @@ def run(display_size, colors, names, font_size, colortext):
 
     drawables = list(zip(images, rects))
     demo = ColorGrid(drawables)
+    demo.offset = -pygamelib.centered_offset(rects, display_size)
+
     engine = pygamelib.Engine()
 
     pygame.display.set_mode(display_size)
     engine.run(demo)
 
+class color_eval_function:
+    """
+    Makes functions taking a color and return the result of a user expression.
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def __call__(self, expression_string):
+        code = compile(expression_string, self.name, 'eval')
+        def code_func(color):
+            return eval(code, {'color': color})
+        return code_func
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--screen-size',
-        type = pygamelib.sizetype(),
-        default = '1000',
-    )
+    pygamelib.add_display_size_option(parser, default='1900,900')
     parser.add_argument(
         '--font-size',
         type = int,
         default = '15',
     )
     parser.add_argument('--print', action='store_true')
-    parser.add_argument('--filter')
-    parser.add_argument('--sort')
-    parser.add_argument('--text')
+    parser.add_argument(
+        '--filter',
+        type = color_eval_function('filter'),
+        default = 'True', # default to all colors
+        help = 'Expression filter function.',
+    )
+    parser.add_argument(
+        '--sort',
+        type = color_eval_function('sort'),
+        # NOTE:
+        # - pygame.Color do not have __lt__
+        default = 'tuple(color)', # default to (r, g, b, a) sort
+        help = 'Expression for sort key.',
+    )
+    parser.add_argument(
+        '--text',
+        type = color_eval_function('text'),
+        default = 'str',
+        help = 'Expression for color labels.',
+    )
     args = parser.parse_args(argv)
     return args
 
-def predicate_function(expr):
-    if expr:
-        filter_expr = compile(expr, '<filter>', 'eval')
-        def predicate(color):
-            return eval(filter_expr, {'color': color})
-    else:
-        # always true
-        predicate = lambda color: True
-    return predicate
-
-def sort_function(expr):
-    if expr:
-        sort_expr = compile(expr, '<sort>', 'eval')
-        def sort_key(color):
-            return eval(sort_expr, {'color': color})
-    else:
-        # identity as tuple
-        sort_key = lambda i: tuple(i)
-    return sort_key
-
 def main():
     args = parse_args()
-    predicate = predicate_function(args.filter)
-    sort_key = sort_function(args.sort)
     colors = map(pygame.Color, THECOLORS.values())
-    colors = sorted(filter(predicate, colors), key=sort_key)
-    colortext = str
+    colors = sorted(filter(args.filter, colors), key=args.sort)
     names = list(map(pygamelib.color_name, colors))
     if args.print:
         pprint(names)
-    run(args.screen_size, colors, names, args.font_size, colortext)
+    run(args.display_size, colors, names, args.font_size, args.text)
 
 if __name__ == '__main__':
     main()
