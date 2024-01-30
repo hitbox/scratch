@@ -893,29 +893,41 @@ def move_as_one(rects, **kwargs):
     for rect in rects:
         rect.topleft += delta
 
-def render_color(
+def render_text(
     font,
-    fill_color,
-    name,
-    scale,
-    text_color = 'white',
-    shade_color = 'black',
-    shade_amount = 0.50,
-    text_align = 'center',
+    size,
+    background,
+    color,
+    text,
+    text_shade = 'black',
+    shade = 0.5,
     antialias = True,
+    attr = 'center',
 ):
     """
-    Render an image with the name of the color it is filled with.
+    Render `color` colored `text` aligned onto an image of `size` filled with
+    `background`.
+
+    :param font: pygame font to render text.
+    :param size: size of final image.
+    :param background: background fill color.
+    :param color: color of text.
+    :param text: text to render with font.
+    :param text_shade: color lerped toward background to shade for text.
+    :param shade: fraction for lerp.
+    :param antialias: antialias font.
+    :param attr: attribute align text onto background.
     """
-    size = pygame.Vector2(font.size(name)).elementwise() * scale
-    image = pygame.Surface(tuple(size), pygame.SRCALPHA)
-    image.fill(fill_color)
-    rect = image.get_rect()
-    background = fill_color.lerp(shade_color, shade_amount)
-    text = font.render(name, antialias, text_color, background)
-    pos = text.get_rect(**{text_align: getattr(rect, text_align)})
-    image.blit(text, pos)
-    return image
+    background = pygame.Color(background)
+    result_image = pygame.Surface(size)
+    result_image.fill(background)
+    result_rect = result_image.get_rect()
+    label_shade = background.lerp(text_shade, shade)
+    text_image = font.render(text, antialias, color, label_shade)
+    text_kw = {attr: getattr(result_rect, attr)}
+    text_rect = text_image.get_rect(**text_kw)
+    result_image.blit(text_image, text_rect)
+    return result_image
 
 def circle_surface(radius, color, flags=pygame.SRCALPHA):
     size = (radius*2,)*2

@@ -38,16 +38,6 @@ class ColorGrid(pygamelib.DemoBase):
         pygame.display.flip()
 
 
-def render_swatch(font, size, background, color, name):
-    result_image = pygame.Surface(size)
-    result_image.fill(background)
-    result_rect = result_image.get_rect()
-    label_background = pygame.Color(background).lerp('black', 0.5)
-    text_image = font.render(name, True, color, label_background)
-    text_rect = text_image.get_rect(center=result_rect.center)
-    result_image.blit(text_image, text_rect)
-    return result_image
-
 def _arrange(rects, ncols):
     # needed to pull the arrange_columns function apart to add gaps and resize
     # the arranged rects
@@ -82,7 +72,8 @@ def run(display_size, colors, names, font_size, colortext):
     ncols = math.isqrt(len(rects)) // 2
     _arrange(rects, ncols)
 
-    images = [render_swatch(font, rect.size, color, 'white', name) for rect, color, name in zip(rects, colors, names)]
+    images = [pygamelib.render_text(font, rect.size, color, 'white', name)
+              for rect, color, name in zip(rects, colors, names)]
 
     drawables = list(zip(images, rects))
     demo = ColorGrid(drawables)
@@ -110,25 +101,30 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     return args
 
-def main():
-    args = parse_args()
-
-    if args.filter:
-        filter_expr = compile(args.filter, '<filter>', 'eval')
+def predicate_function(expr):
+    if expr:
+        filter_expr = compile(expr, '<filter>', 'eval')
         def predicate(color):
             return eval(filter_expr, {'color': color})
     else:
         # always true
         predicate = lambda color: True
+    return predicate
 
-    if args.sort:
-        sort_expr = compile(args.sort, '<sort>', 'eval')
+def sort_function(expr):
+    if expr:
+        sort_expr = compile(expr, '<sort>', 'eval')
         def sort_key(color):
             return eval(sort_expr, {'color': color})
     else:
         # identity as tuple
         sort_key = lambda i: tuple(i)
+    return sort_key
 
+def main():
+    args = parse_args()
+    predicate = predicate_function(args.filter)
+    sort_key = sort_function(args.sort)
     colors = map(pygame.Color, THECOLORS.values())
     colors = sorted(filter(predicate, colors), key=sort_key)
     colortext = str
