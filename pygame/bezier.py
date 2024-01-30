@@ -70,12 +70,13 @@ class move_absolute:
         return self.point_at(time)
 
 
-class cubic_curve_absolute(
-    namedtuple(
-        'cubic_curve_absolute_namedtuple',
-        'p0 p1 p2 p3',
-    ),
-):
+move = namedtuple('move', 'type point')
+
+cubic_curve = namedtuple('cubic_curve', 'type p0 p1 p2 p3')
+
+close_path = namedtuple('close_path', '')
+
+def trash():
     __slots__ = ()
 
     def end(self):
@@ -112,8 +113,62 @@ def parse_path(string):
                 start = (0,)*2
             # take two, three times
             args = (tuple(map(int, take(2))) for _ in range(3))
-            path.append(cubic_curve_absolute(start, *args))
+            path.append(cubic_curve(start, *args))
+        else:
+            raise NotImplementedError(command)
+
     return path
+
+def tokenize(string):
+    chars = iter(string)
+    for char in chars:
+        if char == 'M':
+            # move absolute coordinates
+            # TODO
+            # - left off here
+            # - thinking we need a tokenize step
+            # - how about this yield style?
+            yield move
+            yield 'absolute'
+        elif char == 'C':
+            # absolute coordinates bezier curve
+            command = [cubic_curve, 'absolute']
+            number = ''
+        elif char == 'c':
+            # relative coordinates bezier curve
+            command = [cubic_curve, 'relative']
+            number = ''
+        elif char in 'zZ':
+            # straight line back to first point in path
+            command = [close_path]
+
+
+def parse_path(string):
+    chars = list(chars)
+    command = None
+    number = None
+    while chars:
+        char = chars.pop()
+        if char in 'CMZcz':
+            # finalize last command
+            # begin new command
+            if char == 'M':
+                # move absolute coordinates
+                command = [move, 'absolute']
+                number = ''
+            elif char == 'C':
+                # absolute coordinates bezier curve
+                command = [cubic_curve, 'absolute']
+                number = ''
+            elif char == 'c':
+                # relative coordinates bezier curve
+                command = [cubic_curve, 'relative']
+                number = ''
+            elif char in 'zZ':
+                # straight line back to first point in path
+                command = [close_path]
+        elif char.isdigit() or char in '+-':
+            number += char
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
@@ -122,6 +177,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     path = parse_path(args.path)
+    print(path)
+    return
 
     state = BezierDemo(path, args.samples)
     engine = pygamelib.Engine()
