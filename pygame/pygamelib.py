@@ -300,6 +300,13 @@ def point_attrs(sides):
         else:
             yield 'mid' + side
 
+def clamp(x, a, b):
+    if x < a:
+        return a
+    elif x > b:
+        return b
+    return x
+
 def mix(x, a, b):
     """
     Return the percent of x between a and b.
@@ -1764,6 +1771,58 @@ def intersection_point(point1, slope1, point2, slope2):
     intersection_y = slope1 * (intersection_x - x1) + y1
 
     return intersection_x, intersection_y
+
+def bezier(control_points, t):
+    degree = len(control_points) - 1
+    position = pygame.Vector2()
+    for index, point in enumerate(control_points):
+        coefficient = math.comb(degree, index) * (1-t)**(degree-index) * t**index
+        position += point * coefficient
+    return position
+
+def cubic_bezier(p0, p1, p2, p3, t):
+    """
+    Return position on cubic bezier curve at time t.
+    """
+    one_minus_t = 1 - t
+    b0 = one_minus_t * one_minus_t * one_minus_t # (1 - t) ** 3
+    b1 = 3 * one_minus_t * one_minus_t * t # 3 * (1 - t) ** 2
+    b2 = 3 * one_minus_t * t * t # 3 * (1 - t) * t ** 2
+    b3 = t * t * t # t ** 3
+    # NOTE: unpacking is slower than getitem indexing
+    x = b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0]
+    y = b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1]
+    return (x, y)
+
+def cubic_bezier_derivative(p0, p1, p2, p3, t):
+    one_minus_t = 1 - t
+    # -3 * (1 - t) ** 2
+    b0 = -3 * one_minus_t * one_minus_t
+    # 3 * (1 - t) ** 2 - 6 * (1 - t) * t
+    b1 = 3 * one_minus_t * one_minus_t - 6 * one_minus_t * t
+    # 6 * (1 - t) * t -3 * t ** 2
+    b2 = 6 * one_minus_t * t - 3 * t * t
+    # 3 * t ** 2
+    b3 = 3 * t * t
+
+    dx = b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0]
+    dy = b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1]
+    return (dx, dy)
+
+def bezier_tangent(control_points, t):
+    # rewrite of above
+    degree = len(control_points) - 1
+    delta = pygame.Vector2()
+    for index, (p1, p2) in enumerate(it.pairwise(control_points)):
+        coefficient = (
+            (degree * (p2 - p1))
+            *
+            math.comb(degree-1, index)
+            *
+            (1 - t)**(degree-1-index) * t**index
+        )
+        delta += coefficient
+    return delta
 
 class HeartShape:
 
