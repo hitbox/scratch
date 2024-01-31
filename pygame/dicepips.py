@@ -1,13 +1,15 @@
+import random
+
 import pygamelib
 
 from pygamelib import pygame
 
 class CycleDemo(pygamelib.DemoBase):
 
-    def __init__(self, images, rects):
-        self.images = images
-        self.rects = rects
+    def __init__(self, blits):
+        self.blits = blits
         self.index = 0
+        self.roll = None
 
     def do_quit(self, event):
         self.engine.stop()
@@ -15,20 +17,31 @@ class CycleDemo(pygamelib.DemoBase):
     def do_keydown(self, event):
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
             pygamelib.post_quit()
-        elif event.key == pygame.K_RIGHT:
-            self.index = (self.index + 1) % len(self.images)
+        elif event.key in (pygame.K_RIGHT, pygame.K_LEFT):
+            if event.key == pygame.K_RIGHT:
+                delta = +1
+            else:
+                delta = -1
+            self.index = (self.index + delta) % len(self.blits)
             pygamelib.post_videoexpose()
-        elif event.key == pygame.K_LEFT:
-            self.index = (self.index - 1) % len(self.images)
-            pygamelib.post_videoexpose()
+        elif event.key == pygame.K_SPACE:
+            self.roll = random.randint(6, 24)
 
     def do_videoexpose(self, event):
         self.draw()
 
+    def update(self):
+        super().update()
+        if self.roll and self.roll > 0:
+            # TODO
+            # - animation timer
+            self.index = (self.index + 1) % len(self.blits)
+            self.roll -= 1
+            pygamelib.post_videoexpose()
+
     def draw(self):
         self.screen.fill('black')
-        image = self.images[self.index]
-        rect = self.rects[self.index]
+        image, rect = self.blits[self.index]
         self.screen.blit(image, rect)
         pygame.display.flip()
 
@@ -118,20 +131,18 @@ def draw_die(surf, npips, border):
 def run(display_size):
     window = pygame.Rect((0,0), display_size)
 
-    images = []
-    rects = []
-    for n in range(1,10):
-        die_size = (min(display_size) // 2,)*2
+    blits = []
+    for n in range(1,7):
+        die_size = (int(min(display_size) * 0.75),)*2
         die_surf = pygame.Surface(die_size)
         die_surf.fill('firebrick')
-        border = min(die_size) // 16
+        border = min(die_size) // 18
         draw_die(die_surf, n, border)
         pygame.draw.rect(die_surf, 'azure', die_surf.get_rect(), border // 2)
         die_rect = die_surf.get_rect(center=window.center)
-        images.append(die_surf)
-        rects.append(die_rect)
+        blits.append((die_surf, die_rect))
 
-    state = CycleDemo(images, rects)
+    state = CycleDemo(blits)
     pygame.display.set_mode(display_size)
     engine = pygamelib.Engine()
     engine.run(state)
