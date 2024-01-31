@@ -87,9 +87,6 @@ def pip_angle(delta):
     angle = math.atan2(row, col) % math.pi
     return angle
 
-def sorted_groupby(iterable, key=None, reverse=False):
-    return groupby(sorted(iterable, key=key, reverse=reverse), key=key)
-
 def update_with_reverse(dict_):
     dict_.update(list(map(reversed, dict_.items())))
 
@@ -121,7 +118,7 @@ DELTAS_WITH_ORIGIN = list(deltas())
 PIP_DELTAS = sorted(DELTAS_WITH_ORIGIN, key=pip_order)
 PIP_DELTAS.remove((0,0))
 
-OPPOSITES = dict(mapgroupiters(sorted_groupby(PIP_DELTAS, key=pip_angle)))
+OPPOSITES = dict(mapgroupiters(pygamelib.sorted_groupby(PIP_DELTAS, key=pip_angle)))
 update_with_reverse(OPPOSITES)
 
 def is_odd(n):
@@ -145,13 +142,6 @@ def iter_pip_deltas(n):
         if len(seen) == n:
             break
 
-def mix(a, b, x):
-    # numerically stable, less floating point errors
-    return a * (1 - x) + b * x
-
-def remap(a, b, c, d, x):
-    return x*(d-c)/(b-a) + c-a*(d-c)/(b-a)
-
 def iter_rect_ends(rect):
     # generate the dimensional extremes of a rect, its x and y endpoints
     yield (rect.left, rect.right)
@@ -161,7 +151,7 @@ def remap_delta_xy(rowcol, rect):
     def _remap_dim(item):
         index, rectdim = item
         min_, max_ = rectdim
-        return remap(-1, +1, min_, max_, index)
+        return pygamelib.remap(index, -1, +1, min_, max_)
     pos = map(_remap_dim, zip(reversed(rowcol), iter_rect_ends(rect)))
     return tuple(pos)
 
@@ -174,35 +164,25 @@ def make_dicerect(dice_window, rowcol, dice_size, dice_border):
     dice_rect.center = center
     return dice_rect
 
-    remap_rect = pygame.Rect(
-        dice_window.left + dice_border,
-        dice_window.top + dice_border,
-        dice_window.width - dice_size - dice_border * 2,
-        dice_window.height - dice_size - dice_border * 2,
-    )
-    x, y = remap_delta_xy(rowcol, remap_rect)
-    dice_rect = pygame.Rect(x, y, dice_size, dice_size)
-    return dice_rect
-
 def piprect(dice_rect, pipsize, pippos, dice_border):
     """
     Rect for one of the pip positions inside a dice rect.
     """
     pip_width, pip_height = pipsize
     pip_row, pip_col = pippos
-    x = remap(
+    x = pygamelib.remap(
+        pip_col,
         -1,
         +1,
         dice_rect.left + dice_border,
         dice_rect.right - pip_width - dice_border,
-        pip_col,
     )
-    y = remap(
+    y = pygamelib.remap(
+        pip_row,
         -1,
         +1,
         dice_rect.top + dice_border,
         dice_rect.bottom - pip_height - dice_border,
-        pip_row,
     )
     pip_rect = pygame.Rect(x, y, pip_width, pip_height)
     return pip_rect
