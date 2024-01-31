@@ -1,21 +1,13 @@
-import argparse
-import math
-import random
-
-from itertools import groupby
-from operator import itemgetter
-from string import digits
-from types import SimpleNamespace
-
 import pygamelib
 
 from pygamelib import pygame
 
-class DiceDemo(pygamelib.DemoBase):
+class CycleDemo(pygamelib.DemoBase):
 
     def __init__(self, images, rects):
         self.images = images
         self.rects = rects
+        self.index = 0
 
     def do_quit(self, event):
         self.engine.stop()
@@ -23,75 +15,45 @@ class DiceDemo(pygamelib.DemoBase):
     def do_keydown(self, event):
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
             pygamelib.post_quit()
+        elif event.key == pygame.K_RIGHT:
+            self.index = (self.index + 1) % len(self.images)
+            pygamelib.post_videoexpose()
+        elif event.key == pygame.K_LEFT:
+            self.index = (self.index - 1) % len(self.images)
+            pygamelib.post_videoexpose()
 
     def do_videoexpose(self, event):
         self.draw()
 
     def draw(self):
         self.screen.fill('black')
-        for image, rect in zip(self.images, self.rects):
-            self.screen.blit(image, rect)
+        image = self.images[self.index]
+        rect = self.rects[self.index]
+        self.screen.blit(image, rect)
         pygame.display.flip()
 
 
-def deltas():
-    # generate 3x3 neighbors deltas
-    for i in range(9):
-        row, col = divmod(i, 3)
-        yield (row - 1, col - 1)
-
-def pip_order(delta):
-    row, col = delta
-    is_corner = all(delta)
-    return (-is_corner, -col, row)
-
-def pip_angle(delta):
-    row, col = delta
-    angle = math.atan2(row, col) % math.pi
-    return angle
-
-def update_with_reverse(dict_):
-    dict_.update(list(map(reversed, dict_.items())))
-
-def iteritems(iterable, *indexes):
-    return map(itemgetter(*indexes), iterable)
-
-def mapgroupiters(grouped, container=tuple):
-    """
-    containerize the group iterables as from itertools.groupby
-    """
-    return map(container, iteritems(grouped, 1))
-
-DELTAS_WITH_ORIGIN = list(deltas())
-
-PIP_DELTAS = sorted(DELTAS_WITH_ORIGIN, key=pip_order)
-PIP_DELTAS.remove((0,0))
-
-OPPOSITES = dict(mapgroupiters(pygamelib.sorted_groupby(PIP_DELTAS, key=pip_angle)))
-update_with_reverse(OPPOSITES)
-
-def is_odd(n):
-    return n % 2 != 0
+EVEN_PIP_DELTAS = [
+    (-1, -1), # topleft
+    (-1, +1), # bottomleft
+    (-0, -1), # midleft
+    (-1, -0), # midtop
+]
 
 def iter_pip_deltas(n):
-    # TODO
-    # - more than nine pips
-    if is_odd(n):
+    """
+    Generate the deltas for n number pips.
+    """
+    if n % 2 != 0:
+        # odds yield center
         yield (0, 0)
         n -= 1
-        if n == 0:
-            return
-    seen = set()
-    for delta in PIP_DELTAS:
-        opposite = OPPOSITES[delta]
-        if delta in seen or opposite in seen:
-            continue
-        seen.add(delta)
-        seen.add(opposite)
-        yield delta
-        yield opposite
-        if len(seen) == n:
-            break
+    for row, col in EVEN_PIP_DELTAS[:n//2]:
+        # yield delta and its opposite
+        yield (row, col)
+        yield (-row, -col)
+
+PIP_DELTAS = {n: list(iter_pip_deltas(n)) for n in range(1,10)}
 
 def iter_rect_ends(rect):
     # generate the dimensional extremes of a rect, its x and y endpoints
@@ -149,22 +111,27 @@ def draw_die(surf, npips, border):
         rect.width // 3 - border,
         rect.height // 3 - border,
     )
-    for pippos in iter_pip_deltas(npips):
+    for pippos in PIP_DELTAS[npips]:
         pip_rect = piprect(rect, pip_size, pippos, border)
         draw_pip(surf, pip_rect, border)
 
-def run(display_size, npips):
+def run(display_size):
     window = pygame.Rect((0,0), display_size)
 
-    die_size = (min(display_size) // 2,)*2
-    die_surf = pygame.Surface(die_size)
-    die_surf.fill('firebrick')
-    border = min(die_size) // 16
-    draw_die(die_surf, npips, border)
-    pygame.draw.rect(die_surf, 'azure', die_surf.get_rect(), border // 2)
-    die_rect = die_surf.get_rect(center=window.center)
+    images = []
+    rects = []
+    for n in range(1,10):
+        die_size = (min(display_size) // 2,)*2
+        die_surf = pygame.Surface(die_size)
+        die_surf.fill('firebrick')
+        border = min(die_size) // 16
+        draw_die(die_surf, n, border)
+        pygame.draw.rect(die_surf, 'azure', die_surf.get_rect(), border // 2)
+        die_rect = die_surf.get_rect(center=window.center)
+        images.append(die_surf)
+        rects.append(die_rect)
 
-    state = DiceDemo([die_surf], [die_rect])
+    state = CycleDemo(images, rects)
     pygame.display.set_mode(display_size)
     engine = pygamelib.Engine()
     engine.run(state)
@@ -174,9 +141,8 @@ def main(argv=None):
     Draw dice pips algorithm
     """
     parser = pygamelib.command_line_parser()
-    parser.add_argument('npips', type=int)
     args = parser.parse_args(argv)
-    run(args.display_size, args.npips)
+    run(args.display_size)
 
 if __name__ == '__main__':
     main()
