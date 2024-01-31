@@ -1,10 +1,14 @@
 import bisect
-import operator
-import time
+import functools
 import math
+import operator
+import random
+import time
+
 from collections import OrderedDict
 from typing import NamedTuple
 
+import pytest
 
 class Cache:
 
@@ -129,10 +133,6 @@ def log_bucket(now, maxage, shift=0):
     bucket = math.ceil(expires / next_power) * next_power
     return bucket
 
-
-import random
-import functools
-
 def error(now, maxage, *args):
     """log_bucket() error."""
     bucket = log_bucket(now, maxage, *args)
@@ -165,12 +165,11 @@ def max_buckets(max_maxage, *args):
     return len(buckets)
 
 
-import pytest
-
-
 class FakeTime:
+
     def __init__(self, now=0):
         self.now = now
+
     def __call__(self):
         return self.now
 
@@ -192,7 +191,6 @@ def test_basic():
     assert cache.get('b') == 'B'
     assert cache.get('c') == 'C'
 
-
 def test_expires():
     cache = Cache(2, FakeTime())
 
@@ -210,7 +208,6 @@ def test_expires():
     assert cache.get('b') == 'B'
     assert cache.get('c') == 'C'
 
-
 def test_update_expires():
     cache = Cache(2, FakeTime())
 
@@ -227,7 +224,6 @@ def test_update_expires():
     assert cache.get('a') == None
     assert cache.get('b') == 'Y'
 
-
 def test_priorities():
     cache = Cache(2, FakeTime())
 
@@ -241,7 +237,6 @@ def test_priorities():
     assert cache.get('b') == None
     assert cache.get('c') == 'C'
 
-
 def test_update_priorities():
     cache = Cache(2, FakeTime())
 
@@ -253,7 +248,6 @@ def test_update_priorities():
     assert cache.get('a') == None
     assert cache.get('b') == 'Y'
     assert cache.get('c') == 'C'
-
 
 def test_lru():
     cache = Cache(2, FakeTime())
@@ -267,7 +261,6 @@ def test_lru():
     assert cache.get('a') == 'A'
     assert cache.get('b') == None
     assert cache.get('c') == 'C'
-
 
 def test_priority_queue():
     pq = PriorityQueue()
