@@ -189,3 +189,8 @@ def main(argv=None):
 
 if __name__ == '__main__':
     main()
+
+# 2024-01-29
+# https://svg-path-visualizer.netlify.app/
+# heart is usually the first thing shown
+# saved: assets/bezier/heart.txt
