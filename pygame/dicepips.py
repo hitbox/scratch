@@ -10,6 +10,7 @@ class CycleDemo(pygamelib.DemoBase):
         self.blits = blits
         self.index = 0
         self.roll = None
+        self.timer = None
 
     def do_quit(self, event):
         self.engine.stop()
@@ -26,6 +27,7 @@ class CycleDemo(pygamelib.DemoBase):
             pygamelib.post_videoexpose()
         elif event.key == pygame.K_SPACE:
             self.roll = random.randint(6, 24)
+            self.timer = 0
 
     def do_videoexpose(self, event):
         self.draw()
@@ -33,11 +35,13 @@ class CycleDemo(pygamelib.DemoBase):
     def update(self):
         super().update()
         if self.roll and self.roll > 0:
-            # TODO
-            # - animation timer
-            self.index = (self.index + 1) % len(self.blits)
-            self.roll -= 1
-            pygamelib.post_videoexpose()
+            if self.timer + self.elapsed >= 100:
+                self.index = (self.index + random.randint(1, 5)) % len(self.blits)
+                self.roll -= 1
+                self.timer = (self.timer + self.elapsed) % 100
+                pygamelib.post_videoexpose()
+            else:
+                self.timer += self.elapsed
 
     def draw(self):
         self.screen.fill('black')
@@ -133,7 +137,7 @@ def run(display_size):
 
     blits = []
     for n in range(1,7):
-        die_size = (int(min(display_size) * 0.75),)*2
+        die_size = (int(min(display_size) * 0.30),)*2
         die_surf = pygame.Surface(die_size)
         die_surf.fill('firebrick')
         border = min(die_size) // 18
