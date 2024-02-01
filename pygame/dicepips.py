@@ -6,11 +6,12 @@ from pygamelib import pygame
 
 class CycleDemo(pygamelib.DemoBase):
 
-    def __init__(self, blits):
+    def __init__(self, blits, roll_interval):
         self.blits = blits
         self.index = 0
         self.roll = None
         self.timer = None
+        self.roll_interval = roll_interval
 
     def do_quit(self, event):
         self.engine.stop()
@@ -35,10 +36,10 @@ class CycleDemo(pygamelib.DemoBase):
     def update(self):
         super().update()
         if self.roll and self.roll > 0:
-            if self.timer + self.elapsed >= 100:
+            if self.timer + self.elapsed >= self.roll_interval:
                 self.index = (self.index + random.randint(1, 5)) % len(self.blits)
                 self.roll -= 1
-                self.timer = (self.timer + self.elapsed) % 100
+                self.timer = (self.timer + self.elapsed) % self.roll_interval
                 pygamelib.post_videoexpose()
             else:
                 self.timer += self.elapsed
@@ -120,7 +121,9 @@ def piprect(dice_rect, pipsize, pippos, dice_border):
 def draw_pip(surf, rect, border_width):
     radius = min(rect.size) // 2
     # fill
-    pygame.draw.circle(surf, 'azure', rect.center, radius)
+    pygame.draw.circle(surf, 'azure', rect.center, radius, 0)
+    # border
+    pygame.draw.circle(surf, 'indigo', rect.center, radius, 1)
 
 def draw_die(surf, npips, border):
     rect = surf.get_rect()
@@ -132,12 +135,12 @@ def draw_die(surf, npips, border):
         pip_rect = piprect(rect, pip_size, pippos, border)
         draw_pip(surf, pip_rect, border)
 
-def run(display_size):
+def run(display_size, roll_interval, dice_size):
     window = pygame.Rect((0,0), display_size)
 
     blits = []
     for n in range(1,7):
-        die_size = (int(min(display_size) * 0.30),)*2
+        die_size = (int(min(display_size) * dice_size),)*2
         die_surf = pygame.Surface(die_size)
         die_surf.fill('firebrick')
         border = min(die_size) // 18
@@ -146,7 +149,7 @@ def run(display_size):
         die_rect = die_surf.get_rect(center=window.center)
         blits.append((die_surf, die_rect))
 
-    state = CycleDemo(blits)
+    state = CycleDemo(blits, roll_interval)
     pygame.display.set_mode(display_size)
     engine = pygamelib.Engine()
     engine.run(state)
@@ -156,8 +159,20 @@ def main(argv=None):
     Draw dice pips algorithm
     """
     parser = pygamelib.command_line_parser()
+    parser.add_argument(
+        '--roll-interval',
+        type = int,
+        default = 200,
+        help = 'Milliseconds animation delay for rolling dice.',
+    )
+    parser.add_argument(
+        '--dice-size',
+        type = eval,
+        default = '0.1',
+        help = 'Fraction of window size for dice size.',
+    )
     args = parser.parse_args(argv)
-    run(args.display_size)
+    run(args.display_size, args.roll_interval, args.dice_size)
 
 if __name__ == '__main__':
     main()
