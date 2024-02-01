@@ -1,10 +1,8 @@
-import itertools as it
 import operator as op
 import random
 
 import pygamelib
 
-from pygame import Vector2
 from pygamelib import pygame
 
 class Demo(pygamelib.DemoBase):
@@ -130,10 +128,21 @@ def random_touching_rects(n, frame):
             rects.append(newrect)
     return rects
 
+def get_colors():
+    def is_colorful(color):
+        return (
+            len(set(color[:3])) > 1
+            and color.hsva[1] == 100
+            and color.hsva[2] == 100
+        )
+
+    colors = map(pygame.Color, pygamelib.UNIQUE_THECOLORS.values())
+    yield from filter(is_colorful, colors)
+
 def run(display_size):
     frame = pygame.Rect((0,)*2, display_size)
     frame.inflate_ip((-min(display_size)*0.5,)*2)
-    colors = list(filter(pygamelib.interesting_color, pygame.color.THECOLORS))
+    colors = list(get_colors())
     random.shuffle(colors)
     state = Demo(
         50,

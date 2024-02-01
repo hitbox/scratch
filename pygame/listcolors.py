@@ -89,28 +89,6 @@ def run(display_size, colors, names, font_size, colortext, predicate, sortkey):
     pygame.display.set_mode(display_size)
     engine.run(demo)
 
-class ColorAttributes(pygame.Color):
-    """
-    pygame.Color with helpful attributes.
-    """
-
-    @property
-    def hue(self):
-        return self.hsva[0]
-
-    @property
-    def saturation(self):
-        return self.hsva[1]
-
-    @property
-    def value(self):
-        return self.hsva[2]
-
-    @property
-    def lightness(self):
-        return self.hsla[2]
-
-
 class color_eval_function:
     """
     Makes functions taking a color and return the result of a user expression.
@@ -122,7 +100,8 @@ class color_eval_function:
     def __call__(self, expression_string):
         code = compile(expression_string, self.name, 'eval')
         def code_func(color):
-            return eval(code, {'color': ColorAttributes(color)})
+            color = pygamelib.ColorAttributes(color)
+            return eval(code, {'color': color})
         return code_func
 
 

@@ -758,24 +758,27 @@ def colortext(color_key):
             return ' '.join(map(str, color_key(color)))
     return _colortext
 
-def hue(color):
-    color = pygame.Color(color)
-    hue, *_ = color.hsva
-    return hue
+class ColorAttributes(pygame.Color):
+    """
+    pygame.Color with helpful attributes.
+    """
 
-def saturation(color):
-    color = pygame.Color(color)
-    _, saturation, *_ = color.hsva
-    return saturation
+    @property
+    def hue(self):
+        return self.hsva[0]
 
-def value(color):
-    color = pygame.Color(color)
-    _, _, value, _ = color.hsva
-    return value
+    @property
+    def saturation(self):
+        return self.hsva[1]
 
-# pygame.Color is not hashable
+    @property
+    def value(self):
+        return self.hsva[2]
 
-COLORSTHE = {color: name for name, color in pygame.color.THECOLORS.items()}
+    @property
+    def lightness(self):
+        return self.hsla[2]
+
 
 def color_name(color):
     color = pygame.Color(color)
@@ -802,27 +805,6 @@ def best_name_colors(color_items):
 
 UNIQUE_THECOLORS = dict(best_name_colors(pygame.color.THECOLORS.items()))
 UNIQUE_COLORSTHE = {v: k for k, v in UNIQUE_THECOLORS.items()}
-
-interesting_colors_pattern = '|'.join([
-    r'\d',
-    'black',
-    'blue',
-    'dark',
-    'gr[ae]y',
-    'green',
-    'light',
-    'medium',
-    'red',
-    'silver',
-    'white',
-])
-
-def interesting_color(color):
-    """
-    rgb values are not all the same meaning *NOT* some shade of white.
-    """
-    color = pygame.Color(color)
-    return len(set(color[:3])) != 1
 
 def flow_leftright(rects, gap=0):
     for r1, r2 in it.pairwise(rects):
