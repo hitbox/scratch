@@ -1,9 +1,7 @@
-import argparse
 import itertools as it
 
 import pygamelib
 
-from pygame import Vector2
 from pygamelib import pygame
 
 class LineRectsDemo(pygamelib.DemoBase):
@@ -45,7 +43,12 @@ class LineRectsDemo(pygamelib.DemoBase):
             pygame.draw.rect(self.screen, 'azure', rect, 1)
 
     def draw_line(self):
-        pygame.draw.line(self.screen, 'mediumorchid', self.line_start, pygame.mouse.get_pos())
+        pygame.draw.line(
+            self.screen,
+            'mediumorchid',
+            self.line_start,
+            pygame.mouse.get_pos()
+        )
 
     def draw_intersects(self):
 
@@ -53,7 +56,8 @@ class LineRectsDemo(pygamelib.DemoBase):
             return pygame.Vector2(point).distance_to(self.line_start)
 
         points = sorted(self._intersects, key=distance_from_start)
-        for point, color in zip(points, it.chain(['magenta'], it.repeat('red'))):
+        items = zip(points, it.chain(['magenta'], it.repeat('red')))
+        for point, color in items:
             pygame.draw.circle(self.screen, color, point, 4)
 
 
@@ -93,7 +97,7 @@ def make_rects(frame, thickness):
     )
     # top left inner box
     box = pygamelib.make_rect(
-        size = Vector2(frame.size) * 0.20,
+        size = pygame.Vector2(frame.size) * 0.20,
     )
     rects.append(
         pygame.Rect(
@@ -166,8 +170,10 @@ def main(argv=None):
 if __name__ == '__main__':
     main()
 
+# 2024-02-01
+# - dated late
+# - wanted to make a system where you can wrap a "wire" around rects.
 # /home/hitbox/repos/reference/iacore/wire-routing-game
 # https://www.jeffreythompson.org/collision-detection/line-line.php
 # https://git.envs.net/iacore/wire-routing-game
 # https://www.1a-insec.net/blog/31-wire-routing-input-scheme/
-
