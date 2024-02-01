@@ -236,6 +236,12 @@ class TestInputLine(unittest.TestCase):
         self.assertEqual(self.input_line.line, 'a')
 
 
+def sorted_groupby(iterable, key=None, reverse=False):
+    """
+    Convenience for sorting and then grouping.
+    """
+    return it.groupby(sorted(iterable, key=key, reverse=reverse), key=key)
+
 def intargs(string):
     return map(int, string.replace(',', ' ').split())
 
@@ -773,7 +779,29 @@ COLORSTHE = {color: name for name, color in pygame.color.THECOLORS.items()}
 
 def color_name(color):
     color = pygame.Color(color)
-    return COLORSTHE[tuple(color)]
+    return UNIQUE_COLORSTHE[tuple(color)]
+
+def best_name_colors(color_items):
+    # NOTES
+    # - pygame.color.THECOLORS has many names for some colors
+    # - for instance 'grey100', 'gray100', and 'white' are all white.
+    # - also 'red' and 'red1' are the same.
+    # Here, we group color items by the tuple value and yield the hightest
+    # quality name.
+    second = op.itemgetter(1)
+    grouped = sorted_groupby(color_items, key=second)
+
+    def _quality(color_item):
+        # count of digits in key
+        key, val = color_item
+        return len(set(key).intersection(string.digits))
+
+    for _, color_items in grouped:
+        color_items = sorted(color_items, key=_quality)
+        yield color_items[0]
+
+UNIQUE_THECOLORS = dict(best_name_colors(pygame.color.THECOLORS.items()))
+UNIQUE_COLORSTHE = {v: k for k, v in UNIQUE_THECOLORS.items()}
 
 interesting_colors_pattern = '|'.join([
     r'\d',
@@ -818,12 +846,6 @@ def select_col(items, ncols, col):
     for (j, i), item in enumerate_grid(items, ncols):
         if i == col:
             yield item
-
-def sorted_groupby(iterable, key=None, reverse=False):
-    """
-    Convenience for sorting and then grouping.
-    """
-    return it.groupby(sorted(iterable, key=key, reverse=reverse), key=key)
 
 def groupby_columns_reference(items, ncols):
     # the original effort that worked

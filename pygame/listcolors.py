@@ -1,5 +1,8 @@
 import argparse
+import itertools as it
 import math
+import operator as op
+import string
 
 from pprint import pprint
 
@@ -63,7 +66,7 @@ def _arrange(rects, ncols):
             rect.width = colwrap.width
             rect.left = colwrap.left
 
-def run(display_size, colors, names, font_size, colortext):
+def run(display_size, colors, names, font_size, colortext, predicate, sortkey):
     assert len(colors) == len(names)
     font = pygamelib.monospace_font(font_size)
 
@@ -71,7 +74,10 @@ def run(display_size, colors, names, font_size, colortext):
     ncols = math.isqrt(len(rects))
     _arrange(rects, ncols)
 
-    images = [pygamelib.render_text(font, rect.size, color, 'white', name)
+    def text(color, name):
+        return name
+
+    images = [pygamelib.render_text(font, rect.size, color, 'white', text(color, name))
               for rect, color, name in zip(rects, colors, names)]
 
     drawables = list(zip(images, rects))
@@ -82,6 +88,28 @@ def run(display_size, colors, names, font_size, colortext):
 
     pygame.display.set_mode(display_size)
     engine.run(demo)
+
+class ColorAttributes(pygame.Color):
+    """
+    pygame.Color with helpful attributes.
+    """
+
+    @property
+    def hue(self):
+        return self.hsva[0]
+
+    @property
+    def saturation(self):
+        return self.hsva[1]
+
+    @property
+    def value(self):
+        return self.hsva[2]
+
+    @property
+    def lightness(self):
+        return self.hsla[2]
+
 
 class color_eval_function:
     """
@@ -94,7 +122,7 @@ class color_eval_function:
     def __call__(self, expression_string):
         code = compile(expression_string, self.name, 'eval')
         def code_func(color):
-            return eval(code, {'color': color})
+            return eval(code, {'color': ColorAttributes(color)})
         return code_func
 
 
@@ -132,12 +160,12 @@ def parse_args(argv=None):
 
 def main():
     args = parse_args()
-    colors = map(pygame.Color, THECOLORS.values())
+    colors = map(pygame.Color, set(pygamelib.UNIQUE_THECOLORS.values()))
     colors = sorted(filter(args.filter, colors), key=args.sort)
     names = list(map(pygamelib.color_name, colors))
     if args.print:
         pprint(names)
-    run(args.display_size, colors, names, args.font_size, args.text)
+    run(args.display_size, colors, names, args.font_size, args.text, args.filter, args.sort)
 
 if __name__ == '__main__':
     main()
