@@ -236,15 +236,6 @@ class TestInputLine(unittest.TestCase):
         self.assertEqual(self.input_line.line, 'a')
 
 
-def sorted_groupby(iterable, key=None, reverse=False):
-    """
-    Convenience for sorting and then grouping.
-    """
-    return it.groupby(sorted(iterable, key=key, reverse=reverse), key=key)
-
-def intargs(string):
-    return map(int, string.replace(',', ' ').split())
-
 class sizetype:
 
     def __init__(self, n=2):
@@ -256,263 +247,6 @@ class sizetype:
             size += size
         return size
 
-
-def chunk(iterable, n):
-    iterable = iter(iterable)
-    stop = False
-    while not stop:
-        chunk = []
-        for _ in range(n):
-            try:
-                chunk.append(next(iterable))
-            except StopIteration:
-                stop = True
-        if chunk:
-            yield tuple(chunk)
-
-def rfinditer(s, subs, *args):
-    # many version of str.rfind
-    for sub in subs:
-        index = s.rfind(sub, *args)
-        yield index
-
-def finditer(s, subs, *args):
-    # many version of str.find
-    for sub in subs:
-        index = s.find(sub, *args)
-        yield index
-
-def rect_type(string):
-    """
-    pygame Rect arguments as from command line or text file.
-    """
-    return pygame.Rect(*intargs(string))
-
-def is_point_name(name):
-    """
-    Name contains a side name but is not exactly the side name.
-    """
-    return any(side in name for side in SIDES if name != side)
-
-def point_attrs(sides):
-    """
-    Generate the attribute names of the points on a rect.
-    """
-    for i, side in enumerate(sides):
-        if side in ('top', 'bottom'):
-            yield side + sides[(i - 1) % 4]
-            yield 'mid' + side
-            yield side + sides[(i + 1) % 4]
-        else:
-            yield 'mid' + side
-
-def clamp(x, a, b):
-    if x < a:
-        return a
-    elif x > b:
-        return b
-    return x
-
-def mix(x, a, b):
-    """
-    Return the percent of x between a and b.
-    """
-    return a * (1 - x) + b * x
-
-def remap(x, a, b, c, d):
-    """
-    Return x from range a and b to range c and d.
-    """
-    return x*(d-c)/(b-a) + c-a*(d-c)/(b-a)
-
-def opposites(indexable):
-    """
-    Generate two-tuples of items and their opposite from an indexable. Opposite
-    being halfway around the indexable.
-    """
-    # XXX: `opposite_item` func below
-    n = len(indexable)
-    assert n % 2 == 0
-    half_n = n // 2
-    for i, item1 in enumerate(indexable):
-        j = (i + half_n) % n
-        item2 = indexable[j]
-        yield (item1, item2)
-
-def make_rect(rect=None, **kwargs):
-    if rect is None:
-        rect = empty_rect
-    rect = rect.copy()
-    for key, val in kwargs.items():
-        setattr(rect, key, val)
-    return rect
-
-def from_points(x1, y1, x2, y2):
-    w = x2 - x1
-    h = y2 - y1
-    return (x1, y1, w, h)
-
-def aggsides(func, *rects):
-    """
-    execute `func` on all sides of all rects returning unpackable of
-    `func(tops), func(rights), func(bottoms), func(lefts)`
-    """
-    return map(func, *map(sides, rects))
-
-def minsides(*rects):
-    """
-    minimum of all four rects' sides
-    """
-    return aggsides(min, *rects)
-
-def maxsides(*rects):
-    """
-    maximum of all four rects' sides
-    """
-    return aggsides(max, *rects)
-
-def wrap(rects):
-    tops, rights, bottoms, lefts = zip(*map(sides, rects))
-    x = min(lefts)
-    y = min(tops)
-    right = max(rights)
-    bottom = max(bottoms)
-    width = right - x
-    height = bottom - y
-    return (x, y, width, height)
-
-def iter_rect_diffs(inside, outside):
-    """
-    Generate eight rects resulting from "subtracting" `inside` from `outside`.
-    """
-    inside, outside = map(pygame.Rect, [inside, outside])
-    _, minright, minbottom, _ = minsides(inside, outside)
-    maxtop, _, _, maxleft = maxsides(inside, outside)
-    # topleft
-    yield from_points(*outside.topleft, *inside.topleft)
-    # top
-    yield from_points(maxleft, outside.top, minright, inside.top)
-    # topright
-    yield from_points(minright, outside.top, outside.right, inside.top)
-    # right
-    yield from_points(minright, maxtop, outside.right, minbottom)
-    # bottomright
-    yield from_points(*inside.bottomright, *outside.bottomright)
-    # bottom
-    yield from_points(maxleft, inside.bottom, minright, outside.bottom)
-    # bottomleft
-    yield from_points(outside.left, inside.bottom, inside.left, outside.bottom)
-    # left
-    yield from_points(outside.left, maxtop, inside.left, minbottom)
-
-def area(rect):
-    _, _, w, h = rect
-    return w * h
-
-def overlaps(rects):
-    for r1, r2 in it.combinations(map(pygame.Rect, rects), 2):
-        clipping = r1.clip(r2)
-        if clipping:
-            yield (r1, r2, clipping)
-
-# clockwise ordered rect side attribute names mapped with their opposites
-SIDENAMES = ['top', 'right', 'bottom', 'left']
-SIDES = dict(opposites(SIDENAMES))
-
-def opposite_item(list_, item):
-    """
-    Return the item halfway around the indexable from the given item.
-    """
-    # XXX: `opposites` func above
-    n = len(list_)
-    assert n % 2 == 0
-    index = list_.index(item)
-    return list_[(index + n // 2) % n]
-
-# opposite sides by index
-SIDENAMES_OPPO = [opposite_item(SIDENAMES, item) for item in SIDENAMES]
-
-# clockwise ordered rect point attribute names mapped with their opposites
-POINTS = dict(opposites(tuple(point_attrs(tuple(SIDES)))))
-
-empty_rect = pygame.Rect((0,)*4)
-
-points = op.attrgetter(*POINTS)
-
-sides = op.attrgetter(*SIDES)
-
-def side_lines(rect):
-    rect = pygame.Rect(rect)
-    yield (rect.topleft, rect.topright)
-    yield (rect.topright, rect.bottomright)
-    yield (rect.bottomright, rect.bottomleft)
-    yield (rect.bottomleft, rect.topleft)
-
-def line_rect_intersections(line, rect):
-    (x3, y3), (x4, y4) = line
-    for rectline in side_lines(rect):
-        (x1, y1), (x2, y2) = rectline
-        intersection = line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4)
-        if intersection:
-            yield intersection
-
-CORNERNAMES = ['topleft', 'topright', 'bottomright', 'bottomleft']
-
-def steppairs(start, stop, step):
-    # range(0, 360, 30) -> (0, 30), (30, 60), ..., (330, 360)
-    for i in range(start, stop, step):
-        yield (i, i+step)
-
-# counter-clockwise degrees
-QUADRANT_DEGREES = dict(zip(
-    ['topright', 'topleft', 'bottomleft', 'bottomright'],
-    steppairs(0, 360, 90),
-))
-
-# line pairs as rect attribute names to draw each quadrant of a rect
-
-CORNERLINES = dict(
-    topleft = (('midleft', 'topleft'), ('topleft', 'midtop')),
-    topright = (('midtop', 'topright'), ('topright', 'midright')),
-    bottomright = (('midright', 'bottomright'), ('bottomright', 'midbottom')),
-    bottomleft = (('midbottom', 'bottomleft'), ('bottomleft', 'midleft')),
-)
-
-def corners(rect):
-    x, y, w, h = rect
-    yield (x, y)
-    yield (x + w, y)
-    yield (x + w, y + h)
-    yield (x, y + h)
-
-def rects(images, **kwargs):
-    return map(op.methodcaller('get_rect'), images, **kwargs)
-
-def sides(rect):
-    # overwrite to remain compatible with four-tuple rects
-    left, top, w, h = rect
-    right = left + w
-    bottom = top + h
-    return (top, right, bottom, left)
-
-def named_sides(rect):
-    return zip(SIDENAMES, sides(rect))
-
-def top(rect):
-    _, top, _, _ = rect
-    return top
-
-def right(rect):
-    x, _, w, _ = rect
-    return x + w
-
-def bottom(rect):
-    _, y, _, h = rect
-    return y + h
-
-def left(rect):
-    left, _, _, _ = rect
-    return left
 
 class EventMethodName:
     """
@@ -527,23 +261,6 @@ class EventMethodName:
         method_name = self.prefix + event_name.lower()
         return method_name
 
-
-default_methodname = EventMethodName(prefix='do_')
-
-def dispatch(obj, event):
-    method_name = default_methodname(event)
-    method = getattr(obj, method_name, None)
-    if method is not None:
-        method(event)
-
-def _post(event_type):
-    pygame.event.post(pygame.event.Event(event_type))
-
-def post_quit():
-    _post(pygame.QUIT)
-
-def post_videoexpose():
-    _post(pygame.VIDEOEXPOSE)
 
 class Engine:
 
@@ -749,15 +466,6 @@ class RectRenderer:
         return drawn_rects
 
 
-def colortext(color_key):
-    if color_key.space in ('cmy', 'hsl', 'hsv'):
-        def _colortext(color):
-            return ' '.join(f'{val:.0f}' for val in color_key(color))
-    else:
-        def _colortext(color):
-            return ' '.join(map(str, color_key(color)))
-    return _colortext
-
 class ColorAttributes(pygame.Color):
     """
     pygame.Color with helpful attributes.
@@ -779,6 +487,577 @@ class ColorAttributes(pygame.Color):
     def lightness(self):
         return self.hsla[2]
 
+
+class nearestrect:
+
+    def __init__(self, refkey, otherkey, comp, extreme):
+        self.refkey = refkey
+        self.otherkey = otherkey
+        self.comp = comp
+        self.extreme = extreme
+
+    def __call__(self, reference, rects):
+        assert reference not in rects
+        reference = pygame.Rect(reference)
+
+        otherattr = op.attrgetter(self.otherkey)
+        refattr = op.attrgetter(self.refkey)
+
+        def key(rect):
+            return otherattr(pygame.Rect(rect))
+
+        def predicate(other):
+            return self.comp(key(other), refattr(reference))
+
+        rects = filter(predicate, rects)
+        return self.extreme(rects, key=key, default=None)
+
+
+class ShapeParser:
+
+    colornames = set(pygame.color.THECOLORS)
+
+    shapenames = set(n for n in dir(pygame.draw) if not n.startswith('_'))
+    shapenames.add('squircle')
+
+    # this is messed up
+    # the id field was removed from Rectangle
+    def parse_file(self, file):
+        for line in file:
+            line = line.lstrip()
+            if not line or line.startswith('#'):
+                continue
+            shape = line.split()
+            name, color, *remaining = shape
+            assert name in self.shapenames
+            assert color in self.colornames
+            if name == 'arc':
+                x, y, w, h, angle1, angle2, width = map(eval, remaining)
+                # avoid argument that results in nothing being drawn
+                assert width != 0
+                angle1, angle2 = map(math.radians, [angle1, angle2])
+                yield Arc(color, (x, y, w, h), angle1, angle2, width)
+            elif name == 'circle':
+                x, y, radius, width = map(eval, remaining)
+                yield Circle(color, (x, y), radius, width)
+            elif name == 'line':
+                x1, y1, x2, y2, width = map(eval, remaining)
+                # avoid nothing drawn
+                assert width > 0
+                yield Line(color, (x1, y1), (x2, y2), width)
+            elif name == 'lines':
+                closed, width, *points = map(eval, remaining)
+                closed = bool(closed)
+                # avoid nothing drawn
+                assert width > 0
+                points = tuple(map(tuple, chunk(points, 2)))
+                yield Lines(color, closed, width, points)
+            elif name == 'rect':
+                x, y, w, h, width, *borderargs = map(eval, remaining)
+                yield Rectangle(color, (x, y, w, h), width, *borderargs)
+            elif name == 'squircle':
+                x, y, radius, width, *corners = remaining
+                x, y, radius, width = map(eval, (x, y, radius, width))
+                assert all(corner in CORNERNAMES for corner in corners), corners
+                yield from squircle_shapes(color, (x, y), radius, width, corners)
+
+
+class DrawMixin:
+
+    def draw(self, surf, color, width, offset=(0,0)):
+        self.draw_func(surf, *self.draw_args(color, width, offset))
+
+
+class Arc(
+    namedtuple('ArcBase', 'rect angle1 angle2'),
+    DrawMixin,
+):
+    draw_func = pygame.draw.arc
+
+    def scale(self, scale):
+        color, (x, y, w, h), angle1, angle2 = self
+        rect = (x*scale, y*scale, w*scale, h*scale)
+        return self.__class__(rect, angle1, angle2)
+
+    def draw_args(self, color, width, offset):
+        ox, oy = offset
+        (x, y, w, h), angle1, angle2 = self
+        rect = (x-ox, y-oy, w, h)
+        return (color, rect, angle1, angle2, width)
+
+
+class Circle(
+    namedtuple('CircleBase', 'center radius'),
+    DrawMixin,
+):
+    draw_func = pygame.draw.circle
+
+    def scale(self, scale):
+        (x, y), radius, *rest = self
+        return self.__class__((x*scale, y*scale), radius*scale, *rest)
+
+    def draw_args(self, color, width, offset):
+        ox, oy = offset
+        color, (x, y), radius, width, *rest = self
+        center = (x-ox, y-oy)
+        return (color, center, radius, width)
+
+
+class Line(
+    namedtuple('LineBase', 'start end'),
+    DrawMixin,
+):
+    draw_func = pygame.draw.line
+
+    def scale(self, scale):
+        (x1, y1), (x2, y2) = self
+        start = (x1*scale, y1*scale)
+        end = (x2*scale, y2*scale)
+        return self.__class__(start, end)
+
+    def draw_args(self, color, width, offset):
+        ox, oy = offset
+        (x1, y1), (x2, y2) = self
+        start = (x1-ox, y1-oy)
+        end = (x2-ox, y2-oy)
+        return (color, start, end, width)
+
+
+class Lines(
+    namedtuple('LinesBase', 'closed points'),
+    DrawMixin,
+):
+    draw_func = pygame.draw.lines
+
+    def scale(self, scale):
+        closed, points = self
+        points = tuple((x*scale, y*scale) for x, y in points)
+        return self.__class__(closed, points)
+
+    def draw_args(self, color, width, offset):
+        ox, oy = offset
+        closed, points = self
+        points = tuple((x-ox, y-oy) for x, y in points)
+        return (color, closed, points, width)
+
+
+class Rectangle(
+    namedtuple(
+        'RectangleBase',
+        'rect'
+        # defaults
+        ' border_radius'
+        ' border_top_left_radius'
+        ' border_top_right_radius'
+        ' border_bottom_left_radius'
+        ' border_bottom_right_radius'
+        ,
+        defaults = [0, -1, -1, -1, -1],
+    ),
+    DrawMixin,
+):
+    draw_func = pygame.draw.rect
+
+    def scale(self, scale):
+        rect, *borders = self
+        rect = tuple(map(lambda v: v*scale, rect))
+        # scale borders?
+        return self.__class__(rect, *borders)
+
+    def draw_args(self, color, width, offset):
+        ox, oy = offset
+        (x, y, w, h), *borders = self
+        rect = (x-ox, y-oy, w, h)
+        return (color, rect, width, *borders)
+
+
+class Use(namedtuple('UseBase', 'href'), DrawMixin):
+    # TODO
+    # - trying to do something like svg <use> tags
+
+    def getref(self, shapes):
+        for shape in shapes:
+            if hasattr(shape, 'id') and shape.id == self.href[:1]:
+                return shape
+
+
+class RectsGenerator:
+    """
+    Generate some number of non-overlapping rects.
+    """
+
+    def __init__(self, space, n, minwidth, minheight):
+        self.space = space
+        assert n > 0
+        self.n = n
+        self.minwidth = minwidth
+        self.minheight = minheight
+        self.failures = 0
+        self.maxfail = None
+        self.rects = None
+        self.empties = [self.space]
+        self.subdivide_stack = None
+        self.merge_stack = None
+
+    def reset(self, inside, maxfail=1000):
+        self.inside = inside
+        self.maxfail = maxfail
+        self.rects = []
+        self.empties = [inside]
+        self.failures = 0
+
+    def is_resolved(self):
+        return (
+            len(self.rects) == self.n
+            and not self.subdivide_stack
+            and not self.merge_stack
+        )
+
+    def update(self):
+        if self.subdivide_stack:
+            self.update_subdivide_stack()
+        elif self.merge_stack:
+            self.update_merge_stack()
+        elif len(self.rects) < self.n:
+            self.update_random()
+
+    def update_subdivide_stack(self):
+        # process one item from stack of pairs of rects to subtract from others
+        space, subtract = self.subdivide_stack.pop()
+        if not self.subdivide_stack:
+            # done subdividing init merging stack
+            self.merge_stack = [
+                (r1, r2)
+                for r1, r2 in it.combinations(self.empties, 2)
+                if is_adjacent(r1, r2)
+            ]
+        self.empties.remove(space)
+        self.empties.extend(subtract_rect(space, subtract))
+
+    def update_merge_stack(self):
+        # process one pair of rects to merge
+        r1, r2 = self.merge_stack.pop()
+        if r1 in self.empties:
+            self.empties.remove(r1)
+        if r2 in self.empties:
+            self.empties.remove(r2)
+        merged = merge_rects(r1, r2)
+        self.empties.append(merged)
+
+    def update_random(self):
+        for newrect in self.random_generator():
+            self.rects.append(newrect)
+            self.subdivide_stack = [
+                (empty, newrect)
+                for empty in map(pygame.Rect, self.empties)
+                if empty.colliderect(newrect)
+            ]
+            break
+
+    def random_generator(self):
+        for empty in map(pygame.Rect, generate_contiguous(self.empties)):
+            if empty.width >= self.minwidth and empty.height >= self.minheight:
+                while True:
+                    x1, y1 = random_point(empty)
+                    x2, y2 = random_point(empty)
+                    if x1 > x2:
+                        x1, x2 = x2, x1
+                    if y1 > y2:
+                        y1, y2 = y2, y1
+                    width = x2 - x1
+                    height = y2 - y1
+                    if width >= self.minwidth and height >= self.minheight:
+                        yield (x1, y1, width, height)
+                        break
+
+
+class TouchingRects(enum.Enum):
+    TOP_BOTTOM = enum.auto()
+    BOTTOM_TOP = enum.auto()
+    LEFT_RIGHT = enum.auto()
+    RIGHT_LEFT = enum.auto()
+
+
+class HeartShape:
+
+    def __init__(self, cleft_angle=None):
+        # the angle from the center of each of the two top quadrant rects
+        if cleft_angle is None:
+            cleft_angle = 45
+        self.cleft_angle = cleft_angle
+
+    def __call__(self, inside):
+        inside = pygame.Rect(inside)
+        assert inside.width == inside.height
+        quads = map(pygame.Rect, rectquadrants(inside))
+        topleft_quad, topright_quad, _, _ = quads
+        # top quads need to overlap to make the arcs meet center-top
+        radius = topleft_quad.width / 2
+        dx = (
+            topleft_quad.right
+            - (
+                topleft_quad.centerx
+                + math.cos(math.radians(self.cleft_angle))
+                * radius
+            )
+        )
+        topleft_quad.move_ip(+dx, 0)
+        topright_quad.move_ip(-dx, 0)
+
+        yield Arc(
+            rect = topleft_quad,
+            angle1 = math.radians(self.cleft_angle),
+            angle2 = math.radians(self.cleft_angle+180),
+        )
+        yield Arc(
+            rect = topright_quad,
+            angle1 = math.radians(-self.cleft_angle),
+            angle2 = math.radians(-self.cleft_angle+180),
+        )
+
+        p1 = circlepoint(topleft_quad.center, radius, math.radians(self.cleft_angle+180))
+        p2 = circlepoint(topright_quad.center, radius, math.radians(-self.cleft_angle))
+        slope_tangent1 = circle_slope_tangent(topleft_quad.center, p1)
+        slope_tangent2 = circle_slope_tangent(topright_quad.center, p2)
+        x, y = intersection_point(p1, -slope_tangent1, p2, -slope_tangent2)
+
+        # pointy bottom part
+        yield Lines(closed=False, points=[p1, (x,y), p2])
+
+
+def sorted_groupby(iterable, key=None, reverse=False):
+    """
+    Convenience for sorting and then grouping.
+    """
+    return it.groupby(sorted(iterable, key=key, reverse=reverse), key=key)
+
+def intargs(string):
+    return map(int, string.replace(',', ' ').split())
+
+def chunk(iterable, n):
+    iterable = iter(iterable)
+    stop = False
+    while not stop:
+        chunk = []
+        for _ in range(n):
+            try:
+                chunk.append(next(iterable))
+            except StopIteration:
+                stop = True
+        if chunk:
+            yield tuple(chunk)
+
+def rfinditer(s, subs, *args):
+    # many version of str.rfind
+    for sub in subs:
+        index = s.rfind(sub, *args)
+        yield index
+
+def finditer(s, subs, *args):
+    # many version of str.find
+    for sub in subs:
+        index = s.find(sub, *args)
+        yield index
+
+def rect_type(string):
+    """
+    pygame Rect arguments as from command line or text file.
+    """
+    return pygame.Rect(*intargs(string))
+
+def is_point_name(name):
+    """
+    Name contains a side name but is not exactly the side name.
+    """
+    return any(side in name for side in SIDES if name != side)
+
+def point_attrs(sides):
+    """
+    Generate the attribute names of the points on a rect.
+    """
+    for i, side in enumerate(sides):
+        if side in ('top', 'bottom'):
+            yield side + sides[(i - 1) % 4]
+            yield 'mid' + side
+            yield side + sides[(i + 1) % 4]
+        else:
+            yield 'mid' + side
+
+def clamp(x, a, b):
+    if x < a:
+        return a
+    elif x > b:
+        return b
+    return x
+
+def mix(x, a, b):
+    """
+    Return the percent of x between a and b.
+    """
+    return a * (1 - x) + b * x
+
+def remap(x, a, b, c, d):
+    """
+    Return x from range a and b to range c and d.
+    """
+    return x*(d-c)/(b-a) + c-a*(d-c)/(b-a)
+
+def opposite_items(indexable):
+    """
+    Generate two-tuples of items and their opposite from an indexable. Opposite
+    being halfway around the indexable.
+    """
+    n = len(indexable)
+    assert n % 2 == 0
+    half_n = n // 2
+    for i, item1 in enumerate(indexable):
+        j = (i + half_n) % n
+        item2 = indexable[j]
+        yield (item1, item2)
+
+def make_rect(rect=None, **kwargs):
+    if rect is None:
+        rect = empty_rect
+    rect = rect.copy()
+    for key, val in kwargs.items():
+        setattr(rect, key, val)
+    return rect
+
+def from_points(x1, y1, x2, y2):
+    w = x2 - x1
+    h = y2 - y1
+    return (x1, y1, w, h)
+
+def aggsides(func, *rects):
+    """
+    execute `func` on all sides of all rects returning unpackable of
+    `func(tops), func(rights), func(bottoms), func(lefts)`
+    """
+    return map(func, *map(sides, rects))
+
+def minsides(*rects):
+    """
+    minimum of all four rects' sides
+    """
+    return aggsides(min, *rects)
+
+def maxsides(*rects):
+    """
+    maximum of all four rects' sides
+    """
+    return aggsides(max, *rects)
+
+def wrap(rects):
+    tops, rights, bottoms, lefts = zip(*map(sides, rects))
+    x = min(lefts)
+    y = min(tops)
+    right = max(rights)
+    bottom = max(bottoms)
+    width = right - x
+    height = bottom - y
+    return (x, y, width, height)
+
+def iter_rect_diffs(inside, outside):
+    """
+    Generate eight rects resulting from "subtracting" `inside` from `outside`.
+    """
+    inside, outside = map(pygame.Rect, [inside, outside])
+    _, minright, minbottom, _ = minsides(inside, outside)
+    maxtop, _, _, maxleft = maxsides(inside, outside)
+    # topleft
+    yield from_points(*outside.topleft, *inside.topleft)
+    # top
+    yield from_points(maxleft, outside.top, minright, inside.top)
+    # topright
+    yield from_points(minright, outside.top, outside.right, inside.top)
+    # right
+    yield from_points(minright, maxtop, outside.right, minbottom)
+    # bottomright
+    yield from_points(*inside.bottomright, *outside.bottomright)
+    # bottom
+    yield from_points(maxleft, inside.bottom, minright, outside.bottom)
+    # bottomleft
+    yield from_points(outside.left, inside.bottom, inside.left, outside.bottom)
+    # left
+    yield from_points(outside.left, maxtop, inside.left, minbottom)
+
+def area(rect):
+    _, _, w, h = rect
+    return w * h
+
+def overlaps(rects):
+    for r1, r2 in it.combinations(map(pygame.Rect, rects), 2):
+        clipping = r1.clip(r2)
+        if clipping:
+            yield (r1, r2, clipping)
+
+def side_lines(rect):
+    rect = pygame.Rect(rect)
+    yield (rect.topleft, rect.topright)
+    yield (rect.topright, rect.bottomright)
+    yield (rect.bottomright, rect.bottomleft)
+    yield (rect.bottomleft, rect.topleft)
+
+def line_rect_intersections(line, rect):
+    (x3, y3), (x4, y4) = line
+    for rectline in side_lines(rect):
+        (x1, y1), (x2, y2) = rectline
+        intersection = line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4)
+        if intersection:
+            yield intersection
+
+def steppairs(start, stop, step):
+    # steppairs(0, 360, 30) -> (0, 30), (30, 60), ..., (330, 360)
+    for i in range(start, stop, step):
+        yield (i, i+step)
+
+def corners(rect):
+    x, y, w, h = rect
+    yield (x, y)
+    yield (x + w, y)
+    yield (x + w, y + h)
+    yield (x, y + h)
+
+def sides(rect):
+    # overwrite to remain compatible with four-tuple rects
+    left, top, w, h = rect
+    right = left + w
+    bottom = top + h
+    return (top, right, bottom, left)
+
+def named_sides(rect):
+    return zip(SIDENAMES, sides(rect))
+
+def top(rect):
+    _, top, _, _ = rect
+    return top
+
+def right(rect):
+    x, _, w, _ = rect
+    return x + w
+
+def bottom(rect):
+    _, y, _, h = rect
+    return y + h
+
+def left(rect):
+    left, _, _, _ = rect
+    return left
+
+def dispatch(obj, event):
+    method_name = default_methodname(event)
+    method = getattr(obj, method_name, None)
+    if method is not None:
+        method(event)
+
+def _post(event_type):
+    pygame.event.post(pygame.event.Event(event_type))
+
+def post_quit():
+    _post(pygame.QUIT)
+
+def post_videoexpose():
+    _post(pygame.VIDEOEXPOSE)
 
 def color_name(color):
     color = pygame.Color(color)
@@ -802,9 +1081,6 @@ def best_name_colors(color_items):
     for _, color_items in grouped:
         color_items = sorted(color_items, key=_quality)
         yield color_items[0]
-
-UNIQUE_THECOLORS = dict(best_name_colors(pygame.color.THECOLORS.items()))
-UNIQUE_COLORSTHE = {v: k for k, v in UNIQUE_THECOLORS.items()}
 
 def flow_leftright(rects, gap=0):
     for r1, r2 in it.pairwise(rects):
@@ -1083,43 +1359,6 @@ def within_horiz(left, right, rect):
 def within_vert(top, bottom, rect):
     return not (rect.bottom < top or rect.top > bottom)
 
-class nearestrect:
-
-    def __init__(self, refkey, otherkey, comp, extreme):
-        self.refkey = refkey
-        self.otherkey = otherkey
-        self.comp = comp
-        self.extreme = extreme
-
-    def __call__(self, reference, rects):
-        assert reference not in rects
-        reference = pygame.Rect(reference)
-
-        otherattr = op.attrgetter(self.otherkey)
-        refattr = op.attrgetter(self.refkey)
-
-        def key(rect):
-            return otherattr(pygame.Rect(rect))
-
-        def predicate(other):
-            return self.comp(key(other), refattr(reference))
-
-        rects = filter(predicate, rects)
-        return self.extreme(rects, key=key, default=None)
-
-
-nearestabove = nearestrect('top', 'bottom', op.lt, max)
-nearestrightof = nearestrect('right', 'left', op.gt, min)
-nearestbelow = nearestrect('bottom', 'top', op.lt, min)
-nearestleftof = nearestrect('left', 'right', op.lt, max)
-
-nearest_for_side = {
-    'top': nearestabove,
-    'right': nearestrightof,
-    'bottom': nearestbelow,
-    'left': nearestleftof,
-}
-
 def squircle_shapes(color, center, radius, width, corners):
     """
     Expand a squircle (square+circle) into simpler component shapes.
@@ -1152,174 +1391,6 @@ def squircle_shapes(color, center, radius, width, corners):
             yield ('arc', color, rect, angle1, angle2, width)
         for line in lines:
             yield ('line', color, *line, width)
-
-class ShapeParser:
-
-    colornames = set(pygame.color.THECOLORS)
-
-    shapenames = set(n for n in dir(pygame.draw) if not n.startswith('_'))
-    shapenames.add('squircle')
-
-    # this is messed up
-    # the id field was removed from Rectangle
-    def parse_file(self, file):
-        for line in file:
-            line = line.lstrip()
-            if not line or line.startswith('#'):
-                continue
-            shape = line.split()
-            name, color, *remaining = shape
-            assert name in self.shapenames
-            assert color in self.colornames
-            if name == 'arc':
-                x, y, w, h, angle1, angle2, width = map(eval, remaining)
-                # avoid argument that results in nothing being drawn
-                assert width != 0
-                angle1, angle2 = map(math.radians, [angle1, angle2])
-                yield Arc(color, (x, y, w, h), angle1, angle2, width)
-            elif name == 'circle':
-                x, y, radius, width = map(eval, remaining)
-                yield Circle(color, (x, y), radius, width)
-            elif name == 'line':
-                x1, y1, x2, y2, width = map(eval, remaining)
-                # avoid nothing drawn
-                assert width > 0
-                yield Line(color, (x1, y1), (x2, y2), width)
-            elif name == 'lines':
-                closed, width, *points = map(eval, remaining)
-                closed = bool(closed)
-                # avoid nothing drawn
-                assert width > 0
-                points = tuple(map(tuple, chunk(points, 2)))
-                yield Lines(color, closed, width, points)
-            elif name == 'rect':
-                x, y, w, h, width, *borderargs = map(eval, remaining)
-                yield Rectangle(color, (x, y, w, h), width, *borderargs)
-            elif name == 'squircle':
-                x, y, radius, width, *corners = remaining
-                x, y, radius, width = map(eval, (x, y, radius, width))
-                assert all(corner in CORNERNAMES for corner in corners), corners
-                yield from squircle_shapes(color, (x, y), radius, width, corners)
-
-
-class DrawMixin:
-
-    def draw(self, surf, color, width, offset=(0,0)):
-        self.draw_func(surf, *self.draw_args(color, width, offset))
-
-
-class Arc(
-    namedtuple('ArcBase', 'rect angle1 angle2'),
-    DrawMixin,
-):
-    draw_func = pygame.draw.arc
-
-    def scale(self, scale):
-        color, (x, y, w, h), angle1, angle2 = self
-        rect = (x*scale, y*scale, w*scale, h*scale)
-        return self.__class__(rect, angle1, angle2)
-
-    def draw_args(self, color, width, offset):
-        ox, oy = offset
-        (x, y, w, h), angle1, angle2 = self
-        rect = (x-ox, y-oy, w, h)
-        return (color, rect, angle1, angle2, width)
-
-
-class Circle(
-    namedtuple('CircleBase', 'center radius'),
-    DrawMixin,
-):
-    draw_func = pygame.draw.circle
-
-    def scale(self, scale):
-        (x, y), radius, *rest = self
-        return self.__class__((x*scale, y*scale), radius*scale, *rest)
-
-    def draw_args(self, color, width, offset):
-        ox, oy = offset
-        color, (x, y), radius, width, *rest = self
-        center = (x-ox, y-oy)
-        return (color, center, radius, width)
-
-
-class Line(
-    namedtuple('LineBase', 'start end'),
-    DrawMixin,
-):
-    draw_func = pygame.draw.line
-
-    def scale(self, scale):
-        (x1, y1), (x2, y2) = self
-        start = (x1*scale, y1*scale)
-        end = (x2*scale, y2*scale)
-        return self.__class__(start, end)
-
-    def draw_args(self, color, width, offset):
-        ox, oy = offset
-        (x1, y1), (x2, y2) = self
-        start = (x1-ox, y1-oy)
-        end = (x2-ox, y2-oy)
-        return (color, start, end, width)
-
-
-class Lines(
-    namedtuple('LinesBase', 'closed points'),
-    DrawMixin,
-):
-    draw_func = pygame.draw.lines
-
-    def scale(self, scale):
-        closed, points = self
-        points = tuple((x*scale, y*scale) for x, y in points)
-        return self.__class__(closed, points)
-
-    def draw_args(self, color, width, offset):
-        ox, oy = offset
-        closed, points = self
-        points = tuple((x-ox, y-oy) for x, y in points)
-        return (color, closed, points, width)
-
-
-class Rectangle(
-    namedtuple(
-        'RectangleBase',
-        'rect'
-        # defaults
-        ' border_radius'
-        ' border_top_left_radius'
-        ' border_top_right_radius'
-        ' border_bottom_left_radius'
-        ' border_bottom_right_radius'
-        ,
-        defaults = [0, -1, -1, -1, -1],
-    ),
-    DrawMixin,
-):
-    draw_func = pygame.draw.rect
-
-    def scale(self, scale):
-        rect, *borders = self
-        rect = tuple(map(lambda v: v*scale, rect))
-        # scale borders?
-        return self.__class__(rect, *borders)
-
-    def draw_args(self, color, width, offset):
-        ox, oy = offset
-        (x, y, w, h), *borders = self
-        rect = (x-ox, y-oy, w, h)
-        return (color, rect, width, *borders)
-
-
-class Use(namedtuple('UseBase', 'href'), DrawMixin):
-    # TODO
-    # - trying to do something like svg <use> tags
-
-    def getref(self, shapes):
-        for shape in shapes:
-            if hasattr(shape, 'id') and shape.id == self.href[:1]:
-                return shape
-
 
 def parse_xml(xmlfile):
     tree = ET.parse(xmlfile)
@@ -1472,96 +1543,6 @@ def random_rect_from_empties(empties):
         y1, y2 = y2, y1
     return (x1, y1, x2 - x1, y2 - y1)
 
-class RectsGenerator:
-    """
-    Generate some number of non-overlapping rects.
-    """
-
-    def __init__(self, space, n, minwidth, minheight):
-        self.space = space
-        assert n > 0
-        self.n = n
-        self.minwidth = minwidth
-        self.minheight = minheight
-        self.failures = 0
-        self.maxfail = None
-        self.rects = None
-        self.empties = [self.space]
-        self.subdivide_stack = None
-        self.merge_stack = None
-
-    def reset(self, inside, maxfail=1000):
-        self.inside = inside
-        self.maxfail = maxfail
-        self.rects = []
-        self.empties = [inside]
-        self.failures = 0
-
-    def is_resolved(self):
-        return (
-            len(self.rects) == self.n
-            and not self.subdivide_stack
-            and not self.merge_stack
-        )
-
-    def update(self):
-        if self.subdivide_stack:
-            self.update_subdivide_stack()
-        elif self.merge_stack:
-            self.update_merge_stack()
-        elif len(self.rects) < self.n:
-            self.update_random()
-
-    def update_subdivide_stack(self):
-        # process one item from stack of pairs of rects to subtract from others
-        space, subtract = self.subdivide_stack.pop()
-        if not self.subdivide_stack:
-            # done subdividing init merging stack
-            self.merge_stack = [
-                (r1, r2)
-                for r1, r2 in it.combinations(self.empties, 2)
-                if is_adjacent(r1, r2)
-            ]
-        self.empties.remove(space)
-        self.empties.extend(subtract_rect(space, subtract))
-
-    def update_merge_stack(self):
-        # process one pair of rects to merge
-        r1, r2 = self.merge_stack.pop()
-        if r1 in self.empties:
-            self.empties.remove(r1)
-        if r2 in self.empties:
-            self.empties.remove(r2)
-        merged = merge_rects(r1, r2)
-        self.empties.append(merged)
-
-    def update_random(self):
-        for newrect in self.random_generator():
-            self.rects.append(newrect)
-            self.subdivide_stack = [
-                (empty, newrect)
-                for empty in map(pygame.Rect, self.empties)
-                if empty.colliderect(newrect)
-            ]
-            break
-
-    def random_generator(self):
-        for empty in map(pygame.Rect, generate_contiguous(self.empties)):
-            if empty.width >= self.minwidth and empty.height >= self.minheight:
-                while True:
-                    x1, y1 = random_point(empty)
-                    x2, y2 = random_point(empty)
-                    if x1 > x2:
-                        x1, x2 = x2, x1
-                    if y1 > y2:
-                        y1, y2 = y2, y1
-                    width = x2 - x1
-                    height = y2 - y1
-                    if width >= self.minwidth and height >= self.minheight:
-                        yield (x1, y1, width, height)
-                        break
-
-
 def subtract_rect(space, rect_to_subtract):
     """
     Subdivide `space` by `rect_to_subtract`.
@@ -1623,13 +1604,6 @@ def extremities(rect):
     right = left + width
     bottom = top + height
     return (top, right, bottom, left)
-
-class TouchingRects(enum.Enum):
-    TOP_BOTTOM = enum.auto()
-    BOTTOM_TOP = enum.auto()
-    LEFT_RIGHT = enum.auto()
-    RIGHT_LEFT = enum.auto()
-
 
 def is_touching(rect1, rect2):
     rect1left, rect1top, rect1width, rect1width = rect1
@@ -1738,11 +1712,9 @@ def generate_contiguous(rects):
         yield newrect
         generated.add(newrect)
 
-def floodrects(rect, others):
-    pass
-
 def reduce(rect, f):
-    return rect.inflate(*map(lambda d: -d*f, pygame.Rect(rect).size))
+    args = map(lambda d: -d*f, pygame.Rect(rect).size)
+    return rect.inflate(*args)
 
 def circlepoint(center, radius, angle):
     # in screen space
@@ -1828,48 +1800,49 @@ def bezier_tangent(control_points, t):
         delta += coefficient
     return delta
 
-class HeartShape:
+# clockwise ordered rect side attribute names mapped with their opposites
+SIDENAMES = ['top', 'right', 'bottom', 'left']
+SIDES = dict(opposite_items(SIDENAMES))
 
-    def __init__(self, cleft_angle=None):
-        # the angle from the center of each of the two top quadrant rects
-        if cleft_angle is None:
-            cleft_angle = 45
-        self.cleft_angle = cleft_angle
+# clockwise ordered rect point attribute names mapped with their opposites
+POINTS = dict(opposite_items(tuple(point_attrs(tuple(SIDES)))))
 
-    def __call__(self, inside):
-        inside = pygame.Rect(inside)
-        assert inside.width == inside.height
-        quads = map(pygame.Rect, rectquadrants(inside))
-        topleft_quad, topright_quad, _, _ = quads
-        # top quads need to overlap to make the arcs meet center-top
-        radius = topleft_quad.width / 2
-        dx = (
-            topleft_quad.right
-            - (
-                topleft_quad.centerx
-                + math.cos(math.radians(self.cleft_angle))
-                * radius
-            )
-        )
-        topleft_quad.move_ip(+dx, 0)
-        topright_quad.move_ip(-dx, 0)
+empty_rect = pygame.Rect((0,)*4)
 
-        yield Arc(
-            rect = topleft_quad,
-            angle1 = math.radians(self.cleft_angle),
-            angle2 = math.radians(self.cleft_angle+180),
-        )
-        yield Arc(
-            rect = topright_quad,
-            angle1 = math.radians(-self.cleft_angle),
-            angle2 = math.radians(-self.cleft_angle+180),
-        )
+points = op.attrgetter(*POINTS)
 
-        p1 = circlepoint(topleft_quad.center, radius, math.radians(self.cleft_angle+180))
-        p2 = circlepoint(topright_quad.center, radius, math.radians(-self.cleft_angle))
-        slope_tangent1 = circle_slope_tangent(topleft_quad.center, p1)
-        slope_tangent2 = circle_slope_tangent(topright_quad.center, p2)
-        x, y = intersection_point(p1, -slope_tangent1, p2, -slope_tangent2)
+sides = op.attrgetter(*SIDES)
 
-        # pointy bottom part
-        yield Lines(closed=False, points=[p1, (x,y), p2])
+CORNERNAMES = ['topleft', 'topright', 'bottomright', 'bottomleft']
+
+# counter-clockwise degrees
+QUADRANT_DEGREES = dict(zip(
+    ['topright', 'topleft', 'bottomleft', 'bottomright'],
+    steppairs(0, 360, 90),
+))
+
+# line pairs as rect attribute names to draw each quadrant of a rect
+
+CORNERLINES = dict(
+    topleft = (('midleft', 'topleft'), ('topleft', 'midtop')),
+    topright = (('midtop', 'topright'), ('topright', 'midright')),
+    bottomright = (('midright', 'bottomright'), ('bottomright', 'midbottom')),
+    bottomleft = (('midbottom', 'bottomleft'), ('bottomleft', 'midleft')),
+)
+
+UNIQUE_THECOLORS = dict(best_name_colors(pygame.color.THECOLORS.items()))
+UNIQUE_COLORSTHE = {v: k for k, v in UNIQUE_THECOLORS.items()}
+
+default_methodname = EventMethodName(prefix='do_')
+
+nearestabove = nearestrect('top', 'bottom', op.lt, max)
+nearestrightof = nearestrect('right', 'left', op.gt, min)
+nearestbelow = nearestrect('bottom', 'top', op.lt, min)
+nearestleftof = nearestrect('left', 'right', op.lt, max)
+
+nearest_for_side = {
+    'top': nearestabove,
+    'right': nearestrightof,
+    'bottom': nearestbelow,
+    'left': nearestleftof,
+}
