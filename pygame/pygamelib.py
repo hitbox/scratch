@@ -825,6 +825,25 @@ class HeartShape:
         yield Lines(closed=False, points=[p1, (x,y), p2])
 
 
+# events
+
+def dispatch(obj, event):
+    method_name = default_methodname(event)
+    method = getattr(obj, method_name, None)
+    if method is not None:
+        method(event)
+
+def _post(event_type):
+    pygame.event.post(pygame.event.Event(event_type))
+
+def post_quit():
+    _post(pygame.QUIT)
+
+def post_videoexpose():
+    _post(pygame.VIDEOEXPOSE)
+
+# general purpose
+
 def sorted_groupby(iterable, key=None, reverse=False):
     """
     Convenience for sorting and then grouping.
@@ -847,6 +866,11 @@ def chunk(iterable, n):
         if chunk:
             yield tuple(chunk)
 
+def steppairs(start, stop, step):
+    # steppairs(0, 360, 30) -> (0, 30), (30, 60), ..., (330, 360)
+    for i in range(start, stop, step):
+        yield (i, i+step)
+
 def rfinditer(s, subs, *args):
     # many version of str.rfind
     for sub in subs:
@@ -858,30 +882,6 @@ def finditer(s, subs, *args):
     for sub in subs:
         index = s.find(sub, *args)
         yield index
-
-def rect_type(string):
-    """
-    pygame Rect arguments as from command line or text file.
-    """
-    return pygame.Rect(*intargs(string))
-
-def is_point_name(name):
-    """
-    Name contains a side name but is not exactly the side name.
-    """
-    return any(side in name for side in SIDES if name != side)
-
-def point_attrs(sides):
-    """
-    Generate the attribute names of the points on a rect.
-    """
-    for i, side in enumerate(sides):
-        if side in ('top', 'bottom'):
-            yield side + sides[(i - 1) % 4]
-            yield 'mid' + side
-            yield side + sides[(i + 1) % 4]
-        else:
-            yield 'mid' + side
 
 def clamp(x, a, b):
     if x < a:
@@ -901,6 +901,74 @@ def remap(x, a, b, c, d):
     Return x from range a and b to range c and d.
     """
     return x*(d-c)/(b-a) + c-a*(d-c)/(b-a)
+
+# color
+
+def color_name(color):
+    color = pygame.Color(color)
+    return UNIQUE_COLORSTHE[tuple(color)]
+
+# command line
+
+def rect_type(string):
+    """
+    pygame Rect arguments as from command line or text file.
+    """
+    return pygame.Rect(*intargs(string))
+
+def add_display_size_option(parser, default='800'):
+    parser.add_argument('--display-size', type=sizetype(), default=default)
+
+def command_line_parser():
+    parser = argparse.ArgumentParser()
+    add_display_size_option(parser)
+    return parser
+
+def add_null_separator_flag(parser, **kwargs):
+    kwargs.setdefault('action', 'store_true')
+    kwargs.setdefault('help', 'Separate rects with null.')
+    parser.add_argument('-0', **kwargs)
+
+def add_rect_dimension_separator_option(parser, **kwargs):
+    kwargs.setdefault('default', ' ')
+    kwargs.setdefault('help', 'Rect dimensions separator.')
+    parser.add_argument('-d', '--dimsep', **kwargs)
+
+def format_pipe(iterable, null_separator, dimsep):
+    """
+    :param iterable: iterable of iterables
+    """
+    # fairly purpose built for rects
+    if null_separator:
+        end = '\0'
+    else:
+        end = '\n'
+    return end.join(dimsep.join(map(str, item)) for item in iterable)
+
+def print_pipe(pipe_string, null_separator):
+    print(pipe_string, end='')
+    if not null_separator:
+        print()
+
+# rects
+
+def is_point_name(name):
+    """
+    Name contains a side name but is not exactly the side name.
+    """
+    return any(side in name for side in SIDES if name != side)
+
+def point_attrs(sides):
+    """
+    Generate the attribute names of the points on a rect.
+    """
+    for i, side in enumerate(sides):
+        if side in ('top', 'bottom'):
+            yield side + sides[(i - 1) % 4]
+            yield 'mid' + side
+            yield side + sides[(i + 1) % 4]
+        else:
+            yield 'mid' + side
 
 def opposite_items(indexable):
     """
@@ -998,24 +1066,15 @@ def side_lines(rect):
     yield (rect.bottomright, rect.bottomleft)
     yield (rect.bottomleft, rect.topleft)
 
-def line_rect_intersections(line, rect):
-    (x3, y3), (x4, y4) = line
-    for rectline in side_lines(rect):
-        (x1, y1), (x2, y2) = rectline
-        intersection = line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4)
-        if intersection:
-            yield intersection
-
-def steppairs(start, stop, step):
-    # steppairs(0, 360, 30) -> (0, 30), (30, 60), ..., (330, 360)
-    for i in range(start, stop, step):
-        yield (i, i+step)
-
 def corners(rect):
     x, y, w, h = rect
+    # topleft
     yield (x, y)
+    # topright
     yield (x + w, y)
+    # bottomright
     yield (x + w, y + h)
+    # bottomleft
     yield (x, y + h)
 
 def sides(rect):
@@ -1043,25 +1102,6 @@ def bottom(rect):
 def left(rect):
     left, _, _, _ = rect
     return left
-
-def dispatch(obj, event):
-    method_name = default_methodname(event)
-    method = getattr(obj, method_name, None)
-    if method is not None:
-        method(event)
-
-def _post(event_type):
-    pygame.event.post(pygame.event.Event(event_type))
-
-def post_quit():
-    _post(pygame.QUIT)
-
-def post_videoexpose():
-    _post(pygame.VIDEOEXPOSE)
-
-def color_name(color):
-    color = pygame.Color(color)
-    return UNIQUE_COLORSTHE[tuple(color)]
 
 def best_name_colors(color_items):
     # NOTES
@@ -1392,56 +1432,13 @@ def squircle_shapes(color, center, radius, width, corners):
         for line in lines:
             yield ('line', color, *line, width)
 
-def parse_xml(xmlfile):
-    tree = ET.parse(xmlfile)
-    root = tree.getroot()
-
-    def parse_fill(node):
-        fill = child.attrib.get('fill', 'false')
-        assert fill in ('true', 'false')
-        fill = fill == 'true'
-        if fill:
-            width = 0
-        else:
-            # TODO
-            width = 1
-        return width
-
-    for shape in root.iter('shape'):
-        for child in shape.iter():
-            if child.tag == 'arc':
-                pass
-            elif child.tag == 'circle':
-                x = int(child.attrib.get('x', '0'))
-                y = int(child.attrib.get('y', '0'))
-                center = (x, y)
-                radius = int(child.attrib.get('radius', '0'))
-                color = child.attrib['color']
-                width = parse_fill(child)
-                yield Circle(color, center, radius, width)
-            elif child.tag == 'rect':
-                color = child.attrib['color']
-                x = int(child.attrib.get('x', '0'))
-                y = int(child.attrib.get('y', '0'))
-                w = int(child.attrib.get('width', '0'))
-                h = int(child.attrib.get('height', '0'))
-                width = parse_fill(child)
-                border_kwargs = {
-                    key: child.attrib[key]
-                    for key in Rectangle._field_defaults
-                    if key in child.attrib
-                }
-                yield Rectangle(color, (x, y, w, h), width, **border_kwargs)
-            elif child.tag == 'use':
-                yield Use(child.attrib['href'])
-
-def add_display_size_option(parser, default='800'):
-    parser.add_argument('--display-size', type=sizetype(), default=default)
-
-def command_line_parser():
-    parser = argparse.ArgumentParser()
-    add_display_size_option(parser)
-    return parser
+def line_rect_intersections(line, rect):
+    (x3, y3), (x4, y4) = line
+    for rectline in side_lines(rect):
+        (x1, y1), (x2, y2) = rectline
+        intersection = line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4)
+        if intersection:
+            yield intersection
 
 def line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):
     # https://www.jeffreythompson.org/collision-detection/line-line.php
@@ -1799,6 +1796,49 @@ def bezier_tangent(control_points, t):
         )
         delta += coefficient
     return delta
+
+def parse_xml(xmlfile):
+    tree = ET.parse(xmlfile)
+    root = tree.getroot()
+
+    def parse_fill(node):
+        fill = child.attrib.get('fill', 'false')
+        assert fill in ('true', 'false')
+        fill = fill == 'true'
+        if fill:
+            width = 0
+        else:
+            # TODO
+            width = 1
+        return width
+
+    for shape in root.iter('shape'):
+        for child in shape.iter():
+            if child.tag == 'arc':
+                pass
+            elif child.tag == 'circle':
+                x = int(child.attrib.get('x', '0'))
+                y = int(child.attrib.get('y', '0'))
+                center = (x, y)
+                radius = int(child.attrib.get('radius', '0'))
+                color = child.attrib['color']
+                width = parse_fill(child)
+                yield Circle(color, center, radius, width)
+            elif child.tag == 'rect':
+                color = child.attrib['color']
+                x = int(child.attrib.get('x', '0'))
+                y = int(child.attrib.get('y', '0'))
+                w = int(child.attrib.get('width', '0'))
+                h = int(child.attrib.get('height', '0'))
+                width = parse_fill(child)
+                border_kwargs = {
+                    key: child.attrib[key]
+                    for key in Rectangle._field_defaults
+                    if key in child.attrib
+                }
+                yield Rectangle(color, (x, y, w, h), width, **border_kwargs)
+            elif child.tag == 'use':
+                yield Use(child.attrib['href'])
 
 # clockwise ordered rect side attribute names mapped with their opposites
 SIDENAMES = ['top', 'right', 'bottom', 'left']

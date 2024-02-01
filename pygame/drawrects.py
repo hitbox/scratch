@@ -15,6 +15,10 @@ class Snap:
         self.threshold = threshold
 
     def __call__(self, value, *others):
+        """
+        :param value: reference value
+        :param others: other values to find nearest meeting threshold
+        """
 
         def key(other):
             return abs(other - value)

@@ -18,13 +18,6 @@ def generate_rects(n, minsize, maxsize):
     for _ in range(n):
         yield (0, 0, *_randrect())
 
-def format_rects(rects, null_separator, dimsep):
-    if null_separator:
-        end = '\0'
-    else:
-        end = '\n'
-    return end.join(dimsep.join(map(str, rect)) for rect in rects)
-
 def argument_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -45,16 +38,8 @@ def argument_parser():
         default = '100',
         help = 'Maximum rect size.',
     )
-    parser.add_argument(
-        '-0',
-        action = 'store_true',
-        help = 'Separate rects with null.',
-    )
-    parser.add_argument(
-        '-d', '--dimsep',
-        default = ' ',
-        help = 'Dimensions separator.',
-    )
+    pygamelib.add_null_separator_flag(parser)
+    pygamelib.add_rect_dimension_separator_option(parser)
     return parser
 
 def main(argv=None):
@@ -83,10 +68,9 @@ def main(argv=None):
 
     rects = generate_rects(args.n, args.minsize, args.maxsize)
     null_separator = vars(args)['0']
-    rect_string = format_rects(rects, null_separator, args.dimsep)
-    print(rect_string, end='')
-    if not null_separator:
-        print()
+
+    rect_string = pygamelib.format_pipe(rects, null_separator, args.dimsep)
+    pygamelib.print_pipe(rect_string, null_separator)
 
 if __name__ == '__main__':
     main()
