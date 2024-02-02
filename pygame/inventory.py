@@ -43,23 +43,6 @@ MOVEKEY_DELTA = {
 
 SIDES = ('top', 'right', 'bottom', 'left')
 
-OPPOSITE_SIDE = {side: SIDES[i % len(SIDES)] for i, side in enumerate(SIDES, start=2)}
-
-ADJACENT_NAMES = {
-    'top': ('left', 'right'),
-    'right': ('top', 'bottom'),
-    'bottom': ('right', 'left'),
-    'left': ('bottom', 'top'),
-}
-
-# "clock-wise" lines
-SIDELINES_CW = dict((name, ADJACENT_NAMES[name]) for name in SIDES)
-
-DELTAS = [(0, -1), (1, 0), (0, 1), (-1, 0)]
-
-# delta direction vector back to side name
-DELTAS_NAMES = dict(zip(DELTAS, SIDES))
-
 class TestInvLerp(unittest.TestCase):
     """
     Test inverse linear interpolation.
@@ -94,7 +77,7 @@ class Cursor:
 
     def update_hovering(self, items):
         for item in items:
-            if self.rect.colliderect(wrap(item.body)):
+            if self.rect.colliderect(pygamelib.wrap(item.body)):
                 self.hovering = item
                 break
         else:
@@ -131,7 +114,7 @@ class CursorRenderer:
         # not holding
         if cursor.hovering:
             # is hovering
-            cursor_rect = wrap(cursor.hovering.body)
+            cursor_rect = pygame.Rect(pygamelib.wrap(cursor.hovering.body))
         else:
             # not hovering
             cursor_rect = cursor.rect
@@ -163,10 +146,10 @@ class InventoryItemRenderer:
         for item in items:
             if item is cursor.holding:
                 continue
-            draw_body(item, wrap(item.body))
+            draw_body(item, pygame.Rect(pygamelib.wrap(item.body)))
 
         if cursor.holding:
-            body_rect = wrap(cursor.holding.body)
+            body_rect = pygame.Rect(pygamelib.wrap(cursor.holding.body))
             # draw drop shadow on top
             surf.blit(render_rect(body_rect, fill_color=self.shadow_color), body_rect)
             # draw held item to appear above the grid
@@ -235,7 +218,7 @@ class Inventory:
         if not self.cursor.holding:
             if self.cursor.hovering:
                 # warping through items when not holding something
-                item_rect = wrap(self.cursor.hovering.body)
+                item_rect = pygame.Rect(pygamelib.wrap(self.cursor.hovering.body))
                 if dx < 0:
                     x = item_rect.left - self.cursor.rect.width
                 elif dx > 0:
@@ -254,7 +237,7 @@ class Inventory:
         rects = [self.cursor.rect]
         if self.cursor.holding:
             # wrap for dimensions of item, not cursor
-            width, height = wrap(self.cursor.holding.body).size
+            width, height = pygame.Rect(pygamelib.wrap(self.cursor.holding.body)).size
             right -= width - self.cursor.rect.width
             bottom -= height - self.cursor.rect.height
             # add what cursor is holding to list
@@ -262,7 +245,7 @@ class Inventory:
 
         x = pygamelib.modo(x, right, self.grid.rect.left)
         y = pygamelib.modo(y, bottom, self.grid.rect.top)
-        move_as_one(rects, x=x, y=y)
+        pygamelib.move_as_one(rects, x=x, y=y)
         self.cursor.update_hovering(self.items)
 
 
@@ -442,7 +425,7 @@ class InventoryState(
         self.inventory.cursor.rect.topleft = self.inventory.grid.rect.topleft
         # initial position items
         for item in self.inventory.items:
-            move_as_one(item.body, topleft=self.inventory.grid.rect.topleft)
+            pygamelib.move_as_one(item.body, topleft=self.inventory.grid.rect.topleft)
         # place items on grid
         items = self.inventory.items[:]
         while items:
@@ -501,7 +484,9 @@ class InventoryState(
             post_event(self.inventory.cursor, self.inventory.items)
 
     def on_userevent(self, event):
-        "EventDispatchMixin will get us here, and we further resolve."
+        """
+        EventDispatchMixin will get us here, and we further resolve.
+        """
         if event.type == MOVECURSOR:
             self.on_movecursor(event)
         elif event.type == ROTATE_HOLDING:
@@ -512,7 +497,9 @@ class InventoryState(
             self.on_drop(event)
 
     def on_movecursor(self, event):
-        "Move Cursor"
+        """
+        Move Cursor
+        """
         self.inventory.move_cursor(event.delta)
 
     def on_rotate(self, event):
@@ -523,13 +510,17 @@ class InventoryState(
             rotate_holding(self.inventory.cursor, self.inventory.grid.rect)
 
     def on_grab(self, event):
-        "Grab Item"
+        """
+        Grab Item
+        """
         item = cursor_collideitem(self.inventory.cursor, self.inventory.items)
         if item:
             self.inventory.cursor.holding = item
 
     def on_drop(self, event):
-        "Drop Item"
+        """
+        Drop Item
+        """
         was_holding = self.inventory.cursor.holding
         items = cursor_collideitem_all(
             self.inventory.cursor,
@@ -539,7 +530,7 @@ class InventoryState(
         if len(other_colliding) == 1:
             # item dropped onto another, pick the other up
             self.inventory.cursor.holding = other_colliding[0]
-            self.inventory.cursor.rect.clamp_ip(wrap(other_colliding[0].body))
+            self.inventory.cursor.rect.clamp_ip(pygamelib.wrap(other_colliding[0].body))
         elif len(other_colliding) == 0:
             # item dropped into empty space
             self.inventory.cursor.holding = None
@@ -651,34 +642,6 @@ def get_rect(*args, **kwargs):
         setattr(result, key, val)
     return result
 
-def wrap(rects):
-    """
-    Wrap iterable of rects in a bounding box.
-    """
-    boundaries = zip(*map(get_bounds, rects))
-    tops, rights, bottoms, lefts = boundaries
-    top = min(tops)
-    right = max(rights)
-    bottom = max(bottoms)
-    left = min(lefts)
-    width = right - left
-    height = bottom - top
-    return pygame.Rect(left, top, width, height)
-
-def move_as_one(rects, **kwargs):
-    """
-    Move iterable of rects as if they were one, to destination provided in kwargs.
-    """
-    rects1, rects2 = it.tee(rects)
-    original = wrap(rects1)
-    destination = get_rect(original, **kwargs)
-    dx = destination.x - original.x
-    dy = destination.y - original.y
-    for rect in rects2:
-        rect.x += dx
-        rect.y += dy
-    return destination
-
 def align(rects, attrmap):
     """
     Align rects in iterable order
@@ -695,19 +658,19 @@ def align(rects, attrmap):
 
 def cursor_collideitem(cursor, items):
     if cursor.holding:
-        cursor_rect = wrap(cursor.holding.body)
+        cursor_rect = pygame.Rect(pygamelib.wrap(cursor.holding.body))
     else:
         cursor_rect = cursor.rect
     for item in items:
-        if cursor_rect.colliderect(wrap(item.body)):
+        if cursor_rect.colliderect(pygamelib.wrap(item.body)):
             return item
 
 def cursor_collideitem_all(cursor, items):
     if cursor.holding:
-        cursor_rect = wrap(cursor.holding.body)
+        cursor_rect = pygame.Rect(pygamelib.wrap(cursor.holding.body))
     else:
         cursor_rect = cursor.rect
-    return [item for item in items if cursor_rect.colliderect(wrap(item.body))]
+    return [item for item in items if cursor_rect.colliderect(pygamelib.wrap(item.body))]
 
 def makegrid(rect_size, rows, columns):
     """
@@ -780,7 +743,7 @@ def rotate_rects(rects):
     table = ( list(items) for key, items in grouped )
     #
     rotated_table = zip(*table)
-    wrapped = wrap(rects)
+    wrapped = pygame.Rect(pygamelib.wrap(rects))
     left, top = wrapped.topleft
     for row in rotated_table:
         row = sorted(row, key=getx)
@@ -793,9 +756,9 @@ def rotate_rects(rects):
 
 def clamp_many(rects, inside):
     # XXX: is move_as_one doing too much? since we're duplicating stuff here.
-    wrapped = wrap(rects)
+    wrapped = pygame.Rect(pygamelib.wrap(rects))
     moved = wrapped.clamp(inside)
-    move_as_one(rects, topleft=moved.topleft)
+    pygamelib.move_as_one(rects, topleft=moved.topleft)
 
 def rotate_holding(cursor, grid_rect):
     """
@@ -806,25 +769,25 @@ def rotate_holding(cursor, grid_rect):
     # - rotate can put item outside grid
     rotate_rects(rects)
     clamp_many(rects, grid_rect)
-    cursor.rect.clamp_ip(wrap(cursor.holding.body))
+    cursor.rect.clamp_ip(pygamelib.wrap(cursor.holding.body))
 
 def place_item(item, grid, items):
     """
     """
-    item_wrap = wrap(item.body)
+    item_wrap = pygame.Rect(pygamelib.wrap(item.body))
     cells = list(makegrid(grid.cell_size, grid.rows, grid.cols))
-    move_as_one(cells, topleft=grid.rect.topleft)
+    pygamelib.move_as_one(cells, topleft=grid.rect.topleft)
     filled = [rect for item in items for rect in item.body]
     for cell_rect in cells:
         item_wrap = get_rect(item_wrap, topleft=cell_rect.topleft)
         if not any(item_wrap.colliderect(filled_rect) for filled_rect in filled):
-            return move_as_one(item.body, topleft=cell_rect.topleft)
+            return pygamelib.move_as_one(item.body, topleft=cell_rect.topleft)
 
 def item_body_area(item):
     """
     Area of an items entire body of rects.
     """
-    wrapped = wrap(item.body)
+    wrapped = pygame.Rect(pygamelib.wrap(item.body))
     return wrapped.width * wrapped.height
 
 def devel_items(cell_size):
