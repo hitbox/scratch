@@ -945,10 +945,11 @@ def format_pipe(iterable, null_separator, dimsep):
         end = '\n'
     return end.join(dimsep.join(map(str, item)) for item in iterable)
 
-def print_pipe(pipe_string, null_separator):
-    print(pipe_string, end='')
+def print_pipe(pipe_string, null_separator, file=None):
+    print(pipe_string, end='', file=file)
     if not null_separator:
-        print()
+        # print newline for line separated
+        print(file=file)
 
 # rects
 
