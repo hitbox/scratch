@@ -21,6 +21,20 @@ with contextlib.redirect_stdout(open(os.devnull, 'w')):
 del contextlib
 del os
 
+class TestModOffset(unittest.TestCase):
+    """
+    Test modulo with offset.
+    """
+
+    def test_modulo_offset(self):
+        c = 3
+        n = 8
+        self.assertEqual(modo(3, n, c), 3)
+        self.assertEqual(modo(8, n, c), 3)
+        self.assertEqual(modo(9, n, c), 4)
+        self.assertEqual(modo(0, n, c), 5)
+
+
 class TestGroupbyColumns(unittest.TestCase):
 
     def test_vs_sloppy(self):
@@ -844,6 +858,16 @@ def post_videoexpose():
 
 # general purpose
 
+def nwise(iterable, n=2, fill=None):
+    "Take from iterable in `n`-wise tuples."
+    iterables = it.tee(iterable, n)
+    # advance iterables for offsets
+    for offset, iterable in enumerate(iterables):
+        # advance with for-loop to avoid catching StopIteration manually.
+        for _ in zip(range(offset), iterable):
+            pass
+    return it.zip_longest(*iterables, fillvalue=fill)
+
 def sorted_groupby(iterable, key=None, reverse=False):
     """
     Convenience for sorting and then grouping.
@@ -883,6 +907,12 @@ def finditer(s, subs, *args):
         index = s.find(sub, *args)
         yield index
 
+def modo(a, b, offset):
+    """
+    modulo offset, returns a % b shifted for offset.
+    """
+    return offset + ((a - offset) % (b - offset))
+
 def clamp(x, a, b):
     if x < a:
         return a
@@ -902,7 +932,34 @@ def remap(x, a, b, c, d):
     """
     return x*(d-c)/(b-a) + c-a*(d-c)/(b-a)
 
+def remap_rect(rect1, p, rect2):
+    """
+    remap x,y position from rect1 to a position in rect2
+    """
+    # TODO
+    # - cleaner more consistent
+    x, y = p
+    r1x = (rect1.left, rect1.right)
+    r2x = (rect2.left, rect2.right)
+    r1y = (rect1.top, rect1.bottom)
+    r2y = (rect2.top, rect2.bottom)
+    return (remap(x, *r1x, *r2x), remap(y, *r1y, *r2y))
+
 # color
+
+def get_color(arg, **kwargs):
+    """
+    Set attributes on a color while instantiating it.
+    Example:
+
+    get_color('red', a=255//2)
+    For getting 'red' and setting the alpha at the same time.
+    """
+    # kind of like get_rect
+    color = pygame.Color(arg)
+    for key, val in kwargs.items():
+        setattr(color, key, val)
+    return color
 
 def color_name(color):
     color = pygame.Color(color)

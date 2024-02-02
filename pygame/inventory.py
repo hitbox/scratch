@@ -14,8 +14,9 @@ from operator import attrgetter
 from operator import itemgetter
 from types import SimpleNamespace
 
-with contextlib.redirect_stdout(open(os.devnull, 'w')):
-    import pygame
+import pygamelib
+
+from pygamelib import pygame
 
 # custom events
 STATESWITCH = pygame.event.custom_type()
@@ -59,46 +60,6 @@ DELTAS = [(0, -1), (1, 0), (0, 1), (-1, 0)]
 # delta direction vector back to side name
 DELTAS_NAMES = dict(zip(DELTAS, SIDES))
 
-class TestModOffset(unittest.TestCase):
-    """
-    Test modulo with offset.
-    """
-
-    def test_modoffset(self):
-        c = 3
-        n = 8
-        self.assertEqual(modo(3, n, c), 3)
-        self.assertEqual(modo(8, n, c), 3)
-        self.assertEqual(modo(9, n, c), 4)
-        self.assertEqual(modo(0, n, c), 5)
-
-
-class TestLerp(unittest.TestCase):
-    """
-    Test linear interpolation.
-    """
-
-    def check_ends(self, a, b):
-        self.assertEqual(lerp(a,b,0), a)
-        self.assertEqual(lerp(a,b,1), b)
-
-    def test_lerp(self):
-        a, b = 0, 1
-        self.check_ends(a, b)
-        self.assertEqual(lerp(a,b,.5), .5)
-
-    def test_lerp_tuple(self):
-        a = (0, 0, 0)
-        b = (1, 1, 1)
-        self.check_ends(a, b)
-        self.assertEqual(lerp(a,b,.5), (.5,)*3)
-
-    def test_lerp_pygame_color(self):
-        a = pygame.Color('black')
-        b = pygame.Color('white')
-        self.check_ends(a, b)
-
-
 class TestInvLerp(unittest.TestCase):
     """
     Test inverse linear interpolation.
@@ -120,20 +81,6 @@ class TestInvLerp(unittest.TestCase):
     def test_lerp_pygame_color(self):
         a = pygame.Color('black')
         b = pygame.Color('white')
-        self.check_ends(a, b)
-
-
-class TestRemap(unittest.TestCase):
-    """
-    Test remap ranges.
-    """
-
-    def check_ends(self, a, b):
-        self.assertEqual(remap(a, b, 0), b[0])
-        self.assertEqual(remap(a, b, 1), b[1])
-
-    def test_remap(self):
-        a, b = (0, 1), (0, 2)
         self.check_ends(a, b)
 
 
@@ -203,7 +150,7 @@ class InventoryItemRenderer:
 
     def __init__(self, shadow_color=None):
         if shadow_color is None:
-            shadow_color = get_color('green', a=255//2)
+            shadow_color = pygamelib.get_color('green', a=255//2)
         self.shadow_color = shadow_color
 
     def __call__(self, surf, grid, cursor, items):
@@ -227,7 +174,11 @@ class InventoryItemRenderer:
             elevated_rect = grid.rect.inflate(inflate_size)
             elevated_rect.midbottom = (grid.rect.centerx, grid.rect.bottom - 4)
             # remap from grid to elevated rect
-            body_rect.center = remap(grid.rect, elevated_rect, body_rect.center)
+            body_rect.center = pygamelib.remap_rect(
+                grid.rect,
+                body_rect.center,
+                elevated_rect,
+            )
             draw_body(cursor.holding, body_rect)
 
 
@@ -309,8 +260,8 @@ class Inventory:
             # add what cursor is holding to list
             rects.extend(self.cursor.holding.body)
 
-        x = modo(x, right, self.grid.rect.left)
-        y = modo(y, bottom, self.grid.rect.top)
+        x = pygamelib.modo(x, right, self.grid.rect.left)
+        y = pygamelib.modo(y, bottom, self.grid.rect.top)
         move_as_one(rects, x=x, y=y)
         self.cursor.update_hovering(self.items)
 
@@ -332,26 +283,6 @@ class Frames:
 
     def append(self, image):
         self.queue.append(image)
-
-
-class TrashEngine:
-
-    def tick(self):
-        # save frames until exhausted or fps is achieved
-        # TODO
-        # [ ] how to get elapsed time with this loop?
-        while frames.queue and settings.clock.get_fps() > settings.fps:
-            frames.save(settings.output_string)
-        settings.clock.tick(settings.fps)
-
-    def draw(self):
-        # update
-        # draw
-        # draw - item name
-        # draw - finish
-        pygame.display.flip()
-        if settings.output_string:
-            frames.append(settings.window.copy())
 
 
 class StateBase(ABC):
@@ -536,7 +467,7 @@ class InventoryState(
                 self.inventory.cursor.fill_color,
                 'a', # alpha
                 it.cycle(
-                    int(lerp(255*.25, 255*.50, frametime/10))
+                    int(pygamelib.mix(frametime/10, 255*.25, 255*.50))
                     for time in it.chain(range(10), range(9, 0, -1))
                     for frametime in it.repeat(time, 2)
                 )
@@ -666,29 +597,6 @@ def render_lines(font, color, lines, antialias=True):
         return font.render(line, antialias, color)
     return list(map(render_line, lines))
 
-def modo(a, b, c):
-    """
-    modulo offset, returns a % b shifted for offset c.
-    """
-    return c + ((a - c) % (b - c))
-
-# XXX:
-# - singledispatch only considers the first argument?
-# - is this a sensible thing to do?
-
-@singledispatch
-def lerp(a, b, t):
-    "Return position between a and b at 'time' t"
-    return a * (1 - t) + b * t
-
-@lerp.register
-def lerp_tuple(a:tuple, b, t):
-    return tuple(lerp(i1, i2, t) for i1, i2 in zip(a, b))
-
-@lerp.register
-def lerp_pygame_color(a:pygame.Color, b, t):
-    return a.lerp(b, t)
-
 @singledispatch
 def invlerp(a, b, x):
     "Return 'time' from position x between a and b."
@@ -702,23 +610,6 @@ def invlerp_tuple(a:tuple, b, x):
 def invlerp_pygame_color(a:pygame.Color, b, x):
     # could not find that pygame has inverse lerp for colors, have to roll our own
     return pygame.Color(lerp(tuple(a), tuple(b), x))
-
-@singledispatch
-def remap(r1:[int,float], r2, x):
-    "position x mapped from range a-b to range c-d."
-    a, b = r1
-    c, d = r2
-    return x*(d-c)/(b-a) + c-a*(d-c)/(b-a)
-
-@remap.register
-def remap_rect(rect1:pygame.Rect, rect2, p):
-    "remap x,y position from rect1 to a position in rect2"
-    x, y = p
-    r1x = (rect1.left, rect1.right)
-    r2x = (rect2.left, rect2.right)
-    r1y = (rect1.top, rect1.bottom)
-    r2y = (rect2.top, rect2.bottom)
-    return (remap(r1x, r2x, x), remap(r1y, r2y, y))
 
 def post_movecursor(delta, grid):
     event = pygame.event.Event(MOVECURSOR, delta=delta)
@@ -742,16 +633,6 @@ def post_stateswitch(state_class):
 
 def post_quit():
     pygame.event.post(pygame.event.Event(pygame.QUIT))
-
-def nwise(iterable, n=2, fill=None):
-    "Take from iterable in `n`-wise tuples."
-    iterables = it.tee(iterable, n)
-    # advance iterables for offsets
-    for offset, iterable in enumerate(iterables):
-        # advance with for-loop to avoid catching StopIteration manually.
-        for _ in zip(range(offset), iterable):
-            pass
-    return it.zip_longest(*iterables, fillvalue=fill)
 
 def get_rect(*args, **kwargs):
     """
@@ -806,24 +687,11 @@ def align(rects, attrmap):
     """
     # allow for many ways to give mapping but this uses dict interface
     attrmap = dict(attrmap)
-    for prevrect, rect in nwise(rects):
+    for prevrect, rect in pygamelib.nwise(rects):
         if not rect:
             continue
         for key, prevkey in attrmap.items():
             setattr(rect, key, getattr(prevrect, prevkey))
-
-def get_color(arg, **kwargs):
-    """
-    Set attributes on a color while instantiating it.
-    Example:
-
-    get_color('red', a=255//2)
-    For getting 'red' and setting the alpha at the same time.
-    """
-    color = pygame.Color(arg)
-    for key, val in kwargs.items():
-        setattr(color, key, val)
-    return color
 
 def cursor_collideitem(cursor, items):
     if cursor.holding:
@@ -917,7 +785,7 @@ def rotate_rects(rects):
     for row in rotated_table:
         row = sorted(row, key=getx)
         row[0].left = left
-        for r1, r2 in nwise(row):
+        for r1, r2 in pygamelib.nwise(row):
             r1.top = top
             if r2:
                 r2.topleft = (r1.right, top)
