@@ -973,8 +973,14 @@ def rect_type(string):
     """
     return pygame.Rect(*intargs(string))
 
-def add_display_size_option(parser, default='800'):
-    parser.add_argument('--display-size', type=sizetype(), default=default)
+def add_display_size_option(parser, **kwargs):
+    kwargs.setdefault('type', sizetype())
+    kwargs.setdefault('default', '800')
+    kwargs.setdefault(
+        'help',
+        'Display size. %(default)s'
+    )
+    parser.add_argument('--display-size', **kwargs)
 
 def command_line_parser():
     parser = argparse.ArgumentParser()
