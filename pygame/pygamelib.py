@@ -612,7 +612,7 @@ class Circle(
 
     def draw_args(self, color, width, offset):
         ox, oy = offset
-        color, (x, y), radius, width, *rest = self
+        (x, y), radius = self
         center = (x-ox, y-oy)
         return (color, center, radius, width)
 
@@ -683,6 +683,17 @@ class Rectangle(
         (x, y, w, h), *borders = self
         rect = (x-ox, y-oy, w, h)
         return (color, rect, width, *borders)
+
+
+class Text(
+    namedtuple('TextBase', 'font text rect'),
+):
+
+    def draw(self, surf, color, width, offset):
+        image = self.font.render(self.text, True, color)
+        rect = image.get_rect(topleft=self.rect.topleft)
+        rect.topleft += pygame.Vector2(offset)
+        surf.blit(image, rect)
 
 
 class Use(namedtuple('UseBase', 'href'), DrawMixin):
@@ -828,9 +839,17 @@ class HeartShape:
             angle1 = math.radians(-self.cleft_angle),
             angle2 = math.radians(-self.cleft_angle+180),
         )
-
-        p1 = circlepoint(topleft_quad.center, radius, math.radians(self.cleft_angle+180))
-        p2 = circlepoint(topright_quad.center, radius, math.radians(-self.cleft_angle))
+        # points where the heart becomes straight lines to the pointy bottom
+        p1 = circle_point(
+            topleft_quad.center,
+            radius,
+            math.radians(self.cleft_angle+180)
+        )
+        p2 = circle_point(
+            topright_quad.center,
+            radius,
+            math.radians(-self.cleft_angle)
+        )
         slope_tangent1 = circle_slope_tangent(topleft_quad.center, p1)
         slope_tangent2 = circle_slope_tangent(topright_quad.center, p2)
         x, y = intersection_point(p1, -slope_tangent1, p2, -slope_tangent2)
@@ -838,6 +857,193 @@ class HeartShape:
         # pointy bottom part
         yield Lines(closed=False, points=[p1, (x,y), p2])
 
+
+class Meter:
+    # may be better just described as a range of integer values inclusive
+
+    def __init__(self, value=0, maxvalue=10, minvalue=0):
+        self.value = value
+        self.maxvalue = maxvalue
+        self.minvalue = minvalue
+        assert self.minvalue < self.maxvalue
+
+    @property
+    def nticks(self):
+        return self.maxvalue - self.minvalue
+
+    def slots(self):
+        slot = self.minvalue
+        while slot <= self.maxvalue:
+            # value of the slot, whether that slot is filled
+            yield (slot, slot <= self.value)
+            slot += 1
+
+
+class SimpleMeterRender:
+
+    def __init__(self, meter, rect, style=None):
+        self.meter = meter
+        self.rect = pygame.Rect(rect)
+        if style is None:
+            style = dict()
+        self.style = style
+
+    def draw(self, surf, offset):
+        if 'border_color' in self.style:
+            border_color = self.style['border_color']
+            border_width = self.style.get('border_width', 1)
+            pygame.draw.rect(surf, border_color, self.rect, border_width)
+
+        if 'segment_color' in self.style:
+            color_on = self.style['segment_color']
+            color_off = self.style.get('segment_color_off', 'grey')
+
+            margin = self.style.get('segment_margin', 0)
+            margin_top, margin_right, margin_bottom, margin_left = expand_shorthand(margin)
+
+            # line width or fill
+            width = self.style.get('segment_width', 0)
+            border = self.style.get('segment_border', 0)
+            nticks = self.meter.nticks
+
+            tick_width = (
+                self.rect.width - (nticks - 1) * (margin_left + margin_right)
+            ) // nticks
+
+            items = enumerate(range(self.meter.minvalue, self.meter.maxvalue))
+            for i, slotval in items:
+                rect = (
+                    self.rect.x + i * (tick_width + margin_left),
+                    self.rect.y + margin_top,
+                    tick_width,
+                    self.rect.height - margin_bottom * 2
+                )
+                if slotval < self.meter.value:
+                    color = color_on
+                else:
+                    color = color_off
+                pygame.draw.rect(surf, color, rect, width)
+
+
+class CircularMeterRenderer:
+
+    def __init__(
+        self,
+        meter,
+        center,
+        outer_radius,
+        segment_offset,
+        inner_radius = 0,
+        start_angle = 0,
+        end_angle = 360,
+        style = None,
+    ):
+        self.meter = meter
+        self.center = center
+        self.outer_radius = outer_radius
+        self.segment_offset = segment_offset
+        self.inner_radius = inner_radius
+        self.start_angle = start_angle
+        self.end_angle = end_angle
+        if style is None:
+            style = dict()
+        self.style = style
+
+    def draw(self, surf, offset):
+        if 'segment_color' not in self.style:
+            return
+
+        color_on = self.style['segment_color']
+        color_off = self.style.get('segment_color_off', 'grey')
+        width = self.style.get('segment_width', 0)
+        segment_border_width = self.style.get('segment_border_width')
+        segment_border_color = self.style.get('segment_border_color')
+
+        nticks = self.meter.nticks
+        radii = (self.outer_radius, self.inner_radius)
+        segment_angle_step = (self.end_angle - self.start_angle) // nticks
+        # there's overdraw of points here, a problem? necessary?
+        angle = self.start_angle
+        for slotval, slotfilled in self.meter.slots():
+            points = circle_segment_points(
+                math.radians(angle),
+                math.radians(self.segment_offset),
+                radii,
+                closed = True,
+            )
+            points = [pygame.Vector2(self.center) + point for point in points]
+            if slotfilled:
+                color = color_on
+            else:
+                color = color_off
+            pygame.draw.polygon(surf, color, points, width)
+            if segment_border_color:
+                # draw a border for circle segment
+                pygame.draw.polygon(
+                    surf,
+                    segment_border_color,
+                    points,
+                    segment_border_width
+                )
+            angle += segment_angle_step
+
+
+# shape producing
+
+def step_for_radius(radius):
+    # dialing in n radian steps for good enough looking circles made of lines.
+    if radius < 100:
+        return 18
+    elif radius < 200:
+        return 10
+    else:
+        # greater than 200
+        return 2
+
+def circle_segment_points(angle, offset, radii, closed=False):
+    """
+    :param angle:
+        Used with offset to get two angles either side of this one.
+    :param offset:
+        Circle segment width either side of angle.
+    :param radii:
+        Two-tuple of outer and inner radius.
+    """
+    # TODO
+    # - two angle what could be used to make star shapes
+    # - that, or two offsets--the outer one being zero
+    inner_radius, outer_radius = radii
+
+    lesser_angle = angle - offset
+    greater_angle = angle + offset
+
+    # two points, straight line from outer to inner radii
+    first = circle_point(lesser_angle, outer_radius)
+    yield first
+    yield circle_point(lesser_angle, inner_radius)
+
+    step = math.radians(step_for_radius(inner_radius))
+    while lesser_angle < angle + offset:
+        yield circle_point(lesser_angle, inner_radius)
+        lesser_angle += step
+
+    # straight line from inner to outer
+    yield circle_point(greater_angle, inner_radius)
+    yield circle_point(greater_angle, outer_radius)
+
+    step = math.radians(step_for_radius(outer_radius))
+    while greater_angle > angle - offset:
+        yield circle_point(greater_angle, outer_radius)
+        greater_angle -= step
+
+    if closed:
+        yield first
+
+# engine
+
+def run(state):
+    engine = Engine()
+    engine.run(state)
 
 # events
 
@@ -857,6 +1063,22 @@ def post_videoexpose():
     _post(pygame.VIDEOEXPOSE)
 
 # general purpose
+
+def expand_shorthand(value):
+    if isinstance(value, (float, int)):
+        value = [value]
+    value = list(value)
+    n = len(value)
+    if n == 1:
+        top, right, bottom, left = value * 4
+    elif n == 2:
+        top, right, bottom, left = value * 2
+    elif n == 3:
+        top, right, bottom = value
+        left = right
+    else:
+        top, right, bottom, left = value
+    return (top, right, bottom, left)
 
 def nwise(iterable, n=2, fill=None):
     "Take from iterable in `n`-wise tuples."
@@ -894,6 +1116,11 @@ def steppairs(start, stop, step):
     # steppairs(0, 360, 30) -> (0, 30), (30, 60), ..., (330, 360)
     for i in range(start, stop, step):
         yield (i, i+step)
+
+def floatrange(start, stop, step):
+    while start < stop:
+        yield start
+        start += step
 
 def rfinditer(s, subs, *args):
     # many version of str.rfind
@@ -1323,11 +1550,21 @@ def render_text(
     result_image.blit(text_image, text_rect)
     return result_image
 
-def circle_surface(radius, color, flags=pygame.SRCALPHA):
-    size = (radius*2,)*2
-    surface = pygame.Surface(size, flags)
-    center = (radius,)*2
-    pygame.draw.circle(surface, color, center, radius)
+def circle_rect(center, radius):
+    x, y = center
+    return (x, y, radius*2, radius*2)
+
+def circle_surface(
+    radius,
+    color,
+    surface_flags = pygame.SRCALPHA,
+    circle_width = 0,
+):
+    """
+    Create a surface and draw a circle on it.
+    """
+    surface = pygame.Surface((radius*2,)*2, surface_flags)
+    pygame.draw.circle(surface, color, (radius,)*2, radius, circle_width)
     return surface
 
 def centered_offset(rects, window):
@@ -1777,13 +2014,25 @@ def reduce(rect, f):
     args = map(lambda d: -d*f, pygame.Rect(rect).size)
     return rect.inflate(*args)
 
-def circlepoint(center, radius, angle):
-    # in screen space
-    cx, cy = center
-    return (
-        cx + +math.cos(angle) * radius,
-        cy + -math.sin(angle) * radius,
-    )
+def circle_point(angle, radius):
+    """
+    Screen-space point on a circle.
+    """
+    return (+math.cos(angle) * radius, -math.sin(angle) * radius)
+
+def circle_pointsf(start, stop, step, radius):
+    # would guess there is much more error using floatrange
+    # because adds compound errors instead of calculating radians each time
+    for angle in pygamelib.floatrange(start, stop, step):
+        x = +math.cos(angle) * radius
+        y = -math.sin(angle) * radius
+        yield (x, y)
+
+def circle_points(start, stop, step, radius):
+    for angle in map(math.radians, range(start, stop, step)):
+        x = +math.cos(angle) * radius
+        y = -math.sin(angle) * radius
+        yield (x, y)
 
 def circle_slope_tangent(center, point):
     cx, cy = center
