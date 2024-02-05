@@ -108,17 +108,18 @@ class Demo(pygamelib.DemoBase):
     def draw(self):
         self.screen.fill('black')
         for circle in self.circles:
-            pygame.draw.circle(
-                self.screen,
+            image = pygamelib.circle_surface(
+                circle.radius,
                 self.style.color,
-                *circle,
-                self.style.fill_or_border,
+                circle_width = self.style.fill_or_border,
             )
+            self.screen.blit(image, image.get_rect(center=circle.center))
         pygame.display.flip()
 
 
 def run(display_size):
     window = pygame.Rect((0,)*2, display_size)
+
     winquads = list(map(pygame.Rect, pygamelib.rectquadrants(window)))
 
     circles = [
