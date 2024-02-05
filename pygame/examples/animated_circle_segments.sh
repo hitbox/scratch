@@ -17,8 +17,8 @@
 # animate inner_radius from 0 to 700 from time 500 to 10,000
 # animate outer_radius from 10 to 800 from time 500 to 10,000
 
-time_start=500
-time_end=2000
+time_start=1000
+time_end=6_000
 
 inner_start=0
 inner_end=800
@@ -27,7 +27,7 @@ outer_start=10
 outer_end=810
 
 segment_offset_start=5
-segment_offset_end=15
+segment_offset_end=30
 
 # little animation language is five positional arguments to the --animate option
 # 1. name of variable

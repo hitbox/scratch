@@ -1,3 +1,4 @@
 *.pickle
 *.session
 __pycache__
+pygame/assets/music/

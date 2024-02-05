@@ -655,6 +655,17 @@ class Lines(
         return (color, closed, points, width)
 
 
+class Polygon(
+    namedtuple('PolygonBase', 'points'),
+):
+    draw_func = pygame.draw.polygon
+
+    def draw_args(self, color, width, offset):
+        ox, oy = offset
+        points = ((x+ox, y+oy) for x, y in self.points)
+        return (color, points, width)
+
+
 class Rectangle(
     namedtuple(
         'RectangleBase',
@@ -1240,6 +1251,65 @@ def print_pipe(pipe_string, null_separator, file=None):
     if not null_separator:
         # print newline for line separated
         print(file=file)
+
+def add_animate_option(parser, **kwargs):
+    """
+    Add option taking five arguments:
+    1. name
+    2. start value
+    3. end value
+    4. start time
+    5. end time
+    """
+    kwargs.setdefault('nargs', 5)
+    kwargs.setdefault('action', 'append')
+    parser.add_argument('--animate', **kwargs)
+
+def animations_from_options(parser, names, animate_args_list):
+    """
+    :param animate_args_list: list of lists of five strings.
+    """
+    animations = {}
+    for animation in animate_args_list:
+        name, *values_and_times = animation
+        if name not in names:
+            parser.error(f'invalid name {name}')
+        if name in animations:
+            parser.error(f'duplicate animation for {name}')
+        values_and_times = tuple(map(int, values_and_times))
+        animations[name] = (values_and_times[:2], values_and_times[2:])
+    return animations
+
+def setdefaults_for_animate(animations, names, args):
+    """
+    Set defaults for animation from required positional arguments.
+    """
+    args = vars(args)
+    for name in names:
+        value = args[name]
+        value_range = (value, value)
+        time_range = (-math.inf, math.inf)
+        animations.setdefault(name, (value_range, time_range))
+
+def variables_from_animations(animations, time):
+    """
+    Generate animation key/values for given time.
+    """
+    for name, (values, times) in animations.items():
+        start_time, end_time = times
+        if time < start_time or time > end_time or end_time == 0:
+            # outside time range or avoid division by zero
+            value = values[0]
+        else:
+            value = mix((time - start_time) / end_time, *values)
+        yield (name, value)
+
+def update_variables_from_animations(animations, variables, time):
+    for name, (values, times) in animations.items():
+        start_time, end_time = times
+        if start_time <= time <= end_time:
+            value = mix((time - start_time) / end_time, *values)
+            variables[name] = value
 
 # rects
 
@@ -2023,7 +2093,7 @@ def circle_point(angle, radius):
 def circle_pointsf(start, stop, step, radius):
     # would guess there is much more error using floatrange
     # because adds compound errors instead of calculating radians each time
-    for angle in pygamelib.floatrange(start, stop, step):
+    for angle in floatrange(start, stop, step):
         x = +math.cos(angle) * radius
         y = -math.sin(angle) * radius
         yield (x, y)

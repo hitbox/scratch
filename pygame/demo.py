@@ -141,10 +141,7 @@ def meter_bar_circular(window):
     pygame.display.set_mode(window.size)
     pygamelib.run(state)
 
-def circle_segments(window, argv):
-    """
-    Draw a circle segment, optionally animated.
-    """
+def circle_segments_parser():
     parser = argparse.ArgumentParser()
     # required positional
     parser.add_argument('inner_radius', type=int)
@@ -163,11 +160,14 @@ def circle_segments(window, argv):
         '--center',
         default = 'window.center',
     )
-    parser.add_argument(
-        '--animate',
-        nargs = 5,
-        action = 'append',
-    )
+    pygamelib.add_animate_option(parser)
+    return parser
+
+def circle_segments(window, argv):
+    """
+    Draw a circle segment, optionally animated.
+    """
+    parser = circle_segments_parser()
     args = parser.parse_args(argv)
 
     try:
@@ -175,36 +175,25 @@ def circle_segments(window, argv):
     except ValueError:
         center = eval(args.center)
 
+    # put all the values under animations for consistency
     names = ('inner_radius', 'outer_radius', 'segment_offset', 'closed')
-    animations = {}
-    for animation in args.animate:
-        name, *values_and_times = animation
-        if name not in names:
-            parser.error(f'invalid name {name}')
-        if name in animations:
-            parser.error(f'duplicate animation for {name}')
-        values_and_times = tuple(map(int, values_and_times))
-        animations[name] = (values_and_times[:2], values_and_times[2:])
+    animations = pygamelib.animations_from_options(parser, names, args.animate)
+    pygamelib.setdefaults_for_animate(animations, names, args)
 
-    for name in names:
-        value = getattr(args, name)
-        animations.setdefault(name, ((value, value), (0, 0)))
+    # initialize variables from animations
+    time = 0
+    variables = dict(pygamelib.variables_from_animations(animations, time))
+    initial_variables = variables.copy()
+
+    # TODO
+    # - take two points inside the points list
+    # - give a center and radius and circularize inplace
+    # motivation:
+    # - round over the circle segment ends
 
     clock = pygame.time.Clock()
     framerate = 60
-    time = 0
     running = True
-
-    # initialize variables from animations
-    variables = {}
-    for name, (values, times) in animations.items():
-        if time < times[0] or time > times[1] or times[1] == 0:
-            value = values[0]
-        else:
-            value = pygamelib.mix((time - times[0]) / times[1], *values)
-        variables[name] = value
-    initial_variables = variables.copy()
-
     screen = pygame.display.set_mode(window.size)
     while running:
         elapsed = clock.tick(framerate)
@@ -219,10 +208,7 @@ def circle_segments(window, argv):
                     time = elapsed # simulate first frame
                     variables = initial_variables.copy()
         # update
-        for name, (values, times) in animations.items():
-            if times[0] <= time <= times[1]:
-                value = pygamelib.mix((time - times[0]) / times[1], *values)
-                variables[name] = value
+        pygamelib.update_variables_from_animations(animations, variables, time)
         points = pygamelib.circle_segment_points(
             0,
             math.radians(variables['segment_offset']),
