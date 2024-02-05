@@ -1,5 +1,6 @@
 import argparse
 import math
+import random
 
 import pygamelib
 
@@ -225,6 +226,33 @@ def circle_segments(window, argv):
         pygame.draw.polygon(screen, 'red', points, 1)
         pygame.display.flip()
 
+def circularize(window, args):
+    """
+    """
+    p1 = pygamelib.random_point(window)
+    p2 = pygamelib.random_point(window)
+    center = pygamelib.line_midpoint(p1, p2)
+
+    angle = math.atan2(p2.y - p1.y, p2.x - p1.x)
+
+    clock = pygame.time.Clock()
+    framerate = 60
+    running = True
+    screen = pygame.display.set_mode(window.size)
+    while running:
+        elapsed = clock.tick(framerate)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    pygamelib.post_quit()
+        screen.fill('black')
+        pygame.draw.circle(screen, 'orangered', p1, 10)
+        pygame.draw.circle(screen, 'orangered', p2, 10)
+        pygame.draw.circle(screen, 'yellow', center, 10)
+        pygame.display.flip()
+
 def filled_shape_meter(window):
     # watching "Reigns: Game of Thrones" with MATN
     # icons at the top represent stats that change with your choices
@@ -236,6 +264,7 @@ def add_subcommands(parser, **kwargs):
     demo_funcs = [
         circle_points,
         circle_segments,
+        circularize,
         filled_shape_meter,
         meter_bar_circular,
         meter_bar_horizontal_rect,

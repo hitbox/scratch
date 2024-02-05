@@ -1871,6 +1871,11 @@ def line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):
     # works!
     return find_intersection((x1, y1), (x2, y2), (x3, y3), (x4, y4))
 
+def line_midpoint(p1, p2):
+    p1 = pygame.Vector2(p1)
+    p2 = pygame.Vector2(p2)
+    return p1 + (p2 - p1) / 2
+
 def random_point(rect):
     l, t, w, h = rect
     r = l + w
