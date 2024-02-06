@@ -1085,6 +1085,14 @@ def post_videoexpose():
 
 # general purpose
 
+def batched(iterable, n):
+    """
+    group items in iterable into n-length tuples
+    """
+    iterable = iter(iterable)
+    while batch := tuple(it.islice(iterable, n)):
+        yield batch
+
 def ranges_overlap(start1, stop1, start2, stop2):
     return (
         start2 <= start1 <= stop2
@@ -1378,7 +1386,7 @@ def maxsides(*rects):
     return aggsides(max, *rects)
 
 def wrap(rects):
-    tops, rights, bottoms, lefts = zip(*map(sides, rects))
+    tops, rights, bottoms, lefts = zip(*map(extremities, rects))
     x = min(lefts)
     y = min(tops)
     right = max(rights)
@@ -2394,3 +2402,6 @@ nearest_for_side = {
     'bottom': nearestbelow,
     'left': nearestleftof,
 }
+
+# rect with no effect on wrap
+NORECT = (math.inf, math.inf, -math.inf, -math.inf)

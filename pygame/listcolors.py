@@ -44,27 +44,34 @@ class ColorGrid(pygamelib.DemoBase):
 def _arrange(rects, ncols):
     # needed to pull the arrange_columns function apart to add gaps and resize
     # the arranged rects
-    rows, cols = pygamelib.groupby_columns(rects, ncols)
-    row_wraps, col_wraps = pygamelib.rowcolwraps(rows, cols)
+    table = list(pygamelib.batched(rects, ncols))
 
+    row_wraps = list(map(pygame.Rect, map(pygamelib.wrap, table)))
+    col_wraps = it.zip_longest(*table, fillvalue=pygamelib.NORECT)
+    col_wraps = list(map(pygame.Rect, map(pygamelib.wrap, col_wraps)))
+
+    # add some width and height padding
     for rowwrap in row_wraps:
         rowwrap.height *= 4
 
     for colwrap in col_wraps:
         colwrap.width *= 1.10
 
-    pygamelib.flow_topbottom(row_wraps, 20)
+    # end-to-end flow rows and columns
     pygamelib.flow_leftright(col_wraps, 20)
+    pygamelib.flow_topbottom(row_wraps, 20)
 
-    for rowwrap, _rects in zip(row_wraps, rows, strict=True):
+    # align rects inside rows and columns
+    for rowwrap, _rects in zip(row_wraps, table, strict=True):
         for rect in _rects:
             rect.height = rowwrap.height
             rect.centery = rowwrap.centery
 
-    for colwrap, _rects in zip(col_wraps, cols, strict=True):
+    for colwrap, _rects in zip(col_wraps, it.zip_longest(*table)):
         for rect in _rects:
-            rect.width = colwrap.width
-            rect.left = colwrap.left
+            if rect:
+                rect.width = colwrap.width
+                rect.left = colwrap.left
 
 def run(display_size, colors, names, font_size, colortext, predicate, sortkey):
     assert len(colors) == len(names)
