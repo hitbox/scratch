@@ -1830,6 +1830,13 @@ def rect_handles_outside(rect, width):
     # left
     yield (x - width, y, width, h)
 
+def move_handle(rect, width):
+    x, y, w, h = rect
+    cx = x + w // 2
+    cy = y + h // 2
+    half = width // 2
+    return (cx - half, cy - half, width, width)
+
 def update_handle(rect, name, rel):
     rx, ry = rel
     rw = rx
