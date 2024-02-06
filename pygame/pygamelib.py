@@ -1280,6 +1280,10 @@ def add_animate_option(parser, **kwargs):
     5. end time
     """
     kwargs.setdefault('nargs', 5)
+    kwargs.setdefault(
+        'metavar',
+        ('NAME', 'START_VALUE', 'END_VALUE', 'START_TIME', 'END_TIME')
+    )
     kwargs.setdefault('action', 'append')
     parser.add_argument('--animate', **kwargs)
 
