@@ -1287,31 +1287,10 @@ def add_animate_option(parser, **kwargs):
     kwargs.setdefault('action', 'append')
     parser.add_argument('--animate', **kwargs)
 
-def animations_from_options(parser, names, animate_args_list):
-    """
-    :param animate_args_list: list of lists of five strings.
-    """
-    animations = {}
-    for animation in animate_args_list:
-        name, *values_and_times = animation
-        if name not in names:
-            parser.error(f'invalid name {name}')
-        if name in animations:
-            parser.error(f'duplicate animation for {name}')
-        values_and_times = tuple(map(int, values_and_times))
-        animations[name] = (values_and_times[:2], values_and_times[2:])
-    return animations
-
-def setdefaults_for_animate(animations, names, args):
-    """
-    Set defaults for animation from required positional arguments.
-    """
-    args = vars(args)
-    for name in names:
-        value = args[name]
-        value_range = (value, value)
-        time_range = (-math.inf, math.inf)
-        animations.setdefault(name, (value_range, time_range))
+def animation_tuple(value, end_value=None, start_time=0, end_time=0):
+    if end_value is None:
+        end_value = value
+    return ((value, end_value), (start_time, end_time))
 
 def variables_from_animations(animations, time):
     """

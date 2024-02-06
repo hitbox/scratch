@@ -30,74 +30,11 @@ class Snap:
         return sorted(filter(predicate, others), key=key)
 
 
-class Drag:
-
-    def __init__(self):
-        self.reset()
-
-    def reset(self):
-        self.start = None
-        self.end = None
-
-    def get_rect(self):
-        x1, y1 = self.start
-        x2, y2 = self.end
-        if x1 > x2:
-            x1, x2 = x2, x1
-        if y1 > y2:
-            y1, y2 = y2, y1
-        return (x1, y1, x2 - x1, y2 - y1)
-
-
-class RectCornerDrag:
-
-    def __init__(self, rect, corner_name):
-        self.rect = rect
-        self.corner_name = corner_name
-
-    def get_rect(self, pos):
-        pass
-
-
-class DragController:
-
-    def __init__(self, state):
-        self.state = state
-
-
-class ControllerTrash:
-
-    def do_mousebuttondown(self, event):
-        self.controller.do_mousebuttondown(event)
-
-    def do_mousebuttonup(self, event):
-        if event.button == pygame.BUTTON_LEFT:
-            if self.drag.start and self.drag.end:
-                self.rects.append(self.drag.get_rect())
-                self.drag.reset()
-                pygamelib.post_videoexpose()
-
-    def do_mousemotion(self, event):
-        mb1, mb2, mb3 = event.buttons
-        if mb1:
-            mx, my = event.pos
-            for rect in self.rects:
-                top, right, bottom, left = pygamelib.sides(rect)
-                possiblex = self.snap(mx, right, left)
-                if possiblex:
-                    mx = possiblex[0]
-                possibley = self.snap(my, top, bottom)
-                if possibley:
-                    my = possibley[0]
-            self.drag.end = (mx, my)
-            pygamelib.post_videoexpose()
-
-
 class HoverController:
 
     def __init__(self, state):
         self.state = state
-        self.get_handles = pygamelib.rect_handles_outside
+        self.get_resize_handles = pygamelib.rect_handles_outside
         self.handle_width = 20
 
     def collidepoint_rects(self, point):
@@ -114,55 +51,58 @@ class HoverController:
             pass
 
     def do_mousemotion_nobuttons(self, event):
-        if any(handle.collidepoint(event.pos) for _, handle, _ in self.state.size_handles):
-            # hovering a handle rect, leave the state alone
-            pass
-        else:
+        handles = self.state.size_handles + self.state.move_handles
+        handles = (handle for _, handle, _ in handles)
+        if not any(handle.collidepoint(event.pos) for handle in handles):
+            # not hovering any handles
             self.state.hovering = list(self.collidepoint_rects(event.pos))
-            if not self.state.hovering:
-                self.state.size_handles.clear()
-                self.state.move_handles.clear()
-            else:
-                # show handles on hover
-                self.state.size_handles = list(
-                    (rect, pygame.Rect(handle), name)
-                    for rect in self.state.hovering
-                    for handle, name in zip(
-                        self.get_handles(rect, self.handle_width),
-                        pygamelib.HANDLE_NAMES
-                    )
+            self.update_handles()
+
+    def update_handles(self):
+        if not self.state.hovering:
+            self.state.size_handles.clear()
+            self.state.move_handles.clear()
+        else:
+            # set resize handle rects
+            self.state.size_handles = list(
+                (rect, pygame.Rect(handle), name)
+                for rect in self.state.hovering
+                for handle, name in zip(
+                    self.get_resize_handles(rect, self.handle_width),
+                    pygamelib.HANDLE_NAMES
                 )
-                self.state.move_handles = [
-                    (rect, pygamelib.make_rect(size=(50,50), center=rect.center), 'center') for rect in self.state.hovering
-                ]
-                pygamelib.post_videoexpose()
+            )
+            # set move handle rects
+            self.state.move_handles = [
+                (
+                    rect,
+                    pygame.Rect(pygamelib.move_handle(rect, self.handle_width)),
+                    'center',
+                )
+                for rect in self.state.hovering
+            ]
+            pygamelib.post_videoexpose()
 
     def do_mousebuttondown(self, event):
         if event.button == pygame.BUTTON_LEFT:
-            for rect, handle, name in self.state.size_handles:
-                if handle.collidepoint(event.pos):
-                    controller = SizeHandleDragController(
-                        self.state,
-                        rect,
-                        handle,
-                        name,
-                    )
-                    # probably want to delay until after current frame events are handled
-                    self.state.controllers.append(controller)
-                    break
-            for rect, handle, name in self.state.move_handles:
-                if handle.collidepoint(event.pos):
-                    controller = MoveHandleDragController(
-                        self.state,
-                        rect,
-                        handle,
-                        name,
-                    )
-                    self.state.controllers.append(controller)
-                    break
+            self.do_mousebuttondown_leftclick(event)
+
+    def state_handles_with_class(self):
+        for rect, handle, name in self.state.size_handles:
+            yield (rect, handle, name, ResizeHandleDragController)
+        for rect, handle, name in self.state.move_handles:
+            yield (rect, handle, name, MoveHandleDragController)
+
+    def do_mousebuttondown_leftclick(self, event):
+        items = self.state_handles_with_class()
+        for rect, handle, name, controller_class in items:
+            if not handle.collidepoint(event.pos):
+                continue
+            controller = controller_class(self.state, rect, handle, name)
+            self.state.controllers.append(controller)
 
 
-class SizeHandleDragController:
+class ResizeHandleDragController:
 
     def __init__(self, state, rect, handle, name):
         self.state = state
