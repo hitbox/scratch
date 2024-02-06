@@ -70,25 +70,25 @@ class Demo(pygamelib.DemoBase):
         for r1, r2 in it.combinations(self.rects, 2):
             if hasattr(r1, self.rect_operation):
                 opfunc = getattr(r1, self.rect_operation)
-                self.result = opfunc(r2)
+                self.result = [opfunc(r2)]
             elif self.rect_operation == 'contiguous':
                 rects = pygamelib.generate_contiguous(self.rects)
-                rects = sorted(rects, key=pygamelib.area, reverse=True)
-                if rects:
-                    self.result = pygame.Rect(rects[0])
-                else:
-                    self.result = None
+                self.result = sorted(rects, key=pygamelib.area, reverse=True)
             else:
                 opfunc = getattr(pygamelib, self.rect_operation)
-                self.result = pygame.Rect(opfunc(r1, r2))
+                self.result = [pygame.Rect(opfunc(r1, r2))]
 
     def draw(self):
         self.screen.fill('black')
         for rect in self.rects:
             pygame.draw.rect(self.screen, 'white', rect.move(self.offset), 1)
         if self.result:
-            rect = self.result.move(self.offset)
-            pygame.draw.rect(self.screen, 'magenta', rect, 1)
+            colors = map(pygame.Color, pygamelib.UNIQUE_THECOLORS.values())
+            colors = filter(lambda c: c.hsla[1] == 100, colors)
+            colors = sorted(colors, key=lambda c: c.hsla[0])
+            for rect, color in zip(self.result, colors):
+                rect = pygame.Rect(rect).move(self.offset)
+                pygame.draw.rect(self.screen, color, rect, 1)
         pygame.display.flip()
 
 

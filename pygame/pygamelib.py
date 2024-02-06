@@ -300,11 +300,16 @@ class DemoBase:
         self.clock = pygame.time.Clock()
         self.framerate = 60
         self.elapsed = None
+        if not hasattr(self, 'controller'):
+            self.controller = self
 
     def update(self):
         self.elapsed = self.clock.tick(self.framerate)
         for event in pygame.event.get():
-            dispatch(self, event)
+            for obj in [self.controller, self]:
+                handler = get_method_handler(obj, event)
+                if handler:
+                    handler(event)
 
 
 class InputLine:
@@ -1058,9 +1063,13 @@ def run(state):
 
 # events
 
-def dispatch(obj, event):
+def get_method_handler(obj, event):
     method_name = default_methodname(event)
     method = getattr(obj, method_name, None)
+    return method
+
+def dispatch(obj, event):
+    method = get_method_handler(obj, event)
     if method is not None:
         method(event)
 
@@ -1074,6 +1083,14 @@ def post_videoexpose():
     _post(pygame.VIDEOEXPOSE)
 
 # general purpose
+
+def ranges_overlap(start1, stop1, start2, stop2):
+    return (
+        start2 <= start1 <= stop2
+        or start2 <= stop1 <= stop2
+        or start1 <= start2 <= stop1
+        or start1 <= stop2 <= stop1
+    )
 
 def expand_shorthand(value):
     if isinstance(value, (float, int)):
@@ -1439,7 +1456,10 @@ def corners(rect):
     yield (x, y + h)
 
 def sides(rect):
-    # overwrite to remain compatible with four-tuple rects
+    """
+    Scalar values of the sides of a rect in anticlockwise order from the top.
+    """
+    # NOTE: avoid relying on pygame.Rect attributes
     left, top, w, h = rect
     right = left + w
     bottom = top + h
@@ -1726,6 +1746,9 @@ def merge_all_rects(rects):
     return merged
 
 def rectquadrants(rect):
+    """
+    Generate rects of a rect's four quadrants.
+    """
     x, y, w, h = rect
     hw = w / 2
     hh = h / 2
@@ -1751,6 +1774,77 @@ def rectwalls(rect):
     yield (x, y + h, w, w)
     # left
     yield (x - h, y, h, h)
+
+def rect_handles_border(rect, width, margin=0):
+    """
+    Generate handles on a rect like Gimp.
+    """
+    x, y, w, h = rect
+    r = x + w
+    b = y + h
+    half = width / 2
+    # topleft
+    yield (x - half, y - half, width, width)
+    # top
+    yield (x + half + margin, y - half, w - width - margin * 2, width)
+    # topright
+    yield (r - half, y - half, width, width)
+    # right
+    yield (r - half, y + half + margin, width, h - width - margin * 2)
+    # bottomright
+    yield (r - half, b - half, width, width)
+    # bottom
+    yield (x + half + margin, b - half, w - width - margin * 2, width)
+    # bottomleft
+    yield (x - half, b - half, width, width)
+    # left
+    yield (x - half, y + half + margin, width, h - width - margin * 2)
+
+def rect_handles_outside(rect, width):
+    """
+    Generate handles on a rect like Gimp.
+    """
+    x, y, w, h = rect
+    r = x + w
+    b = y + h
+    half = width / 2
+    # topleft
+    yield (x - width, y - width, width, width)
+    # top
+    yield (x, y - width, w, width)
+    # topright
+    yield (r, y - width, width, width)
+    # right
+    yield (r, y, width, h)
+    # bottomright
+    yield (r, b, width, width)
+    # bottom
+    yield (x, b, w, width)
+    # bottomleft
+    yield (x - width, b, width, width)
+    # left
+    yield (x - width, y, width, h)
+
+def update_handle(rect, name, rel):
+    rx, ry = rel
+    rw = rx
+    rh = ry
+    if 'left' in name:
+        # compensate for width
+        rw = -rw
+    if 'top' in name:
+        # compensate for height
+        rh = -rh
+    if 'right' in name:
+        # lock x
+        rx = 0
+    if 'bottom' in name:
+        # lock y
+        ry = 0
+    rect.x += rx
+    rect.y += ry
+    rect.width += rw
+    rect.height += rh
 
 def aboverect(reference, other):
     return other.bottom < reference.top
@@ -1998,6 +2092,23 @@ def is_touching(rect1, rect2):
         elif rect1right == rect2left:
             return TouchingRects.RIGHT_LEFT
 
+def touch_relation(rect1, rect2):
+    """
+    If rects touch, return a tuple describing the touching relationship.
+    """
+    top1, right1, bottom1, left1 = extremities(rect1)
+    top2, right2, bottom2, left2 = extremities(rect2)
+    if ranges_overlap(left1, right1, left2, right2):
+        if top1 == bottom2:
+            return (('top', 'bottom'), top1)
+        elif top2 == bottom1:
+            return (('top', 'bottom'), top2)
+    if ranges_overlap(top1, bottom1, top2, bottom2):
+        if right1 == left2:
+            return (('right', 'left'), right1)
+        elif right2 == left1:
+            return (('right', 'left'), right2)
+
 def itertouching(rect, others):
     rectleft, recttop, rectwidth, rectheight = rect
     rectright = rectleft + rectwidth
@@ -2043,7 +2154,7 @@ def largest_contiguous(rect1, rect2):
     return (left, top, right - left, bottom - top)
 
 def generate_contiguous(rects):
-    _rects = list(map(pygame.Rect, rects))
+    rects = list(map(pygame.Rect, rects))
     tops, rights, bottoms, lefts = zip(*map(extremities, rects))
     bounding = (min(lefts), min(tops), max(rights) - min(lefts), max(bottoms) - min(tops))
     negative_space = list(map(pygame.Rect, find_empty_space(rects, bounding)))
@@ -2059,31 +2170,40 @@ def generate_contiguous(rects):
         # ignore zero dimensions
         if width == 0 or height == 0:
             continue
-        if not any(rect.collidepoint((left, top)) for rect in _rects):
-            continue
-        if not any(rect.collidepoint((right-1, top)) for rect in _rects):
-            continue
-        if not any(rect.collidepoint((right-1, bottom-1)) for rect in _rects):
-            continue
-        if not any(rect.collidepoint((left, bottom-1)) for rect in _rects):
+
+        # corners is not part of any existing rect
+        # ignore if none of the corners are part of an existing rect
+        corners = (
+            (left, top),
+            (right-1, top),
+            (right-1, bottom-1),
+            (left, bottom-1),
+        )
+        if not any(rect.collidepoint(corner) for rect in rects for corner in corners):
             continue
 
+        # TODO
+        # - clean up
+        # - probably use sets more
+        # - probably less checks
+        # - going away to see about grouping rects into islands--rects that are touching
+
         newrect = (left, top, width, height)
-        ## not just one of the existing rects
-        #if newrect in rects:
-        #    continue
-        # not already generated
-        if newrect in generated:
+        # avoid duplicates
+        if newrect in generated or newrect in rects:
             continue
-        ## this rect is not completely contained by an existing one
-        #if any(rect.contains(newrect) for rect in map(pygame.Rect, rects)):
-        #    continue
         # ignore new rect that collides with negative space
         if any(negative.colliderect(newrect) for negative in negative_space):
             continue
 
         yield newrect
         generated.add(newrect)
+
+def line_points(p1, p2):
+    x1, y1 = p1
+    x2, y2 = p2
+    # want to "flatten" several lines on a rect
+    # ex: topleft -> topright -> bottomright as a list of points
 
 def reduce(rect, f):
     args = map(lambda d: -d*f, pygame.Rect(rect).size)
@@ -2239,9 +2359,18 @@ empty_rect = pygame.Rect((0,)*4)
 
 points = op.attrgetter(*POINTS)
 
-sides = op.attrgetter(*SIDES)
-
 CORNERNAMES = ['topleft', 'topright', 'bottomright', 'bottomleft']
+
+HANDLE_NAMES = [
+    'topleft',
+    'top',
+    'topright',
+    'right',
+    'bottomright',
+    'bottom',
+    'bottomleft',
+    'left',
+]
 
 # counter-clockwise degrees
 QUADRANT_DEGREES = dict(zip(
