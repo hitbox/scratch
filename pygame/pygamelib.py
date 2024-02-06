@@ -584,7 +584,8 @@ class ShapeParser:
 class DrawMixin:
 
     def draw(self, surf, color, width, offset=(0,0)):
-        self.draw_func(surf, *self.draw_args(color, width, offset))
+        args = self.draw_args(color, width, offset)
+        self.draw_func(surf, *args)
 
 
 class Arc(
@@ -1271,7 +1272,7 @@ def print_pipe(pipe_string, null_separator, file=None):
 
 def add_animate_option(parser, **kwargs):
     """
-    Add option taking five arguments:
+    Add option taking five positional arguments:
     1. name
     2. start value
     3. end value
