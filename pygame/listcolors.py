@@ -28,7 +28,7 @@ class ColorGrid(pygamelib.DemoBase):
     def do_mousemotion(self, event):
         if event.buttons[0]:
             self.offset += event.rel
-            pygamelib.post_videoexpose()
+            self.draw()
 
     def do_videoexpose(self, event):
         self.draw()
