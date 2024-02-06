@@ -1237,8 +1237,8 @@ def add_display_size_option(parser, **kwargs):
     )
     parser.add_argument('--display-size', **kwargs)
 
-def command_line_parser():
-    parser = argparse.ArgumentParser()
+def command_line_parser(**kwargs):
+    parser = argparse.ArgumentParser(**kwargs)
     add_display_size_option(parser)
     return parser
 
