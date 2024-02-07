@@ -191,7 +191,7 @@ class Inventory:
         # make and move grid cells; and sort for placement later
         self.items = sorted(devel_items(self.grid.cell_size), key=item_body_area)
         # cursor
-        self.cursor = Cursor(rect=get_rect(size=self.grid.cell_size))
+        self.cursor = Cursor(rect=pygamelib.make_rect(size=self.grid.cell_size))
         self.cursor.color = pygame.Color('yellow')
         self.cursor.fill_color = pygame.Color('yellow')
         self.cursor.renderer = CursorRenderer(self.items)
@@ -622,23 +622,6 @@ def post_stateswitch(state_class):
 def post_quit():
     pygame.event.post(pygame.event.Event(pygame.QUIT))
 
-def get_rect(*args, **kwargs):
-    """
-    :param *args:
-        Optional rect used as base. Otherwise new (0,)*4 rect is created.
-    :param kwargs:
-        Keyword arguments to set on new rect.
-    """
-    if len(args) not in (0, 1):
-        raise ValueError()
-    if len(args) == 1:
-        result = args[0].copy()
-    else:
-        result = pygame.Rect(0,0,0,0)
-    for key, val in kwargs.items():
-        setattr(result, key, val)
-    return result
-
 def align(rects, attrmap):
     """
     Align rects in iterable order
@@ -647,7 +630,7 @@ def align(rects, attrmap):
     """
     # allow for many ways to give mapping but this uses dict interface
     attrmap = dict(attrmap)
-    for prevrect, rect in pygamelib.nwise(rects):
+    for prevrect, rect in it.pairwise(rects):
         if not rect:
             continue
         for key, prevkey in attrmap.items():
@@ -721,10 +704,10 @@ def draw_cells(surface, rect, color, width=1):
     while True:
         while True:
             pygame.draw.rect(surface, color, rect, width)
-            rect = get_rect(rect, left=rect.right)
+            rect = pygamelib.make_rect(rect, left=rect.right)
             if not frame.contains(rect):
                 break
-        rect = get_rect(rect, x=x, top=rect.bottom)
+        rect = pygamelib.make_rect(rect, x=x, top=rect.bottom)
         if not frame.contains(rect):
             break
 
@@ -776,7 +759,7 @@ def place_item(item, grid, items):
     pygamelib.move_as_one(cells, topleft=grid.rect.topleft)
     filled = [rect for item in items for rect in item.body]
     for cell_rect in cells:
-        item_wrap = get_rect(item_wrap, topleft=cell_rect.topleft)
+        item_wrap = pygamelib.make_rect(item_wrap, topleft=cell_rect.topleft)
         if not any(item_wrap.colliderect(filled_rect) for filled_rect in filled):
             return pygamelib.move_as_one(item.body, topleft=cell_rect.topleft)
 
@@ -845,13 +828,6 @@ def devel_items(cell_size):
 
     items = [pistol, rifle, grenade, chicken_egg]
     return items
-
-def trash_run(settings):
-    # bake unchanging images into background
-    frames = Frames()
-    # consume remaining frame queue
-    while frames.queue:
-        frames.save(settings.output_string)
 
 def run(state_class):
     "Run state engine"

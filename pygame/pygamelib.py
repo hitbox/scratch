@@ -1351,7 +1351,7 @@ def opposite_items(indexable):
 
 def make_rect(rect=None, **kwargs):
     if rect is None:
-        rect = empty_rect
+        rect = EMPTY_RECT
     rect = rect.copy()
     for key, val in kwargs.items():
         setattr(rect, key, val)
@@ -2350,7 +2350,7 @@ SIDES = dict(opposite_items(SIDENAMES))
 # clockwise ordered rect point attribute names mapped with their opposites
 POINTS = dict(opposite_items(tuple(point_attrs(tuple(SIDES)))))
 
-empty_rect = pygame.Rect((0,)*4)
+EMPTY_RECT = pygame.Rect((0,)*4)
 
 points = op.attrgetter(*POINTS)
 
