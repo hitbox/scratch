@@ -429,6 +429,58 @@ class Blits(Demo):
         engine.run(state)
 
 
+class Heart(Demo):
+
+    command_name = 'heart'
+
+    @staticmethod
+    def parser_kwargs():
+        return dict(
+            help = 'Draw heart with arcs and lines.',
+        )
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument(
+            '--cleft-angle',
+            type = int,
+            default = 45,
+            help = 'Heart cleft angle in degrees.',
+        )
+        parser.add_argument(
+            '--fraction',
+            type = int,
+            help = 'fraction/1000 size of window of heart.',
+        )
+
+    def __call__(self, args):
+        window = pygame.Rect((0,0), args.display_size)
+        pygame.display.init()
+        pygame.font.init()
+
+        if args.fraction:
+            f = args.fraction / 1000
+        else:
+            f = 0 # reduce by nothing
+        heart_rect = pygame.Rect(pygamelib.reduce(window, f))
+        heart_rect.center = window.center
+        heart_shape = pygamelib.HeartShape(
+            cleft_angle = args.cleft_angle,
+        )
+        heart = list(heart_shape(heart_rect))
+        styles = list(it.repeat(
+            dict(
+                color = 'red',
+                width = 1,
+            ), 3
+        ))
+        state = ShapeBrowser(heart, styles)
+
+        pygame.display.set_mode(window.size)
+        engine = pygamelib.Engine()
+        engine.run(state)
+
+
 def circularize(window, args):
     """
     Make a circle polygon between two points.
@@ -473,6 +525,7 @@ def add_subcommands(parser, **kwargs):
         CirclePoints,
         CircleSegments,
         Gradient,
+        Heart,
         MeterBarCircular,
         MeterBarHorizontalRect,
     ]

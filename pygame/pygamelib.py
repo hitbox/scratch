@@ -822,10 +822,8 @@ class TouchingRects(enum.Enum):
 
 class HeartShape:
 
-    def __init__(self, cleft_angle=None):
+    def __init__(self, cleft_angle):
         # the angle from the center of each of the two top quadrant rects
-        if cleft_angle is None:
-            cleft_angle = 45
         self.cleft_angle = cleft_angle
 
     def __call__(self, inside):
@@ -857,15 +855,13 @@ class HeartShape:
             angle2 = math.radians(-self.cleft_angle+180),
         )
         # points where the heart becomes straight lines to the pointy bottom
-        p1 = circle_point(
-            topleft_quad.center,
-            radius,
-            math.radians(self.cleft_angle+180)
+        p1 = (
+            pygame.Vector2(topleft_quad.center)
+            + circle_point(math.radians(self.cleft_angle+180), radius)
         )
-        p2 = circle_point(
-            topright_quad.center,
-            radius,
-            math.radians(-self.cleft_angle)
+        p2 = (
+            pygame.Vector2(topright_quad.center)
+            + circle_point(math.radians(-self.cleft_angle), radius)
         )
         slope_tangent1 = circle_slope_tangent(topleft_quad.center, p1)
         slope_tangent2 = circle_slope_tangent(topright_quad.center, p2)
