@@ -912,26 +912,6 @@ def main(argv=None):
     """
     Inventory
     """
-    # saw this:
-    # https://www.reddit.com/r/pygame/comments/xasi84/inventorycrafting_system/
-    # TODO:
-    # [X] Like Resident Evil 4 in 2d
-    # [X] grab / drop
-    # [ ] Auto arrange with drag+drop animations
-    # [X] Rotate items
-    # [ ] Stacking?
-    # [ ] Combine to new item?
-    # [ ] Stealing minigame. Something chases or attacks your cursor.
-    # [ ] Moving through items are a way of jumping, could be part of gameplay.
-    # [ ] `.removable` attribute to prevent dropping.
-    # [ ] Drop item grid to drop items.
-    # [ ] Inform7, dialog (https://linusakesson.net/dialog/), etc. engine to do
-    #     things like automatically unlock the unremovable item before dropping
-    #     it, if have the key.
-    # [ ] Another inventory for incorporeal items, like keys?
-    # [ ] Inner grid games inside your inventory. Like tic-tac-toe, maybe even
-    #     checkers or chess.
-    # [ ] state machine for hovering -> grabbing -> dropping...
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--size',
@@ -949,3 +929,24 @@ def main(argv=None):
 
 if __name__ == '__main__':
     main()
+
+# saw this:
+# https://www.reddit.com/r/pygame/comments/xasi84/inventorycrafting_system/
+# TODO:
+# [X] Like Resident Evil 4 in 2d
+# [X] grab / drop
+# [ ] Auto arrange with drag+drop animations
+# [X] Rotate items
+# [ ] Stacking?
+# [ ] Combine to new item?
+# [ ] Stealing minigame. Something chases or attacks your cursor.
+# [ ] Moving through items are a way of jumping, could be part of gameplay.
+# [ ] `.removable` attribute to prevent dropping.
+# [ ] Drop item grid to drop items.
+# [ ] Inform7, dialog (https://linusakesson.net/dialog/), etc. engine to do
+#     things like automatically unlock the unremovable item before dropping
+#     it, if have the key.
+# [ ] Another inventory for incorporeal items, like keys?
+# [ ] Inner grid games inside your inventory. Like tic-tac-toe, maybe even
+#     checkers or chess.
+# [ ] state machine for hovering -> grabbing -> dropping...
