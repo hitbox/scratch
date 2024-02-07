@@ -916,7 +916,7 @@ def main(argv=None):
     parser.add_argument(
         '--size',
         default = '800',
-        type = pygamelib.sizetype,
+        type = pygamelib.sizetype(),
         help = 'Screen size. Default: %(default)s',
     )
     parser.add_argument(
