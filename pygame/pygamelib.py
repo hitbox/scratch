@@ -2352,8 +2352,6 @@ POINTS = dict(opposite_items(tuple(point_attrs(tuple(SIDES)))))
 
 EMPTY_RECT = pygame.Rect((0,)*4)
 
-points = op.attrgetter(*POINTS)
-
 CORNERNAMES = ['topleft', 'topright', 'bottomright', 'bottomleft']
 
 HANDLE_NAMES = [
@@ -2401,3 +2399,6 @@ nearest_for_side = {
 
 # rect with no effect on wrap
 NORECT = (math.inf, math.inf, -math.inf, -math.inf)
+
+DELTAS = set(tuple(v-1 for v in divmod(i, 3)) for i in range(9))
+DELTAS.remove((0,0))

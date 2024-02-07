@@ -1,17 +1,9 @@
-import argparse
-import contextlib
 import itertools as it
-import os
-import unittest
 
 from abc import ABC
 from abc import abstractmethod
-from collections import defaultdict
 from collections import deque
-from functools import partial
-from functools import singledispatch
 from operator import attrgetter
-from operator import itemgetter
 from types import SimpleNamespace
 
 import pygamelib
@@ -40,32 +32,6 @@ MOVEKEY_DELTA = {
     pygame.K_DOWN: (0, 1),
     pygame.K_LEFT: (-1, 0),
 }
-
-SIDES = ('top', 'right', 'bottom', 'left')
-
-class TestInvLerp(unittest.TestCase):
-    """
-    Test inverse linear interpolation.
-    """
-
-    def check_ends(self, a, b):
-        self.assertEqual(invlerp(a, b, 0), a)
-        self.assertEqual(invlerp(a, b, 1), b)
-
-    def test_invlerp(self):
-        a, b = 0, 1
-        self.check_ends(a, b)
-
-    def test_invlerp_tuple(self):
-        a = (0, 0, 0)
-        b = (1, 1, 1)
-        self.check_ends(a, b)
-
-    def test_lerp_pygame_color(self):
-        a = pygame.Color('black')
-        b = pygame.Color('white')
-        self.check_ends(a, b)
-
 
 class Cursor:
     "Cursor selector on grid."
@@ -418,11 +384,16 @@ class InventoryState(
         draw_cells(grid.image, pygame.Rect((0,)*2, grid.cell_size), 'azure4')
         # inventory
         self.inventory = Inventory(grid)
-        self.inventory.grid.rect = self.inventory.grid.image.get_rect(center=self.frame.center)
+        self.inventory.grid.rect = self.inventory.grid.image.get_rect(
+            center = self.frame.center
+        )
         self.inventory.cursor.rect.topleft = self.inventory.grid.rect.topleft
         # initial position items
         for item in self.inventory.items:
-            pygamelib.move_as_one(item.body, topleft=self.inventory.grid.rect.topleft)
+            pygamelib.move_as_one(
+                item.body,
+                topleft = self.inventory.grid.rect.topleft
+            )
         # place items on grid
         items = self.inventory.items[:]
         while items:
@@ -430,7 +401,9 @@ class InventoryState(
             place_item(item, self.inventory.grid, self.inventory.items)
 
         # render text images and rects
-        self.help_.images = render_lines(self.help_.normal_font, self.help_.color, self.help_.lines)
+        self.help_.images = render_lines(
+            self.help_.normal_font, self.help_.color, self.help_.lines
+        )
         self.help_.rects = [image.get_rect() for image in self.help_.images]
         # align text rects
         self.help_.rects[0].topright = self.help_.frame.topright
@@ -560,11 +533,6 @@ class InventoryState(
         # TODO: save frames
 
 
-get_bounds = attrgetter(*SIDES)
-
-getx = attrgetter('x')
-gety = attrgetter('y')
-
 def callable_name_for_event(event):
     event_name = pygame.event.event_name(event.type)
     callable_name = f'do_{event_name.lower()}'
@@ -584,20 +552,6 @@ def render_lines(font, color, lines, antialias=True):
         "Reorganize arguments for use with map"
         return font.render(line, antialias, color)
     return list(map(render_line, lines))
-
-@singledispatch
-def invlerp(a, b, x):
-    "Return 'time' from position x between a and b."
-    return (x - a) / (b - a)
-
-@invlerp.register
-def invlerp_tuple(a:tuple, b, x):
-    return tuple(invlerp(*args) for args in zip(a, b, it.repeat(x)))
-
-@invlerp.register
-def invlerp_pygame_color(a:pygame.Color, b, x):
-    # could not find that pygame has inverse lerp for colors, have to roll our own
-    return pygame.Color(lerp(tuple(a), tuple(b), x))
 
 def post_movecursor(delta, grid):
     event = pygame.event.Event(MOVECURSOR, delta=delta)
@@ -874,7 +828,7 @@ def start(options):
     pygame.display.set_caption('pygame - inventory')
 
     settings = SimpleNamespace(
-        window = pygame.display.set_mode(options.size),
+        window = pygame.display.set_mode(options.display_size),
         clock = pygame.time.Clock(),
         fps = 60,
         output_string = options.output,
@@ -888,13 +842,7 @@ def main(argv=None):
     """
     Inventory
     """
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--size',
-        default = '800',
-        type = pygamelib.sizetype(),
-        help = 'Screen size. Default: %(default)s',
-    )
+    parser = pygamelib.command_line_parser()
     parser.add_argument(
         '--output',
         help = 'Format string for frame output.'
@@ -902,6 +850,9 @@ def main(argv=None):
     )
     args = parser.parse_args()
     start(args)
+
+getx = attrgetter('x')
+gety = attrgetter('y')
 
 if __name__ == '__main__':
     main()

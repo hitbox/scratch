@@ -1,25 +1,21 @@
 import argparse
-import contextlib
 import enum
-import itertools as it
 import operator as op
-import os
 
-with contextlib.redirect_stdout(open(os.devnull, 'w')):
-    import pygame
+import pygamelib
+
+from pygamelib import pygame
 
 class CellState(enum.Enum):
-    H = enum.auto()
-    T = enum.auto()
-    C = enum.auto()
+
+    HEAD = enum.auto()
+    TAIL = enum.auto()
+    COPPER = enum.auto()
 
 
-CellState.H.color = 'blue'
-CellState.T.color = 'red'
-CellState.C.color = 'yellow'
-
-deltas = [tuple(v - 1 for v in divmod(i, 3)) for i in range(9)]
-deltas.remove((0,0))
+CellState.HEAD.color = 'blue'
+CellState.TAIL.color = 'red'
+CellState.COPPER.color = 'yellow'
 
 def world_from_file(obj):
     """
@@ -32,7 +28,7 @@ def world_from_file(obj):
     def is_not_comment(line):
         return not is_comment(line)
 
-    namemap = {member.name: member for member in CellState}
+    namemap = {member.name[0]: member for member in CellState}
     with open(obj) as file:
         lines = filter(is_not_comment, file)
         world = {
@@ -45,29 +41,29 @@ def world_from_file(obj):
             if char in namemap
         }
         for (x, y), data in world.items():
-            for (dx, dy) in deltas:
+            for (dx, dy) in pygamelib.DELTAS:
                 neighbor_position = (x + dx, y + dy)
                 if neighbor_position in world:
                     data['neighbors'].append(neighbor_position)
         return world
 
 def next_state(world, cell):
-    if cell['state'] == CellState.H:
-        # H -> T
-        return CellState.T
-    elif cell['state'] == CellState.T:
-        # T -> C
-        return CellState.C
+    if cell['state'] == CellState.HEAD:
+        # HEAD -> TAIL
+        return CellState.TAIL
+    elif cell['state'] == CellState.TAIL:
+        # TAIL -> COPPER
+        return CellState.COPPER
     else:
-        # C -> H if num H neighbors equals one or two, otherwise C
+        # COPPER -> HEAD if num HEAD neighbors equals one or two, otherwise COPPER
         head_neighbors = sum(
             1 for neighbor_position in cell['neighbors']
-            if world[neighbor_position]['state'] == CellState.H
+            if world[neighbor_position]['state'] == CellState.HEAD
         )
         if head_neighbors in (1, 2):
-            return CellState.H
+            return CellState.HEAD
         else:
-            return CellState.C
+            return CellState.COPPER
 
 def step(world):
     new_world = {
@@ -79,42 +75,15 @@ def step(world):
     }
     return new_world
 
-def wrap_rects(rects):
-    sides = op.attrgetter('top', 'right', 'bottom', 'left')
-    tops, rights, bottoms, lefts = zip(*map(sides, rects))
-    top = min(tops)
-    right = max(rights)
-    bottom = max(bottoms)
-    left = min(lefts)
-    width = right - left
-    height = bottom - top
-    return (left, top, width, height)
-
-def get_rect(rect=None, **kwargs):
-    if rect is None:
-        rect = pygame.Rect((0,)*4)
-    else:
-        rect = rect.copy()
-    for key, val in kwargs.items():
-        setattr(rect, key, val)
-    return rect
-
-def update_as_one(rects, **kwargs):
-    origin = pygame.Rect(wrap_rects(rects))
-    dest = get_rect(origin, **kwargs)
-    delta = pygame.Vector2(dest.topleft) - origin.topleft
-    for rect in rects:
-        rect.topleft += delta
-
-def run(world):
-    screen = pygame.display.set_mode((512,)*2)
+def run(display_size, world):
+    screen = pygame.display.set_mode(display_size)
     window = screen.get_rect()
     clock = pygame.time.Clock()
     framerate = 60
 
     scale = 22
     cell_rects = [pygame.Rect((i*scale, j*scale), (scale,)*2) for (i, j) in world]
-    update_as_one(cell_rects, center=window.center)
+    pygamelib.move_as_one(cell_rects, center=window.center)
 
     def draw():
         screen.fill('black')
@@ -141,14 +110,11 @@ def run(world):
             draw()
 
 def main(argv=None):
-    """
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument('world')
+    parser = pygamelib.command_line_parser()
+    parser.add_argument('world', help='Wireworld file.')
     args = parser.parse_args()
-
     world = world_from_file(args.world)
-    run(world)
+    run(args.display_size, world)
 
 if __name__ == '__main__':
     main()
