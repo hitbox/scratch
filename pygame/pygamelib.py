@@ -1613,11 +1613,14 @@ def move_as_one(rects, **kwargs):
     for rect in rects:
         rect.topleft += delta
 
-def monospace_font(size, bold=False, italic=False):
-    # init is very cheap removes a pain point
+def system_font(name, size, bold=False, italic=False):
+    # init is very cheap and this removes a pain point
     # timeit: 10000000 loops, best of 5: 24.1 nsec per loop
     pygame.font.init()
-    return pygame.font.SysFont('monospace', size, bold, italic)
+    return pygame.font.SysFont(name, size, bold, italic)
+
+def monospace_font(size, bold=False, italic=False):
+    return system_font('monospace', size, bold, italic)
 
 def render_text(
     font,

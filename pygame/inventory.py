@@ -11,14 +11,12 @@ import pygamelib
 from pygamelib import pygame
 
 # custom events
-STATESWITCH = pygame.event.custom_type()
 MOVECURSOR = pygame.event.custom_type()
 GRAB = pygame.event.custom_type()
 DROP = pygame.event.custom_type()
 ROTATE_HOLDING = pygame.event.custom_type()
 
 CUSTOMTYPENAMES = {
-    STATESWITCH: 'STATESWITCH',
     MOVECURSOR: 'MOVECURSOR',
     GRAB: 'GRAB',
     DROP: 'DROP',
@@ -215,161 +213,17 @@ class Inventory:
         self.cursor.update_hovering(self.items)
 
 
-class Frames:
-    """
-    Queue of images to save.
-    """
-
-    def __init__(self):
-        self.number = 0
-        self.queue = deque()
-
-    def save(self, output_string):
-        image = self.queue.popleft()
-        path = output_string.format(self.number)
-        pygame.image.save(image, path)
-        self.number += 1
-
-    def append(self, image):
-        self.queue.append(image)
-
-
-class StateBase(ABC):
-
-    @abstractmethod
-    def start(self):
-        pass
-
-    @abstractmethod
-    def events(self):
-        pass
-
-    @abstractmethod
-    def update(self):
-        pass
-
-    @abstractmethod
-    def draw(self):
-        pass
-
-
-class EventDispatchMixin:
-
-    def events(self):
-        for event in pygame.event.get():
-            pygamelib.dispatch(self, event)
-
-
-class IntroState(StateBase):
-
-    def __init__(self):
-        self.screen = pygame.display.get_surface()
-        self.frame = self.screen.get_rect()
-        self.font = pygame.font.SysFont('arial', 20)
-        self.clock = pygame.time.Clock()
-        self.fps = 60
-
-    def start(self):
-        self.timeout = 250
-        self.clock.tick()
-
-    def events(self):
-        pygame.event.pump()
-
-    def update(self):
-        self.timeout -= self.clock.tick(self.fps)
-        if self.timeout <= 0:
-            post_stateswitch(InventoryState)
-
-    def draw(self):
-        self.screen.fill('black')
-        image = self.font.render(self.__class__.__name__, True, 'white')
-        self.screen.blit(image, image.get_rect(center=self.frame.center))
-        pygame.display.flip()
-
-
-class OutroState(
-    EventDispatchMixin,
-    StateBase,
-):
-
-    def __init__(self):
-        self.screen = pygame.display.get_surface()
-        self.frame = self.screen.get_rect()
-        self.font = pygame.font.SysFont('arial', 20)
-        self.clock = pygame.time.Clock()
-        self.fps = 60
-
-    def start(self):
-        self.timeout = 250
-        self.clock.tick()
-
-    def do_quit(self, event):
-        post_stateswitch(None)
-
-    def update(self):
-        self.timeout -= self.clock.tick(self.fps)
-        if self.timeout <= 0:
-            post_stateswitch(None)
-
-    def draw(self):
-        self.screen.fill('black')
-        image = self.font.render(self.__class__.__name__, True, 'white')
-        self.screen.blit(image, image.get_rect(center=self.frame.center))
-        pygame.display.flip()
-
-
-class PlayState(
-    EventDispatchMixin,
-    StateBase,
-):
-    "Playing game state"
-
-    def __init__(self):
-        self.screen = pygame.display.get_surface()
-        self.frame = self.screen.get_rect()
-        self.font = pygame.font.SysFont('arial', 20)
-
-    def start(self):
-        pass
-
-    def do_quit(self, event):
-        post_stateswitch(None)
-
-    def do_keydown(self, event):
-        if not event.mod:
-            post_stateswitch(InventoryState)
-
-    def update(self):
-        pass
-
-    def draw(self):
-        self.screen.fill('black')
-        image = self.font.render(self.__class__.__name__, True, 'white')
-        self.screen.blit(image, image.get_rect(center=self.frame.center))
-        pygame.display.flip()
-
-
-class InventoryState(
-    EventDispatchMixin,
-    StateBase,
-):
+class InventoryState(pygamelib.DemoBase):
     "A simple inventory with movement like Resident Evil 4."
 
     def __init__(self):
-        """
-        """
-        self.clock = pygame.time.Clock()
-        self.fps = 60
-        self.screen = pygame.display.get_surface()
-        self.screen.fill('black')
-        self.background = self.screen.copy()
-        self.frame = self.screen.get_rect()
-        self.font = pygame.font.SysFont('arial', 20)
+        self.background = pygame.display.get_surface().copy()
+        self.frame = self.background.get_rect()
+        self.font = pygamelib.system_font('arial', 20)
         # help text
         self.help_ = SimpleNamespace(
             color = 'ghostwhite',
-            normal_font = pygame.font.SysFont('arial', 32),
+            normal_font = pygamelib.system_font('arial', 32),
             frame = self.frame.inflate((-min(self.frame.size)//32, ) * 2),
             lines = [
                 'Arrow keys to move',
@@ -412,9 +266,7 @@ class InventoryState(
         for image, rect in zip(self.help_.images, self.help_.rects):
             self.background.blit(image, rect)
         self.background.blit(self.inventory.grid.image, self.inventory.grid.rect)
-        #
         self.item_renderer = InventoryItemRenderer()
-        #
         self.animations = [
             AttributeAnimation(
                 self.inventory.cursor.fill_color,
@@ -427,12 +279,8 @@ class InventoryState(
             ),
         ]
 
-    def start(self):
-        pass
-
     def do_quit(self, event):
-        "PlayState after inventory quit"
-        post_stateswitch(PlayState)
+        self.engine.stop()
 
     def do_keydown(self, event):
         if event.key in (pygame.K_q, ):
@@ -454,9 +302,6 @@ class InventoryState(
             post_event(self.inventory.cursor, self.inventory.items)
 
     def do_userevent(self, event):
-        """
-        EventDispatchMixin will get us here, and we further resolve.
-        """
         if event.type == MOVECURSOR:
             self.do_movecursor(event)
         elif event.type == ROTATE_HOLDING:
@@ -505,11 +350,14 @@ class InventoryState(
             # item dropped into empty space
             self.inventory.cursor.holding = None
 
+    def do_videoexpose(self, event):
+        self.draw()
+
     def update(self):
-        "Update Inventory"
-        self.clock.tick(self.fps)
+        super().update()
         for animation in self.animations:
             animation()
+        self.draw()
 
     def draw(self):
         "Draw Inventory"
@@ -530,7 +378,6 @@ class InventoryState(
             rect = image.get_rect(bottomleft=self.help_.frame.bottomleft)
             self.screen.blit(image, rect)
         pygame.display.flip()
-        # TODO: save frames
 
 
 def callable_name_for_event(event):
@@ -567,10 +414,6 @@ def post_drop(cursor, items):
 
 def post_rotate_holding(cursor):
     event = pygame.event.Event(ROTATE_HOLDING, cursor=cursor)
-    pygame.event.post(event)
-
-def post_stateswitch(state_class):
-    event = pygame.event.Event(STATESWITCH, state_class=state_class)
     pygame.event.post(event)
 
 def post_quit():
@@ -783,71 +626,28 @@ def devel_items(cell_size):
     items = [pistol, rifle, grenade, chicken_egg]
     return items
 
-def run(state_class):
-    "Run state engine"
-    next_state = None
-    state = state_class()
-    state_instances = set([state])
-    state.start()
-    running = True
-    while running:
-        # events only the engine should see
-        for event in pygame.event.get():
-            if event.type != STATESWITCH:
-                pygame.event.post(event)
-            else:
-                # STATESWITCH event
-                if event.state_class is None:
-                    running = False
-                else:
-                    # try to get already created instance
-                    next_state = first_or_none(
-                        instantiated
-                        for instantiated in state_instances
-                        if event.state_class
-                        and isinstance(instantiated, event.state_class)
-                    )
-                    if next_state is None:
-                        next_state = event.state_class()
-                        state_instances.add(next_state)
-        if next_state:
-            # change state
-            state = next_state
-            state.start()
-            next_state = None
-        else:
-            state.events()
-            state.update()
-            state.draw()
-
 def start(options):
     """
     Initialize and start run loop. Bridge between options and main loop.
     """
-    pygame.font.init()
     pygame.display.set_caption('pygame - inventory')
 
     settings = SimpleNamespace(
         window = pygame.display.set_mode(options.display_size),
         clock = pygame.time.Clock(),
-        fps = 60,
-        output_string = options.output,
     )
     settings.background = settings.window.copy()
     settings.frame = settings.window.get_rect()
 
-    run(IntroState)
+    engine = pygamelib.Engine()
+    state = InventoryState()
+    engine.run(state)
 
 def main(argv=None):
     """
     Inventory
     """
     parser = pygamelib.command_line_parser()
-    parser.add_argument(
-        '--output',
-        help = 'Format string for frame output.'
-               ' Like path/to/frames/frame{:05d}.png',
-    )
     args = parser.parse_args()
     start(args)
 
