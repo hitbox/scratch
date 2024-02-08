@@ -300,16 +300,29 @@ class DemoBase:
         self.clock = pygame.time.Clock()
         self.framerate = 60
         self.elapsed = None
-        if not hasattr(self, 'controller'):
-            self.controller = self
+        if not hasattr(self, 'controllers'):
+            self.controllers = [self]
 
     def update(self):
         self.elapsed = self.clock.tick(self.framerate)
         for event in pygame.event.get():
-            for obj in [self.controller, self]:
+            # handle event with topmost controller
+            for i in range(1, len(self.controllers)+1):
+                obj = self.controllers[-i]
                 handler = get_method_handler(obj, event)
                 if handler:
                     handler(event)
+                    break
+
+
+class SimpleQuitMixin:
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            post_quit()
 
 
 class InputLine:
@@ -1456,6 +1469,20 @@ def sides(rect):
 def named_sides(rect):
     return zip(SIDENAMES, sides(rect))
 
+def side_lines(rect):
+    left, top, width, height = rect
+    right = left + width
+    bottom = top + height
+    # lines in clockwise order
+    # top line
+    yield ((left, top), (right, top))
+    # right line
+    yield ((right, top), (right, bottom))
+    # bottom line
+    yield ((right, bottom), (left, bottom))
+    # left line
+    yield ((left, bottom), (left, top))
+
 def top(rect):
     _, top, _, _ = rect
     return top
@@ -1900,8 +1927,11 @@ def line_rect_intersections(line, rect):
         if intersection:
             yield intersection
 
-def line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):
+def line_line_intersection1(x1, y1, x2, y2, x3, y3, x4, y4):
     # https://www.jeffreythompson.org/collision-detection/line-line.php
+    # TODO
+    # - duplicates of line/line intersection funcs
+    # - which to keep
     d = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
     if d == 0:
         return
@@ -1956,14 +1986,26 @@ def find_intersection(p1, q1, p2, q2):
     intersection_point = (p1[0] + t * (q1[0] - p1[0]), p1[1] + t * (q1[1] - p1[1]))
     return intersection_point
 
-def line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4):
+def line_line_intersection2(x1, y1, x2, y2, x3, y3, x4, y4):
     # works!
     return find_intersection((x1, y1), (x2, y2), (x3, y3), (x4, y4))
+
+def line_line_intersection(line1, line2):
+    line1p1, line1p2 = line1
+    line2p1, line2p2 = line2
+    return find_intersection(line1p1, line1p2, line2p1, line2p2)
 
 def line_midpoint(p1, p2):
     p1 = pygame.Vector2(p1)
     p2 = pygame.Vector2(p2)
     return p1 + (p2 - p1) / 2
+
+def flatten_line(line):
+    p1, p2 = line
+    return (*p1, *p2)
+
+def flatten_lines(*lines):
+    return tuple(flatten_line(line) for line in lines)
 
 def random_point(rect):
     l, t, w, h = rect
@@ -2201,7 +2243,8 @@ def line_points(p1, p2):
     # ex: topleft -> topright -> bottomright as a list of points
 
 def reduce(rect, f):
-    args = map(lambda d: -d*f, pygame.Rect(rect).size)
+    x, y, width, height = rect
+    args = map(lambda d: -d*f, (width, height))
     return rect.inflate(*args)
 
 def circle_point(angle, radius):
@@ -2231,6 +2274,38 @@ def circle_slope_tangent(center, point):
     derivative_y = 2 * (y - cy)
     slope = derivative_x / derivative_y
     return slope
+
+def rect_diagonal_lines(rect, steps):
+    """
+    Generate the lines for drawing that caution zone looking diagonal lines
+    from a rect.
+    """
+    # NOTES
+    # - this is the closest to no overdraw so far
+    # - there is a tiny bit on the right and bottom
+    # - what if we put this back to origin and then moved the points?
+    left, top, width, height = rect
+    stepx, stepy = steps
+    right = left + width
+    bottom = top + height
+    stopx = right + height
+    stopy = bottom + width
+    topline, rightline, bottomline, leftline = side_lines(rect)
+    xs = range(left, stopx, stepx)
+    ys = range(top, stopy, stepy)
+    for x1, y2 in zip(xs, ys):
+        x2 = left
+        y1 = top
+        line = ((x1, y1), (x2, y2))
+        if x1 > right:
+            x1, y1 = line_line_intersection(line, rightline)
+        if y2 > bottom:
+            x2, y2 = line_line_intersection(line, bottomline)
+        yield ((x1, y1), (x2, y2))
+
+def swaplinex(line):
+    (x1, y1), (x2, y2) = line
+    return ((x2, y1), (x1, y2))
 
 def intersection_point(point1, slope1, point2, slope2):
     # Check if the slopes are equal (parallel lines)

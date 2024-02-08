@@ -34,8 +34,6 @@ class HoverController:
 
     def __init__(self, state):
         self.state = state
-        self.get_resize_handles = pygamelib.rect_handles_outside
-        self.handle_width = 20
 
     def collidepoint_rects(self, point):
         for rect in self.state.rects:
@@ -45,43 +43,17 @@ class HoverController:
     def do_mousemotion(self, event):
         if not any(event.buttons):
             self.do_mousemotion_nobuttons(event)
-        else:
-            # mouse motion while button is pressed
-            # - dragging?
-            pass
+        elif event.buttons[0]:
+            self.state.drag_offset(event.rel)
+            self.state.draw()
 
     def do_mousemotion_nobuttons(self, event):
         handles = self.state.size_handles + self.state.move_handles
         handles = (handle for _, handle, _ in handles)
-        if not any(handle.collidepoint(event.pos) for handle in handles):
-            # not hovering any handles
+        any_handle = any(handle.collidepoint(event.pos) for handle in handles)
+        if not any_handle:
             self.state.hovering = list(self.collidepoint_rects(event.pos))
-            self.update_handles()
-
-    def update_handles(self):
-        if not self.state.hovering:
-            self.state.size_handles.clear()
-            self.state.move_handles.clear()
-        else:
-            # set resize handle rects
-            self.state.size_handles = list(
-                (rect, pygame.Rect(handle), name)
-                for rect in self.state.hovering
-                for handle, name in zip(
-                    self.get_resize_handles(rect, self.handle_width),
-                    pygamelib.HANDLE_NAMES
-                )
-            )
-            # set move handle rects
-            self.state.move_handles = [
-                (
-                    rect,
-                    pygame.Rect(pygamelib.move_handle(rect, self.handle_width)),
-                    'center',
-                )
-                for rect in self.state.hovering
-            ]
-            pygamelib.post_videoexpose()
+            self.state.update_handles()
 
     def do_mousebuttondown(self, event):
         if event.button == pygame.BUTTON_LEFT:
@@ -116,16 +88,16 @@ class ResizeHandleDragController:
 
     def do_mousemotion(self, event):
         rx, ry = event.rel
-
         # lock sides movement
         if self.name in ('top', 'bottom'):
             rx = 0
         elif self.name in ('left', 'right'):
             ry = 0
-
         self.handle.move_ip((rx, ry))
         pygamelib.update_handle(self.rect, self.name, (rx, ry))
-        pygamelib.post_videoexpose()
+        self.state.update_handles()
+        self.state.update_images()
+        self.state.draw()
 
 
 class MoveHandleDragController:
@@ -143,21 +115,23 @@ class MoveHandleDragController:
     def do_mousemotion(self, event):
         self.handle.move_ip(event.rel)
         self.rect.move_ip(event.rel)
-        pygamelib.post_videoexpose()
+        self.state.update_handles()
+        self.state.draw()
 
 
-class Demo(pygamelib.DemoBase):
+class RectEditor(pygamelib.DemoBase):
 
     def __init__(self):
-        self.controllers = [HoverController(self)]
+        self.controllers = [self, HoverController(self)]
+        self.offset = pygame.Vector2()
         self.rects = []
+        self.images = []
         self.hovering = []
         self.move_handles = []
         self.size_handles = []
-
-    @property
-    def controller(self):
-        return self.controllers[-1]
+        self.handle_width = 20
+        self.get_resize_handles = pygamelib.rect_handles_outside
+        self.update_images()
 
     def do_quit(self, event):
         self.engine.stop()
@@ -169,17 +143,72 @@ class Demo(pygamelib.DemoBase):
     def do_videoexpose(self, event):
         self.draw()
 
+    def drag_offset(self, relative):
+        self.offset += relative
+
+    def update_handles(self):
+        if not self.hovering:
+            self.size_handles.clear()
+            self.move_handles.clear()
+        else:
+            # set resize handle rects
+            self.size_handles = list(
+                (rect, pygame.Rect(handle), name)
+                for rect in self.hovering
+                for handle, name in zip(
+                    self.get_resize_handles(rect, self.handle_width),
+                    pygamelib.HANDLE_NAMES
+                )
+            )
+            # set move handle rects
+            self.move_handles = [
+                (
+                    rect,
+                    pygame.Rect(pygamelib.move_handle(rect, self.handle_width)),
+                    'center',
+                )
+                for rect in self.hovering
+            ]
+        self.draw()
+
+    def iter_images_for_rects(self):
+        for index, rect in enumerate(self.rects):
+            image = pygame.Surface(rect.size, pygame.SRCALPHA)
+            reverse = index % 2 == 0
+            _rect = (0,0,*rect.size)
+            lines = pygamelib.rect_diagonal_lines(_rect, (8,)*2, reverse=reverse)
+            color = self.color_for_rect(rect)
+            for line in lines:
+                pygame.draw.line(image, color, *line, 1)
+            yield image
+
+    def update_images(self):
+        self.images = list(self.iter_images_for_rects())
+
+    def color_for_rect(self, rect):
+        if rect in self.hovering:
+            color = 'orange'
+        else:
+            color = 'grey30'
+        return color
+
     def draw(self):
         self.screen.fill('black')
-        for rect in self.rects:
-            if rect in self.hovering:
-                color = 'orange'
-            else:
-                color = 'grey30'
-            pygame.draw.rect(self.screen, color, rect, 1)
-        for rect, handle, name in self.size_handles + self.move_handles:
-            pygame.draw.rect(self.screen, 'darkred', handle, 1)
+        self.draw_rects()
+        self.draw_handles()
         pygame.display.flip()
+
+    def draw_rects(self):
+        for rect, image in zip(self.rects, self.images):
+            rect = rect.move(self.offset)
+            self.screen.blit(image, rect)
+            color = self.color_for_rect(rect)
+            pygame.draw.rect(self.screen, color, rect, 1)
+
+    def draw_handles(self):
+        for rect, handle, name in self.size_handles + self.move_handles:
+            handle = handle.move(self.offset)
+            pygame.draw.rect(self.screen, 'darkred', handle, 1)
 
 
 def main(argv=None):
@@ -187,15 +216,19 @@ def main(argv=None):
     parser.add_argument('rects', type=argparse.FileType('rb'))
     args = parser.parse_args(argv)
 
-    rects = list(map(pygame.Rect, pickle.load(args.rects)))
     window = pygame.Rect((0,0), args.display_size)
     pygame.display.init()
     pygame.font.init()
     engine = pygamelib.Engine()
-    state = Demo()
+    state = RectEditor()
+
+    rects = list(map(pygame.Rect, pickle.load(args.rects)))
     state.rects = rects.copy()
+    state.update_images()
+
     pygame.display.set_mode(window.size)
     engine.run(state)
+
     pygame.quit()
     if rects != state.rects:
         if input(f'save {args.rects.name}? ').lower().startswith('y'):

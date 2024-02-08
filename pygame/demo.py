@@ -97,6 +97,37 @@ class BlitsDemo(pygamelib.DemoBase):
         pygame.display.flip()
 
 
+class BlitBrowser(pygamelib.DemoBase):
+
+    def __init__(self, blitables, offset):
+        self.blitables = blitables
+        self.offset = pygame.Vector2(offset)
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygamelib.post_quit()
+
+    def do_mousemotion(self, event):
+        if event.buttons[0]:
+            self.offset += event.rel
+            self.draw()
+
+    def do_videoexpose(self, event):
+        self.draw()
+
+    def blitables_for_offset(self):
+        for image, rect in self.blitables:
+            yield (image, self.offset + rect.topleft)
+
+    def draw(self):
+        self.screen.fill('black')
+        self.screen.blits(self.blitables_for_offset())
+        pygame.display.flip()
+
+
 class ShapeBrowser(pygamelib.DemoBase):
     # dupe from shapebrowser.py
     # looking to see if something generic can pop out
@@ -479,6 +510,119 @@ class Heart(Demo):
         pygame.display.set_mode(window.size)
         engine = pygamelib.Engine()
         engine.run(state)
+
+
+class LineLineIntersection(
+    Demo,
+    pygamelib.DemoBase,
+    pygamelib.SimpleQuitMixin,
+):
+
+    command_name = 'line_line_intersect'
+
+    @staticmethod
+    def parser_kwargs():
+        return dict(
+            help = 'Demo line-line intersections.',
+        )
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        pass
+
+    def do_videoexpose(self, event):
+        self.draw()
+
+    def do_mousemotion(self, event):
+        self.line2point2 = event.pos
+        self.draw()
+
+    def draw(self):
+        self.screen.fill('black')
+        pygame.draw.line(self.screen, 'red', *self.line1, 1)
+        line2 = (self.line2point1, self.line2point2)
+        pygame.draw.line(self.screen, 'red', *line2, 1)
+
+        point = pygamelib.line_line_intersection(self.line1, line2)
+        if point:
+            pygame.draw.circle(self.screen, 'steelblue', point, 10)
+
+        pygame.display.flip()
+
+    def __call__(self, args):
+        # this is an example of using the demo class itself as the state
+        window = pygame.Rect((0,0), args.display_size)
+
+        self.line1 = (window.topleft, window.bottomright)
+        self.line2point1 = self.line2point2 = window.topright
+
+        engine = pygamelib.Engine()
+        pygame.display.set_mode(window.size)
+        engine.run(self)
+
+
+class DiagonalLineFill(
+    Demo,
+    pygamelib.DemoBase,
+    pygamelib.SimpleQuitMixin,
+):
+
+    command_name = 'diagonal_line_fill'
+
+    @staticmethod
+    def parser_kwargs():
+        return dict(
+            help = 'Fill with diagonal offset lines.',
+        )
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument('--size', type=pygamelib.sizetype())
+        parser.add_argument('--steps', type=pygamelib.sizetype(), default='8')
+        parser.add_argument('--reverse', action='store_true')
+        parser.add_argument('--color1', default='orangered')
+        parser.add_argument('--color2', default='gold')
+
+    def do_mousemotion(self, event):
+        if event.buttons[0]:
+            self.offset += event.rel
+            self.draw_debug()
+
+    def do_videoexpose(self, event):
+        self.draw_debug()
+        # TODO
+        # - normal draw
+
+    def draw_debug(self):
+        self.screen.fill('black')
+        image = pygame.Surface(self.size, pygame.SRCALPHA)
+        rect = image.get_rect(center=self.window.center)
+        lines = (pygamelib.rect_diagonal_lines(rect, self.steps))
+        # TODO
+        # - reverse diagonal
+        for i, line in enumerate(lines):
+            t = i / len(lines)
+            color = pygame.Color(self.color1).lerp(self.color2, t)
+            p1, p2 = map(lambda p: self.offset + p, line)
+            pygame.draw.line(image, color, p1, p2, 1)
+            pygame.draw.line(self.screen, color, p1, p2, 1)
+        pygame.draw.rect(self.screen, 'red', rect.move(self.offset), 1)
+        pygame.display.flip()
+
+    def __call__(self, args):
+        self.offset = pygame.Vector2()
+        self.window = pygame.Rect((0,0), args.display_size)
+        if args.size:
+            self.size = args.size
+        else:
+            self.size = pygamelib.reduce(self.window, 0.20).size
+        self.steps = args.steps
+        self.reverse = args.reverse
+        self.color1 = args.color1
+        self.color2 = args.color2
+        engine = pygamelib.Engine()
+        pygame.display.set_mode(self.window.size)
+        engine.run(self)
 
 
 def circularize(window, args):
