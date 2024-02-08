@@ -125,3 +125,6 @@ if __name__ == '__main__':
 #   https://spritely.institute/news/hoot-wireworld-live-in-browser.html
 #   https://en.wikipedia.org/wiki/Wireworld
 # - Another "I wanna do this with Python," project.
+# 2024-02-08 Thu.
+# - a wireworld editor
+# - there's surely a clever little game in here somewhere
