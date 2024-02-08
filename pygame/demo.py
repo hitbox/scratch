@@ -518,18 +518,21 @@ def filled_shape_meter(window):
     # they fill or drain from the bottom-up
     pass
 
+DEMOS = [
+    Blits,
+    CirclePoints,
+    CircleSegments,
+    DiagonalLineFill,
+    Gradient,
+    Heart,
+    LineLineIntersection,
+    MeterBarCircular,
+    MeterBarHorizontalRect,
+]
+
 def add_subcommands(parser, **kwargs):
     subparsers = parser.add_subparsers(help='Demo to run.')
-    demos = [
-        Blits,
-        CirclePoints,
-        CircleSegments,
-        Gradient,
-        Heart,
-        MeterBarCircular,
-        MeterBarHorizontalRect,
-    ]
-    for demo_class in demos:
+    for demo_class in DEMOS:
         sp = subparsers.add_parser(
             demo_class.command_name,
             **demo_class.parser_kwargs()
@@ -539,8 +542,16 @@ def add_subcommands(parser, **kwargs):
 
 def main(argv=None):
     parser = pygamelib.command_line_parser()
+    parser.add_argument('--list', action='store_true')
     add_subcommands(parser)
     args = parser.parse_args(argv)
+
+    if args.list:
+        # print demo names and exit
+        for demo_class in DEMOS:
+            print(demo_class.command_name)
+        return
+
     func = args.func
     del args.func
     func(args)
