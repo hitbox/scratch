@@ -1,5 +1,6 @@
 import abc
 import argparse
+import inspect
 import itertools as it
 import math
 import random
@@ -8,7 +9,7 @@ import pygamelib
 
 from pygamelib import pygame
 
-class Demo(abc.ABC):
+class DemoCommand(abc.ABC):
 
     @property
     @abc.abstractmethod
@@ -159,7 +160,7 @@ class ShapeBrowser(pygamelib.DemoBase):
         pygame.display.flip()
 
 
-class CirclePoints(Demo):
+class CirclePoints(DemoCommand):
 
     command_name = 'circle_points'
 
@@ -175,7 +176,7 @@ class CirclePoints(Demo):
     def add_parser_arguments(parser):
         pass
 
-    def __call__(self, window):
+    def main(self, window):
         font = pygamelib.monospace_font(20)
 
         origin = pygame.Vector2(window.center)
@@ -210,7 +211,7 @@ class CirclePoints(Demo):
         pygamelib.run(shape_browser)
 
 
-class MeterBarHorizontalRect(Demo):
+class MeterBarHorizontalRect(DemoCommand):
 
     command_name = 'meter_bar_horizontal_rect'
 
@@ -224,7 +225,7 @@ class MeterBarHorizontalRect(Demo):
     def add_parser_arguments(parser):
         pass
 
-    def __call__(self, window):
+    def main(self, window):
         winwidth, winheight = window.size
         meterwidth = winwidth * .50
         meterheight = winheight * .05
@@ -246,7 +247,7 @@ class MeterBarHorizontalRect(Demo):
         pygamelib.run(shape_browser)
 
 
-class MeterBarCircular(Demo):
+class MeterBarCircular(DemoCommand):
 
     command_name = 'meter_bar_circular'
 
@@ -260,7 +261,7 @@ class MeterBarCircular(Demo):
     def add_parser_arguments(parser):
         pass
 
-    def __call__(self, window):
+    def main(self, window):
         meter = pygamelib.Meter(value=3, maxvalue=6)
         style = dict(
             segment_color = 'gold',
@@ -292,7 +293,7 @@ class MeterBarCircular(Demo):
         pygamelib.run(shape_browser)
 
 
-class Gradient(Demo):
+class Gradient(DemoCommand):
 
     command_name = 'gradient'
 
@@ -309,7 +310,7 @@ class Gradient(Demo):
         parser.add_argument('color1')
         parser.add_argument('color2')
 
-    def __call__(self, window):
+    def main(self, window):
         shape = [
             pygamelib.Rectangle(
                 (
@@ -335,7 +336,7 @@ class Gradient(Demo):
         pygame.display.set_mode(window.size)
         pygamelib.run(shape_browser)
 
-class CircleSegments(Demo):
+class CircleSegments(DemoCommand):
 
     command_name = 'circle_segments'
 
@@ -368,7 +369,7 @@ class CircleSegments(Demo):
             help = 'Animate variables over time.',
         )
 
-    def __call__(self, args):
+    def main(self, args):
         window = pygame.Rect((0,0), args.display_size)
         try:
             center = pygamelib.sizetype()(args.center)
@@ -434,7 +435,7 @@ class CircleSegments(Demo):
             pygame.display.flip()
 
 
-class Blits(Demo):
+class Blits(DemoCommand):
 
     command_name = 'blits'
 
@@ -451,7 +452,7 @@ class Blits(Demo):
             type = pygamelib.sizetype(),
         )
 
-    def __call__(self, args):
+    def main(self, args):
         window = pygame.Rect((0,0), args.display_size)
         font = pygamelib.monospace_font(30)
         state = BlitsDemo(window.size, args.tile_size, font)
@@ -460,7 +461,7 @@ class Blits(Demo):
         engine.run(state)
 
 
-class Heart(Demo):
+class Heart(DemoCommand):
 
     command_name = 'heart'
 
@@ -484,7 +485,7 @@ class Heart(Demo):
             help = 'fraction/1000 size of window of heart.',
         )
 
-    def __call__(self, args):
+    def main(self, args):
         window = pygame.Rect((0,0), args.display_size)
         pygame.display.init()
         pygame.font.init()
@@ -513,7 +514,7 @@ class Heart(Demo):
 
 
 class LineLineIntersection(
-    Demo,
+    DemoCommand,
     pygamelib.DemoBase,
     pygamelib.SimpleQuitMixin,
 ):
@@ -549,7 +550,7 @@ class LineLineIntersection(
 
         pygame.display.flip()
 
-    def __call__(self, args):
+    def main(self, args):
         # this is an example of using the demo class itself as the state
         window = pygame.Rect((0,0), args.display_size)
 
@@ -562,7 +563,7 @@ class LineLineIntersection(
 
 
 class DiagonalLineFill(
-    Demo,
+    DemoCommand,
     pygamelib.DemoBase,
     pygamelib.SimpleQuitMixin,
 ):
@@ -580,6 +581,7 @@ class DiagonalLineFill(
         parser.add_argument('--size', type=pygamelib.sizetype())
         parser.add_argument('--steps', type=pygamelib.sizetype(), default='8')
         parser.add_argument('--reverse', action='store_true')
+        parser.add_argument('--overdraw', action='store_true')
         parser.add_argument('--color1', default='orangered')
         parser.add_argument('--color2', default='gold')
 
@@ -588,18 +590,45 @@ class DiagonalLineFill(
             self.offset += event.rel
             self.draw_debug()
 
+    def do_keydown(self, event):
+        super().do_keydown(event)
+        if event.key == pygame.K_r:
+            self.reverse = not self.reverse
+            self.draw_debug()
+        elif event.key == pygame.K_o:
+            self.overdraw = not self.overdraw
+            self.draw_debug()
+        elif event.key == pygame.K_RIGHT:
+            self.stepx += 1
+            self.draw_debug()
+        elif event.key == pygame.K_LEFT:
+            if self.stepx > 2:
+                self.stepx -= 1
+                self.draw_debug()
+        elif event.key == pygame.K_UP:
+            self.stepy += 1
+            self.draw_debug()
+        elif event.key == pygame.K_DOWN:
+            if self.stepy > 2:
+                self.stepy -= 1
+                self.draw_debug()
+
     def do_videoexpose(self, event):
         self.draw_debug()
         # TODO
         # - normal draw
 
     def draw_debug(self):
+        # debugging draw to show overdraw
         self.screen.fill('black')
         image = pygame.Surface(self.size, pygame.SRCALPHA)
         rect = image.get_rect(center=self.window.center)
-        lines = (pygamelib.rect_diagonal_lines(rect, self.steps))
-        # TODO
-        # - reverse diagonal
+        lines = list(pygamelib.rect_diagonal_lines(
+            rect,
+            (self.stepx, self.stepy),
+            self.reverse,
+            clip = not self.overdraw,
+        ))
         for i, line in enumerate(lines):
             t = i / len(lines)
             color = pygame.Color(self.color1).lerp(self.color2, t)
@@ -607,21 +636,131 @@ class DiagonalLineFill(
             pygame.draw.line(image, color, p1, p2, 1)
             pygame.draw.line(self.screen, color, p1, p2, 1)
         pygame.draw.rect(self.screen, 'red', rect.move(self.offset), 1)
+        squared_rect = pygamelib.make_rect(
+            rect,
+            size = (sum(self.size),)*2,
+        )
+        pygame.draw.rect(self.screen, 'blue', squared_rect.move(self.offset), 1)
+
+        line = map(lambda p: self.offset + p, (squared_rect.topleft, squared_rect.bottomright))
+        pygame.draw.line(self.screen, 'blue', *line, 1)
+
+        line = map(lambda p: self.offset + p, (squared_rect.topright, squared_rect.bottomleft))
+        pygame.draw.line(self.screen, 'blue', *line, 1)
+
+        # NOTES
+        # - when the step slope is 0.5 it works
+        # - stopping work on this to do a line gradient thing
+
+        lines = [
+            f'{self.stepx=}',
+            f'{self.stepy=}',
+            f'slope={self.stepy/self.stepx:=0.2f}',
+            f'{self.reverse=}',
+            f'{self.overdraw=}',
+            f'{self.size=}',
+        ]
+        images, rects = pygamelib.make_blitables_from_font(lines, self.font, 'ghostwhite')
+        for image, rect in zip(images, rects):
+            self.screen.blit(image, rect)
         pygame.display.flip()
 
-    def __call__(self, args):
+    def main(self, args):
+        # XXX: running ourself as the demo is probably too much
         self.offset = pygame.Vector2()
         self.window = pygame.Rect((0,0), args.display_size)
         if args.size:
             self.size = args.size
         else:
             self.size = pygamelib.reduce(self.window, 0.20).size
-        self.steps = args.steps
+        self.stepx, self.stepy = args.steps
         self.reverse = args.reverse
+        self.overdraw = args.overdraw
         self.color1 = args.color1
         self.color2 = args.color2
         engine = pygamelib.Engine()
         pygame.display.set_mode(self.window.size)
+        self.font = pygamelib.monospace_font(20)
+        engine.run(self)
+
+
+class LineGradient(
+    DemoCommand,
+    pygamelib.DemoBase,
+):
+
+    command_name = 'line_gradient'
+
+    @staticmethod
+    def parser_kwargs():
+        help_ =  'Produce a gradient along a line.'
+        return dict(
+            description = help_,
+            help = help_,
+        )
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument('n', type=int)
+        parser.add_argument('length', type=int)
+        parser.add_argument('--color1', default='orangered')
+        parser.add_argument('--color2', default='gold')
+
+    def update(self):
+        super().update()
+        self.draw()
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygamelib.post_quit()
+        elif event.key == pygame.K_n:
+            d = 1
+            if event.mod & pygame.KMOD_SHIFT:
+                d = -d
+            self.n += d
+        elif event.key == pygame.K_l:
+            d = 10
+            if event.mod & pygame.KMOD_SHIFT:
+                d = -d
+            self.length += d
+
+    def do_videoexpose(self, event):
+        self.draw()
+
+    def draw(self):
+        self.screen.fill('black')
+        pygame.draw.line(self.screen, 'red', *self.line, 1)
+
+        lines = pygamelib.perpendicular_line_segments(self.line, self.n, self.length)
+        for i, points in enumerate(pygamelib.line_segments_polygons(lines)):
+            t = i / self.n
+            color = pygame.Color(self.color1).lerp(self.color2, t)
+            pygame.draw.polygon(self.screen, color, points)
+
+        lines = [
+            f'{self.n=}',
+            f'{self.length=}',
+        ]
+        images, rects = pygamelib.make_blitables_from_font(lines, self.font, 'ghostwhite')
+        for image, rect in zip(images, rects):
+            self.screen.blit(image, rect)
+        pygame.display.flip()
+
+    def main(self, args):
+        self.n = args.n
+        self.length = args.length
+        self.color1 = args.color1
+        self.color2 = args.color2
+
+        self.window = pygame.Rect((0,0), args.display_size)
+        rect = pygamelib.reduce(self.window, (-0.20, -0.50))
+        self.line = pygamelib.Line(rect.topleft, rect.bottomright)
+        engine = pygamelib.Engine()
+        pygame.display.set_mode(self.window.size)
+        self.font = pygamelib.monospace_font(20)
         engine.run(self)
 
 
@@ -662,27 +801,25 @@ def filled_shape_meter(window):
     # they fill or drain from the bottom-up
     pass
 
-DEMOS = [
-    Blits,
-    CirclePoints,
-    CircleSegments,
-    DiagonalLineFill,
-    Gradient,
-    Heart,
-    LineLineIntersection,
-    MeterBarCircular,
-    MeterBarHorizontalRect,
-]
+def is_demo_command(obj):
+    return (
+        inspect.isclass(obj)
+        and issubclass(obj, DemoCommand)
+        and obj is not DemoCommand
+    )
+
+def iterdemos(objects):
+    return filter(is_demo_command, objects)
 
 def add_subcommands(parser, **kwargs):
     subparsers = parser.add_subparsers(help='Demo to run.')
-    for demo_class in DEMOS:
+    for demo_class in iterdemos(globals().values()):
         sp = subparsers.add_parser(
             demo_class.command_name,
             **demo_class.parser_kwargs()
         )
         demo_class.add_parser_arguments(sp)
-        sp.set_defaults(func=demo_class())
+        sp.set_defaults(demo_class=demo_class)
 
 def main(argv=None):
     parser = pygamelib.command_line_parser()
@@ -692,13 +829,14 @@ def main(argv=None):
 
     if args.list:
         # print demo names and exit
-        for demo_class in DEMOS:
+        for demo_class in iterdemos(globals().values()):
             print(demo_class.command_name)
         return
 
-    func = args.func
-    del args.func
-    func(args)
+    demo_class = args.demo_class
+    del args.demo_class
+    instance = demo_class()
+    instance.main(args)
 
 if __name__ == '__main__':
     main()

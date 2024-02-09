@@ -648,6 +648,13 @@ class Line(
         end = (x2*scale, y2*scale)
         return self.__class__(start, end)
 
+    def lerp(self, time):
+        (x1, y1), (x2, y2) = self
+        return (mix(time, x1, x2), mix(time, y1, y2))
+
+    def slope(self):
+        return line_slope(self)
+
     def draw_args(self, color, width, offset):
         ox, oy = offset
         (x1, y1), (x2, y2) = self
@@ -1193,11 +1200,11 @@ def clamp(x, a, b):
         return b
     return x
 
-def mix(x, a, b):
+def mix(time, a, b):
     """
-    Return the percent of x between a and b.
+    Return the value between a and b at time.
     """
-    return a * (1 - x) + b * x
+    return a * (1 - time) + b * time
 
 def remap(x, a, b, c, d):
     """
@@ -1923,10 +1930,8 @@ def squircle_shapes(color, center, radius, width, corners):
             yield ('line', color, *line, width)
 
 def line_rect_intersections(line, rect):
-    (x3, y3), (x4, y4) = line
     for rectline in side_lines(rect):
-        (x1, y1), (x2, y2) = rectline
-        intersection = line_line_intersection(x1, y1, x2, y2, x3, y3, x4, y4)
+        intersection = line_line_intersection(line, rectline)
         if intersection:
             yield intersection
 
@@ -2246,9 +2251,41 @@ def line_points(p1, p2):
     # ex: topleft -> topright -> bottomright as a list of points
 
 def reduce(rect, f):
-    x, y, width, height = rect
-    args = map(lambda d: -d*f, (width, height))
+    _, _, width, height = rect
+    if isinstance(f, (float, int)):
+        f = (f, ) * 2
+    args = map(lambda a, b: a * b, (width, height), f)
     return rect.inflate(*args)
+
+def line_slope(line):
+    (x1, y1), (x2, y2) = line
+    return (y2 - y1) / (x2 - x1)
+
+def perpendicular_line_segments(line, n, length):
+    (x1, y1), (x2, y2) = line
+    slope = line_slope(line)
+    perpendicular_slope = -1 / slope
+    for time in map(lambda i: i / n, range(n+1)):
+        px = mix(time, x1, x2)
+        py = mix(time, y1, y2)
+        delta_x = length  / (1 + perpendicular_slope ** 2) ** 0.5
+        delta_y = perpendicular_slope * delta_x
+        x3 = px + delta_x
+        y3 = py + delta_y
+        x4 = px - delta_x
+        y4 = py - delta_y
+        yield ((x3, y3), (x4, y4))
+
+def line_segments_polygons(lines):
+    for line1, line2 in it.pairwise(lines):
+        line1p1, line1p2 = line1
+        line2p1, line2p2 = line2
+        yield [
+            line1p1,
+            line2p1,
+            line2p2,
+            line1p2,
+        ]
 
 def circle_point(angle, radius):
     """
@@ -2278,32 +2315,36 @@ def circle_slope_tangent(center, point):
     slope = derivative_x / derivative_y
     return slope
 
-def rect_diagonal_lines(rect, steps):
+def rect_diagonal_lines(rect, steps, reverse=False, clip=False):
     """
     Generate the lines for drawing that caution zone looking diagonal lines
     from a rect.
     """
-    # NOTES
-    # - this is the closest to no overdraw so far
-    # - there is a tiny bit on the right and bottom
-    # - what if we put this back to origin and then moved the points?
     left, top, width, height = rect
+    _, rightline, bottomline, leftline = side_lines(rect)
     stepx, stepy = steps
+    assert stepx > 1 and stepy > 1
     right = left + width
     bottom = top + height
-    stopx = right + height
-    stopy = bottom + width
-    topline, rightline, bottomline, leftline = side_lines(rect)
-    xs = range(left, stopx, stepx)
-    ys = range(top, stopy, stepy)
-    for x1, y2 in zip(xs, ys):
-        x2 = left
-        y1 = top
+    if reverse:
+        x1s = range(right, left - height, -stepx)
+        x2s = it.repeat(right)
+    else:
+        x1s = range(left, right + width, stepx)
+        x2s = it.repeat(left)
+    y1s = it.repeat(top)
+    y2s = it.count(top, stepy)
+    for x1, y1, x2, y2 in zip(x1s, y1s, x2s, y2s):
         line = ((x1, y1), (x2, y2))
-        if x1 > right:
-            x1, y1 = line_line_intersection(line, rightline)
-        if y2 > bottom:
-            x2, y2 = line_line_intersection(line, bottomline)
+        if clip:
+            if reverse:
+                if x1 < left:
+                    x1, y1 = line_line_intersection(line, leftline)
+            else:
+                if x1 > right:
+                    x1, y1 = line_line_intersection(line, rightline)
+            if y2 > bottom:
+                x2, y2 = line_line_intersection(line, bottomline)
         yield ((x1, y1), (x2, y2))
 
 def swaplinex(line):
