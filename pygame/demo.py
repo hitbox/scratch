@@ -336,6 +336,82 @@ class Gradient(DemoCommand):
         pygame.display.set_mode(window.size)
         pygamelib.run(shape_browser)
 
+
+class VariableManager:
+
+    def __init__(self, variables, deltas=None):
+        self.variables = variables
+        if deltas is None:
+            deltas = {}
+        self.deltas = deltas
+
+    def __getitem__(self, name):
+        return self.variables[name]
+
+    def __iter__(self):
+        return iter(self.variables)
+
+    def increase(self, name):
+        delta = self.deltas.get(name, 1)
+        self.variables[name] += delta
+
+    def decrease(self, name):
+        delta = self.deltas.get(name, 1)
+        self.variables[name] -= delta
+
+
+class KeydownVariables:
+
+    def __init__(self, variables):
+        self.variables = variables
+
+    def find_match_for_letter(self, letter):
+        # either the exact letter or only one match for startswith
+        match = None
+        varkeys = [varkey for varkey in self.variables if varkey.startswith(letter)]
+        if letter in self.variables:
+            return letter
+        elif len(varkeys) == 1:
+            return varkeys[0]
+
+    def handle_keydown(self, event):
+        match = self.find_match_for_letter(event.unicode.lower())
+        if match:
+            if event.mod & pygame.KMOD_SHIFT:
+                self.variables.decrease(match)
+            else:
+                self.variables.increase(match)
+            return True
+
+
+class GradientLineRenderer:
+
+    def __init__(self, n, length):
+        """
+        :param n: number of segments along line.
+        :param length: length of each side of perpendicular lines.
+        """
+        self.n = n
+        self.length = length
+
+    @classmethod
+    def from_dict(cls, **kwargs):
+        return cls(n=kwargs['n'], length=kwargs['length'])
+
+    def update_from_dict(self, **kwargs):
+        self.n = kwargs['n']
+        self.length = kwargs['length']
+
+    def draw(self, surface, line, color1, color2, border_color=None, border_width=None):
+        lines = pygamelib.perpendicular_line_segments(line, self.n, self.length)
+        for i, points in enumerate(pygamelib.line_segments_polygons(lines)):
+            time = i / (self.n - 1)
+            color = pygame.Color(color1).lerp(color2, time)
+            pygame.draw.polygon(surface, color, points)
+            if border_color:
+                pygame.draw.polygon(surface, border_color, points, border_width)
+
+
 class CircleSegments(DemoCommand):
 
     command_name = 'circle_segments'
@@ -705,10 +781,29 @@ class LineGradient(
         parser.add_argument('length', type=int)
         parser.add_argument('--color1', default='orangered')
         parser.add_argument('--color2', default='gold')
+        parser.add_argument('--border-color')
+        parser.add_argument('--border-width', type=int, default=1)
 
-    def update(self):
-        super().update()
-        self.draw()
+    def main(self, args):
+        gradient_line_dict = {
+            key: val for key, val in vars(args).items()
+            if key in ('length', 'n')
+        }
+        self.variables = VariableManager(gradient_line_dict)
+        self.keydown_variables = KeydownVariables(self.variables)
+        self.gradient_line_renderer = GradientLineRenderer.from_dict(**gradient_line_dict)
+        self.color1 = args.color1
+        self.color2 = args.color2
+        self.border_color = args.border_color
+        self.border_width = args.border_width
+
+        self.window = pygame.Rect((0,0), args.display_size)
+        rect = pygamelib.reduce(self.window, (-0.20, -0.50))
+        self.line = pygamelib.Line(rect.topleft, rect.bottomright)
+        engine = pygamelib.Engine()
+        pygame.display.set_mode(self.window.size)
+        self.font = pygamelib.monospace_font(25)
+        engine.run(self)
 
     def do_quit(self, event):
         self.engine.stop()
@@ -716,18 +811,10 @@ class LineGradient(
     def do_keydown(self, event):
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
             pygamelib.post_quit()
-        elif event.key == pygame.K_n:
-            d = 1
-            if event.mod & pygame.KMOD_SHIFT:
-                d = -d
-            if self.n + d > 1:
-                self.n += d
-        elif event.key == pygame.K_l:
-            d = 10
-            if event.mod & pygame.KMOD_SHIFT:
-                d = -d
-            if self.length + d > 0:
-                self.length += d
+        else:
+            handled = self.keydown_variables.handle_keydown(event)
+            if handled:
+                self.draw()
 
     def do_videoexpose(self, event):
         self.draw()
@@ -735,35 +822,25 @@ class LineGradient(
     def draw(self):
         self.screen.fill('black')
         pygame.draw.line(self.screen, 'red', *self.line, 1)
-
-        lines = pygamelib.perpendicular_line_segments(self.line, self.n, self.length)
-        for i, points in enumerate(pygamelib.line_segments_polygons(lines)):
-            time = i / (self.n - 1)
-            color = pygame.Color(self.color1).lerp(self.color2, time)
-            pygame.draw.polygon(self.screen, color, points)
-
+        self.gradient_line_renderer.update_from_dict(**self.variables.variables)
+        self.gradient_line_renderer.draw(
+            self.screen,
+            self.line,
+            self.color1,
+            self.color2,
+            self.border_color,
+            self.border_width,
+        )
+        n = self.variables['n']
+        length = self.variables['length']
         lines = [
-            f'{self.n=}',
-            f'{self.length=}',
+            f'{n=}',
+            f'{length=}',
         ]
         images, rects = pygamelib.make_blitables_from_font(lines, self.font, 'ghostwhite')
         for image, rect in zip(images, rects):
             self.screen.blit(image, rect)
         pygame.display.flip()
-
-    def main(self, args):
-        self.n = args.n
-        self.length = args.length
-        self.color1 = args.color1
-        self.color2 = args.color2
-
-        self.window = pygame.Rect((0,0), args.display_size)
-        rect = pygamelib.reduce(self.window, (-0.20, -0.50))
-        self.line = pygamelib.Line(rect.topleft, rect.bottomright)
-        engine = pygamelib.Engine()
-        pygame.display.set_mode(self.window.size)
-        self.font = pygamelib.monospace_font(20)
-        engine.run(self)
 
 
 def circularize(window, args):
