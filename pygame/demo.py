@@ -720,12 +720,14 @@ class LineGradient(
             d = 1
             if event.mod & pygame.KMOD_SHIFT:
                 d = -d
-            self.n += d
+            if self.n + d > 1:
+                self.n += d
         elif event.key == pygame.K_l:
             d = 10
             if event.mod & pygame.KMOD_SHIFT:
                 d = -d
-            self.length += d
+            if self.length + d > 0:
+                self.length += d
 
     def do_videoexpose(self, event):
         self.draw()
@@ -736,8 +738,8 @@ class LineGradient(
 
         lines = pygamelib.perpendicular_line_segments(self.line, self.n, self.length)
         for i, points in enumerate(pygamelib.line_segments_polygons(lines)):
-            t = i / self.n
-            color = pygame.Color(self.color1).lerp(self.color2, t)
+            time = i / (self.n - 1)
+            color = pygame.Color(self.color1).lerp(self.color2, time)
             pygame.draw.polygon(self.screen, color, points)
 
         lines = [
