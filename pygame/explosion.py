@@ -20,15 +20,10 @@ class AnimationGenerator:
                 circle,
                 'radius',
                 0, random.randint(radius_a, radius_b),
-                random.randint(0, 200), random.randint(300, 500)
+                random.randint(0, 200), random.randint(200, 1500)
             )
 
-        animations = [
-            random_animate(circles[0]),
-            random_animate(circles[1]),
-            random_animate(circles[2]),
-            random_animate(circles[3]),
-        ]
+        animations = [random_animate(circle) for circle in circles]
         return animations
 
 
@@ -83,9 +78,9 @@ class Circle:
 
 class Demo(pygamelib.DemoBase):
 
-    def __init__(self, circles, style, animations):
+    def __init__(self, circles, styles, animations):
         self.circles = circles
-        self.style = style
+        self.styles = styles
         self.animations = animations
         self.time = 0
 
@@ -107,11 +102,11 @@ class Demo(pygamelib.DemoBase):
 
     def draw(self):
         self.screen.fill('black')
-        for circle in self.circles:
+        for circle, style in zip(self.circles, self.styles):
             image = pygamelib.circle_surface(
                 circle.radius,
-                self.style.color,
-                circle_width = self.style.fill_or_border,
+                style.color,
+                circle_width = style.fill_or_border,
             )
             self.screen.blit(image, image.get_rect(center=circle.center))
         pygame.display.flip()
@@ -119,22 +114,26 @@ class Demo(pygamelib.DemoBase):
 
 def run(display_size):
     window = pygame.Rect((0,)*2, display_size)
+    spawn = pygamelib.make_rect(window, size=(100,100), center=window.center)
 
-    winquads = list(map(pygame.Rect, pygamelib.rectquadrants(window)))
-
-    circles = [
-        Circle(winquads[0].center, 0),
-        Circle(winquads[1].center, 0),
-        Circle(winquads[2].center, 0),
-        Circle(winquads[3].center, 0),
+    # TODO
+    # - animate color to transparent
+    n = 100
+    circles = [Circle(pygamelib.random_point(spawn), 0) for _ in range(n)]
+    alpha = 50
+    styles = [
+        Style(
+            pygamelib.get_color(
+                random.choice(list(pygamelib.UNIQUE_THECOLORS)),
+                a = alpha,
+            ),
+            fill_or_border = 0
+        )
+        for _ in circles
     ]
-
     animation_generator = AnimationGenerator(window)
-
     animation_manager = AnimationManager(animation_generator(circles))
-    style = Style('red', fill_or_border=0)
-
-    state = Demo(circles, style, animation_manager)
+    state = Demo(circles, styles, animation_manager)
 
     pygame.display.set_mode(display_size)
     engine = pygamelib.Engine()
