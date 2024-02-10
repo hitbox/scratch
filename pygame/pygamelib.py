@@ -1,3 +1,4 @@
+import abc
 import argparse
 import contextlib
 import enum
@@ -248,6 +249,23 @@ class TestInputLine(unittest.TestCase):
         self.input_line.addchar('b')
         self.input_line.backspace()
         self.assertEqual(self.input_line.line, 'a')
+
+
+class DemoCommand(abc.ABC):
+
+    @property
+    @abc.abstractmethod
+    def command_name(self):
+        ...
+
+    @staticmethod
+    @abc.abstractmethod
+    def parser_kwargs():
+        ...
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        ...
 
 
 class sizetype:
@@ -632,7 +650,7 @@ class Circle(
     def draw_args(self, color, width, offset):
         ox, oy = offset
         (x, y), radius = self
-        center = (x-ox, y-oy)
+        center = (x+ox, y+oy)
         return (color, center, radius, width)
 
 
@@ -1694,8 +1712,11 @@ def render_text(
     return result_image
 
 def circle_rect(center, radius):
+    """
+    Wrap a circle in a rect
+    """
     x, y = center
-    return (x, y, radius*2, radius*2)
+    return (x-radius, y-radius, radius*2, radius*2)
 
 def circle_surface(
     radius,

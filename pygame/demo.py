@@ -9,23 +9,6 @@ import pygamelib
 
 from pygamelib import pygame
 
-class DemoCommand(abc.ABC):
-
-    @property
-    @abc.abstractmethod
-    def command_name(self):
-        ...
-
-    @staticmethod
-    @abc.abstractmethod
-    def parser_kwargs():
-        ...
-
-    @staticmethod
-    def add_parser_arguments(parser):
-        ...
-
-
 class Stat:
 
     def __init__(self):
@@ -165,7 +148,7 @@ class ShapeBrowser(pygamelib.DemoBase):
         pygame.display.flip()
 
 
-class CirclePoints(DemoCommand):
+class CirclePoints(pygamelib.DemoCommand):
 
     command_name = 'circle_points'
 
@@ -179,24 +162,21 @@ class CirclePoints(DemoCommand):
 
     @staticmethod
     def add_parser_arguments(parser):
-        pass
+        parser.add_argument('angles', type=pygamelib.sizetype())
+        parser.add_argument('step', type=int)
+        parser.add_argument('center_radius', type=int)
+        parser.add_argument('radius', type=int)
 
-    def main(self, window):
+    def main(self, args):
+        window = pygame.Rect((0,0), args.display_size)
         font = pygamelib.monospace_font(20)
-
         origin = pygame.Vector2(window.center)
-        angles = []
-        def _centers():
-            # centers of circles going around the center of the window
-            radius = min(window.size) // 8
-            # TODO fix for circle_point
-            for angle in map(math.radians, range(0, 360, 30)):
-                center = pygamelib.circle_point(window.center, radius, angle)
-                yield center
-                angles.append(angle)
-
-        radius = min(window.size) // 64
-        circles = [pygamelib.Circle(center, radius)  for center in _centers()]
+        angles = list(range(*args.angles, args.step))
+        centers = list(
+            pygamelib.circle_point(angle, args.center_radius)
+            for angle in map(math.radians, angles)
+        )
+        circles = [pygamelib.Circle(center, args.radius) for center in centers]
         label_texts = [f'{index=}' for index, circle in enumerate(circles)]
 
         def _texts():
@@ -204,19 +184,20 @@ class CirclePoints(DemoCommand):
             for circle, label, angle in zip(circles, label_texts, angles):
                 rect = pygamelib.circle_rect(circle.center, circle.radius)
                 rect = pygame.Rect(rect)
-                # TODO fix for circle_point
-                rect.center = pygamelib.circle_point(origin, radius, angle)
+                rect.center = circle.center
                 text = pygamelib.Text(font, label, rect)
                 yield text
 
         labels = list(_texts())
 
-        shape_browser = ShapeBrowser(circles + labels)
+        shapes = circles + labels
+        styles = [dict(color='red', width=1) for _ in shapes]
+        shape_browser = ShapeBrowser(shapes, styles)
         pygame.display.set_mode(window.size)
         pygamelib.run(shape_browser)
 
 
-class MeterBarHorizontalRect(DemoCommand):
+class MeterBarHorizontalRect(pygamelib.DemoCommand):
 
     command_name = 'meter_bar_horizontal_rect'
 
@@ -252,7 +233,7 @@ class MeterBarHorizontalRect(DemoCommand):
         pygamelib.run(shape_browser)
 
 
-class MeterBarCircular(DemoCommand):
+class MeterBarCircular(pygamelib.DemoCommand):
 
     command_name = 'meter_bar_circular'
 
@@ -298,7 +279,7 @@ class MeterBarCircular(DemoCommand):
         pygamelib.run(shape_browser)
 
 
-class Gradient(DemoCommand):
+class Gradient(pygamelib.DemoCommand):
 
     command_name = 'gradient'
 
@@ -417,7 +398,7 @@ class GradientLineRenderer:
                 pygame.draw.polygon(surface, border_color, points, border_width)
 
 
-class CircleSegments(DemoCommand):
+class CircleSegments(pygamelib.DemoCommand):
 
     command_name = 'circle_segments'
 
@@ -522,7 +503,7 @@ class CircleSegments(DemoCommand):
             pygame.display.flip()
 
 
-class Blits(DemoCommand):
+class Blits(pygamelib.DemoCommand):
 
     command_name = 'blits'
 
@@ -548,7 +529,7 @@ class Blits(DemoCommand):
         engine.run(state)
 
 
-class Heart(DemoCommand):
+class Heart(pygamelib.DemoCommand):
 
     command_name = 'heart'
 
@@ -601,7 +582,7 @@ class Heart(DemoCommand):
 
 
 class LineLineIntersection(
-    DemoCommand,
+    pygamelib.DemoCommand,
     pygamelib.DemoBase,
     pygamelib.SimpleQuitMixin,
 ):
@@ -650,7 +631,7 @@ class LineLineIntersection(
 
 
 class DiagonalLineFill(
-    DemoCommand,
+    pygamelib.DemoCommand,
     pygamelib.DemoBase,
     pygamelib.SimpleQuitMixin,
 ):
@@ -772,7 +753,7 @@ class DiagonalLineFill(
 
 
 class LineGradient(
-    DemoCommand,
+    pygamelib.DemoCommand,
     pygamelib.DemoBase,
 ):
 
@@ -855,7 +836,7 @@ class LineGradient(
 
 
 class DrawRing(
-    DemoCommand,
+    pygamelib.DemoCommand,
 ):
 
     command_name = 'ring'
@@ -917,7 +898,7 @@ class DrawRing(
         engine.run(state)
 
 
-class Bezier(DemoCommand):
+class Bezier(pygamelib.DemoCommand):
 
     command_name = 'bezier'
 
@@ -1006,8 +987,8 @@ def filled_shape_meter(window):
 def is_demo_command(obj):
     return (
         inspect.isclass(obj)
-        and issubclass(obj, DemoCommand)
-        and obj is not DemoCommand
+        and issubclass(obj, pygamelib.DemoCommand)
+        and obj is not pygamelib.DemoCommand
     )
 
 def iterdemos(objects):
