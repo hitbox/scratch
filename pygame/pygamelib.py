@@ -251,23 +251,6 @@ class TestInputLine(unittest.TestCase):
         self.assertEqual(self.input_line.line, 'a')
 
 
-class DemoCommand(abc.ABC):
-
-    @property
-    @abc.abstractmethod
-    def command_name(self):
-        ...
-
-    @staticmethod
-    @abc.abstractmethod
-    def parser_kwargs():
-        ...
-
-    @staticmethod
-    def add_parser_arguments(parser):
-        ...
-
-
 class sizetype:
 
     def __init__(self, n=2):
@@ -309,6 +292,23 @@ class Engine:
         self.running = False
 
 
+class DemoCommand(abc.ABC):
+
+    @property
+    @abc.abstractmethod
+    def command_name(self):
+        ...
+
+    @staticmethod
+    @abc.abstractmethod
+    def parser_kwargs():
+        ...
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        ...
+
+
 class DemoBase:
 
     def start(self, engine):
@@ -331,6 +331,40 @@ class DemoBase:
                 if handler:
                     handler(event)
                     break
+
+
+class ShapeBrowser(DemoBase):
+
+    def __init__(self, drawables, styles, offset=None):
+        self.drawables = drawables
+        self.styles = styles
+        assert len(self.drawables) == len(self.styles)
+        if offset is None:
+            offset = (0,0)
+        self.offset = pygame.Vector2(offset)
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            post_quit()
+
+    def do_mousemotion(self, event):
+        if event.buttons[0]:
+            self.offset += event.rel
+            self.draw()
+
+    def do_videoexpose(self, event):
+        self.draw()
+
+    def draw(self):
+        self.screen.fill('black')
+        for drawable, style in zip(self.drawables, self.styles):
+            color = style['color']
+            width = style['width']
+            drawable.draw(self.screen, color, width, self.offset)
+        pygame.display.flip()
 
 
 class SimpleQuitMixin:
@@ -940,41 +974,42 @@ class SimpleMeterRender:
             style = dict()
         self.style = style
 
-    def draw(self, surf, offset):
-        if 'border_color' in self.style:
-            border_color = self.style['border_color']
-            border_width = self.style.get('border_width', 1)
-            pygame.draw.rect(surf, border_color, self.rect, border_width)
+    def draw(self, surf, color, width, offset):
+        # TODO:better-draw-signature
+        # - work out a better function signature
+        # - probably just make the rects for this meter and somehow associate a
+        #   style with each rect
+        # - need to style based if the meter segment is filled
+        if 'color' not in self.style:
+            return
+        color_on = self.style['color']
+        color_off = self.style.get('segment_color_off', 'grey')
 
-        if 'segment_color' in self.style:
-            color_on = self.style['segment_color']
-            color_off = self.style.get('segment_color_off', 'grey')
+        margin = self.style.get('segment_margin', 0)
+        margin_top, margin_right, margin_bottom, margin_left = expand_shorthand(margin)
 
-            margin = self.style.get('segment_margin', 0)
-            margin_top, margin_right, margin_bottom, margin_left = expand_shorthand(margin)
+        # line width or fill
+        width = self.style.get('segment_width', 0)
+        border = self.style.get('segment_border', 0)
+        nticks = self.meter.nticks
 
-            # line width or fill
-            width = self.style.get('segment_width', 0)
-            border = self.style.get('segment_border', 0)
-            nticks = self.meter.nticks
-
-            tick_width = (
+        tick_width = (
                 self.rect.width - (nticks - 1) * (margin_left + margin_right)
             ) // nticks
 
-            items = enumerate(range(self.meter.minvalue, self.meter.maxvalue))
-            for i, slotval in items:
-                rect = (
-                    self.rect.x + i * (tick_width + margin_left),
-                    self.rect.y + margin_top,
-                    tick_width,
-                    self.rect.height - margin_bottom * 2
-                )
-                if slotval < self.meter.value:
-                    color = color_on
-                else:
-                    color = color_off
-                pygame.draw.rect(surf, color, rect, width)
+        items = enumerate(range(self.meter.minvalue, self.meter.maxvalue))
+        for i, slotval in items:
+            rect = (
+                self.rect.x + i * (tick_width + margin_left),
+                self.rect.y + margin_top,
+                tick_width,
+                self.rect.height - margin_bottom * 2
+            )
+            if slotval < self.meter.value:
+                color = color_on
+            else:
+                color = color_off
+            pygame.draw.rect(surf, color, rect, width)
 
 
 class CircularMeterRenderer:
@@ -1001,7 +1036,8 @@ class CircularMeterRenderer:
             style = dict()
         self.style = style
 
-    def draw(self, surf, offset):
+    def draw(self, surf, color, width, offset):
+        # TODO:better-draw-signature
         if 'segment_color' not in self.style:
             return
 
@@ -1018,8 +1054,10 @@ class CircularMeterRenderer:
         angle = self.start_angle
         for slotval, slotfilled in self.meter.slots():
             points = circle_segment_points(
-                math.radians(angle),
-                math.radians(self.segment_offset),
+                (
+                    math.radians(angle - self.segment_offset),
+                    math.radians(angle + self.segment_offset),
+                ),
                 radii,
                 closed = True,
             )

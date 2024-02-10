@@ -22,6 +22,81 @@ class Stat:
             self.maxval = value
 
 
+class KeydownVariables:
+
+    def __init__(self, variables):
+        self.variables = variables
+
+    def find_match_for_letter(self, letter):
+        # either the exact letter or only one match for startswith
+        match = None
+        varkeys = [varkey for varkey in self.variables if varkey.startswith(letter)]
+        if letter in self.variables:
+            return letter
+        elif len(varkeys) == 1:
+            return varkeys[0]
+
+    def handle_keydown(self, event):
+        match = self.find_match_for_letter(event.unicode.lower())
+        if match:
+            if event.mod & pygame.KMOD_SHIFT:
+                self.variables.decrease(match)
+            else:
+                self.variables.increase(match)
+            return True
+
+
+class VariableManager:
+
+    def __init__(self, variables, deltas=None):
+        self.variables = variables
+        if deltas is None:
+            deltas = {}
+        self.deltas = deltas
+
+    def __getitem__(self, name):
+        return self.variables[name]
+
+    def __iter__(self):
+        return iter(self.variables)
+
+    def increase(self, name):
+        delta = self.deltas.get(name, 1)
+        self.variables[name] += delta
+
+    def decrease(self, name):
+        delta = self.deltas.get(name, 1)
+        self.variables[name] -= delta
+
+
+class GradientLineRenderer:
+
+    def __init__(self, n, length):
+        """
+        :param n: number of segments along line.
+        :param length: length of each side of perpendicular lines.
+        """
+        self.n = n
+        self.length = length
+
+    @classmethod
+    def from_dict(cls, **kwargs):
+        return cls(n=kwargs['n'], length=kwargs['length'])
+
+    def update_from_dict(self, **kwargs):
+        self.n = kwargs['n']
+        self.length = kwargs['length']
+
+    def draw(self, surface, line, color1, color2, border_color=None, border_width=None):
+        lines = pygamelib.perpendicular_line_segments(line, self.n, self.length)
+        for i, points in enumerate(pygamelib.line_segments_polygons(lines)):
+            time = i / (self.n - 1)
+            color = pygame.Color(color1).lerp(color2, time)
+            pygame.draw.polygon(surface, color, points)
+            if border_color:
+                pygame.draw.polygon(surface, border_color, points, border_width)
+
+
 class BlitsDemo(pygamelib.DemoBase):
 
     def __init__(self, display_size, tilesize, font):
@@ -112,42 +187,6 @@ class BlitBrowser(pygamelib.DemoBase):
         pygame.display.flip()
 
 
-class ShapeBrowser(pygamelib.DemoBase):
-    # dupe from shapebrowser.py
-    # looking to see if something generic can pop out
-
-    def __init__(self, drawables, styles, offset=None):
-        self.drawables = drawables
-        self.styles = styles
-        assert len(self.drawables) == len(self.styles)
-        if offset is None:
-            offset = (0,0)
-        self.offset = pygame.Vector2(offset)
-
-    def do_quit(self, event):
-        self.engine.stop()
-
-    def do_keydown(self, event):
-        if event.key in (pygame.K_ESCAPE, pygame.K_q):
-            pygamelib.post_quit()
-
-    def do_mousemotion(self, event):
-        if event.buttons[0]:
-            self.offset += event.rel
-            self.draw()
-
-    def do_videoexpose(self, event):
-        self.draw()
-
-    def draw(self):
-        self.screen.fill('black')
-        for drawable, style in zip(self.drawables, self.styles):
-            color = style['color']
-            width = style['width']
-            drawable.draw(self.screen, color, width, self.offset)
-        pygame.display.flip()
-
-
 class CirclePoints(pygamelib.DemoCommand):
 
     command_name = 'circle_points'
@@ -192,7 +231,7 @@ class CirclePoints(pygamelib.DemoCommand):
 
         shapes = circles + labels
         styles = [dict(color='red', width=1) for _ in shapes]
-        shape_browser = ShapeBrowser(shapes, styles)
+        shape_browser = pygamelib.ShapeBrowser(shapes, styles)
         pygame.display.set_mode(window.size)
         pygamelib.run(shape_browser)
 
@@ -211,24 +250,19 @@ class MeterBarHorizontalRect(pygamelib.DemoCommand):
     def add_parser_arguments(parser):
         pass
 
-    def main(self, window):
+    def main(self, args):
+        window = pygame.Rect((0,0), args.display_size)
         winwidth, winheight = window.size
         meterwidth = winwidth * .50
         meterheight = winheight * .05
         meter_rect = pygame.Rect(0, 0, meterwidth, meterheight)
         meter_rect.center = window.center
-        style = dict(
-            border_color = 'lightcoral',
-            border_width = 1,
-            segment_margin = (0, 10),
-            segment_color = 'gold',
-            segment_color_off = 'grey10',
-            segment_width = 0,
-            segment_border = 1,
-        )
+        style = dict(color='gold', width=0)
         meter = pygamelib.Meter(value=3)
         renderer = pygamelib.SimpleMeterRender(meter, meter_rect, style=style)
-        shape_browser = ShapeBrowser([renderer])
+        shapes = [renderer]
+        styles = [style]
+        shape_browser = pygamelib.ShapeBrowser(shapes, styles)
         pygame.display.set_mode(window.size)
         pygamelib.run(shape_browser)
 
@@ -247,7 +281,8 @@ class MeterBarCircular(pygamelib.DemoCommand):
     def add_parser_arguments(parser):
         pass
 
-    def main(self, window):
+    def main(self, args):
+        window = pygame.Rect((0,0), args.display_size)
         meter = pygamelib.Meter(value=3, maxvalue=6)
         style = dict(
             segment_color = 'gold',
@@ -266,6 +301,10 @@ class MeterBarCircular(pygamelib.DemoCommand):
         # especially step_for_radius
         # how many points it generates
 
+        # TODO
+        # - replace all this
+        # - create the polygons
+        # - associate styles with the polygons based on how filled the meter is
         renderer = pygamelib.CircularMeterRenderer(
             meter,
             center = rect.center,
@@ -274,7 +313,7 @@ class MeterBarCircular(pygamelib.DemoCommand):
             segment_offset = 360 / (meter.maxvalue + 1),
             style = style,
         )
-        shape_browser = ShapeBrowser([renderer])
+        shape_browser = pygamelib.ShapeBrowser([renderer], [dict(color='red', width=0)])
         pygame.display.set_mode(window.size)
         pygamelib.run(shape_browser)
 
@@ -292,20 +331,14 @@ class Gradient(pygamelib.DemoCommand):
     @staticmethod
     def add_parser_arguments(parser):
         parser.add_argument('n', type=int, help='number of rects')
-        parser.add_argument('size', type=int)
-        parser.add_argument('color1')
-        parser.add_argument('color2')
+        parser.add_argument('size', type=int, help='square size of rects')
+        parser.add_argument('color1', help='start color')
+        parser.add_argument('color2', help='end color')
 
-    def main(self, window):
+    def main(self, args):
+        window = pygame.Rect((0,0), args.display_size)
         shape = [
-            pygamelib.Rectangle(
-                (
-                    100 + time * args.size,
-                    100,
-                    args.size,
-                    args.size,
-                )
-            )
+            pygamelib.Rectangle((time * args.size, 0, args.size, args.size))
             for time in range(args.n)
         ]
         # TODO
@@ -318,84 +351,9 @@ class Gradient(pygamelib.DemoCommand):
             )
             for time in range(args.n)
         ]
-        shape_browser = ShapeBrowser(shape, styles)
+        shape_browser = pygamelib.ShapeBrowser(shape, styles)
         pygame.display.set_mode(window.size)
         pygamelib.run(shape_browser)
-
-
-class VariableManager:
-
-    def __init__(self, variables, deltas=None):
-        self.variables = variables
-        if deltas is None:
-            deltas = {}
-        self.deltas = deltas
-
-    def __getitem__(self, name):
-        return self.variables[name]
-
-    def __iter__(self):
-        return iter(self.variables)
-
-    def increase(self, name):
-        delta = self.deltas.get(name, 1)
-        self.variables[name] += delta
-
-    def decrease(self, name):
-        delta = self.deltas.get(name, 1)
-        self.variables[name] -= delta
-
-
-class KeydownVariables:
-
-    def __init__(self, variables):
-        self.variables = variables
-
-    def find_match_for_letter(self, letter):
-        # either the exact letter or only one match for startswith
-        match = None
-        varkeys = [varkey for varkey in self.variables if varkey.startswith(letter)]
-        if letter in self.variables:
-            return letter
-        elif len(varkeys) == 1:
-            return varkeys[0]
-
-    def handle_keydown(self, event):
-        match = self.find_match_for_letter(event.unicode.lower())
-        if match:
-            if event.mod & pygame.KMOD_SHIFT:
-                self.variables.decrease(match)
-            else:
-                self.variables.increase(match)
-            return True
-
-
-class GradientLineRenderer:
-
-    def __init__(self, n, length):
-        """
-        :param n: number of segments along line.
-        :param length: length of each side of perpendicular lines.
-        """
-        self.n = n
-        self.length = length
-
-    @classmethod
-    def from_dict(cls, **kwargs):
-        return cls(n=kwargs['n'], length=kwargs['length'])
-
-    def update_from_dict(self, **kwargs):
-        self.n = kwargs['n']
-        self.length = kwargs['length']
-
-    def draw(self, surface, line, color1, color2, border_color=None, border_width=None):
-        lines = pygamelib.perpendicular_line_segments(line, self.n, self.length)
-        for i, points in enumerate(pygamelib.line_segments_polygons(lines)):
-            time = i / (self.n - 1)
-            color = pygame.Color(color1).lerp(color2, time)
-            pygame.draw.polygon(surface, color, points)
-            if border_color:
-                pygame.draw.polygon(surface, border_color, points, border_width)
 
 
 class CircleSegments(pygamelib.DemoCommand):
@@ -574,7 +532,7 @@ class Heart(pygamelib.DemoCommand):
                 width = 1,
             ), 3
         ))
-        state = ShapeBrowser(heart, styles)
+        state = pygamelib.ShapeBrowser(heart, styles)
 
         pygame.display.set_mode(window.size)
         engine = pygamelib.Engine()
@@ -884,7 +842,7 @@ class DrawRing(
         points = [delta + point for point in points]
         bounding = pygamelib.Rectangle(centered)
         ring_shape = pygamelib.Polygon(points)
-        state = ShapeBrowser(
+        state = pygamelib.ShapeBrowser(
             [ring_shape, bounding],
             [
                 # TODO
@@ -938,7 +896,7 @@ class Bezier(pygamelib.DemoCommand):
         shapes = [
             pygamelib.Lines(False, points) for points in points_groups
         ]
-        state = ShapeBrowser(
+        state = pygamelib.ShapeBrowser(
             shapes,
             list(it.repeat(dict(color='blue', width=1), len(shapes))),
         )
@@ -947,33 +905,42 @@ class Bezier(pygamelib.DemoCommand):
         engine.run(state)
 
 
-def circularize(window, args):
-    """
-    Make a circle polygon between two points.
-    """
-    p1 = pygamelib.random_point(window)
-    p2 = pygamelib.random_point(window)
-    center = pygamelib.line_midpoint(p1, p2)
+class Circularize(pygamelib.DemoCommand):
 
-    angle = math.atan2(p2.y - p1.y, p2.x - p1.x)
+    command_name = 'circularize'
 
-    clock = pygame.time.Clock()
-    framerate = 60
-    running = True
-    screen = pygame.display.set_mode(window.size)
-    while running:
-        elapsed = clock.tick(framerate)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key in (pygame.K_ESCAPE, pygame.K_q):
-                    pygamelib.post_quit()
-        screen.fill('black')
-        pygame.draw.circle(screen, 'orangered', p1, 10)
-        pygame.draw.circle(screen, 'orangered', p2, 10)
-        pygame.draw.circle(screen, 'yellow', center, 10)
-        pygame.display.flip()
+    @staticmethod
+    def parser_kwargs():
+        help_ = 'Make a circle polygon between two points.'
+        return dict(
+            description = help_,
+            help = help_,
+        )
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        pass
+
+    def main(self, args):
+        window = pygame.Rect((0,0), args.display_size)
+        p1 = pygamelib.random_point(window)
+        p2 = pygamelib.random_point(window)
+        center = pygamelib.line_midpoint(p1, p2)
+        shapes = [
+            pygamelib.Circle(p1, 10),
+            pygamelib.Circle(p2, 10),
+            pygamelib.Circle(center, 10),
+        ]
+        styles = [
+            dict(color='orangered', width=0),
+            dict(color='orangered', width=0),
+            dict(color='yellow', width=0),
+        ]
+        state = pygamelib.ShapeBrowser(shapes, styles)
+        engine = pygamelib.Engine()
+        pygame.display.set_mode(window.size)
+        engine.run(state)
+
 
 def filled_shape_meter(window):
     """
