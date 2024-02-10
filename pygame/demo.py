@@ -934,6 +934,7 @@ class Bezier(DemoCommand):
         parser.add_argument(
             'control_groups',
             nargs = '+',
+            help = 'Groups of control points.',
         )
         parser.add_argument(
             'steps',
