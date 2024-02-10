@@ -922,6 +922,8 @@ class Circularize(pygamelib.DemoCommand):
         pass
 
     def main(self, args):
+        # TODO
+        # - actually implement circularize
         window = pygame.Rect((0,0), args.display_size)
         p1 = pygamelib.random_point(window)
         p2 = pygamelib.random_point(window)
