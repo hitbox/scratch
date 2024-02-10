@@ -96,7 +96,7 @@ def run(display_size, rect_operation):
     window = pygame.Rect((0,)*2, display_size)
     panels = list(map(pygame.Rect, pygamelib.rectquadrants(window)))
 
-    rect_a = pygamelib.reduce(window, 0.70)
+    rect_a = pygamelib.reduce_rect(window, 0.70)
     rect_b = rect_a.copy()
 
     rect_a.center = panels[0].center

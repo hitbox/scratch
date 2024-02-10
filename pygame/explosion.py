@@ -49,9 +49,7 @@ class Animate:
 
 class AnimationManager:
 
-    def __init__(self, animations=None):
-        if animations is None:
-            animations = []
+    def __init__(self, animations):
         self.animations = animations
 
     def update(self, time):
@@ -118,6 +116,11 @@ def run(display_size):
 
     # TODO
     # - animate color to transparent
+    # - animate so that there is kind of a fade to smoke
+    # - center of circle should look hot like fire but the edges should begin
+    #   to show burned off smoke
+    # - use the star-drawing thing to make the spark
+    # - make a fluffy shape drawing thing?
     n = 100
     circles = [Circle(pygamelib.random_point(spawn), 0) for _ in range(n)]
     alpha = 50

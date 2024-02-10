@@ -677,18 +677,19 @@ class Lines(
     def draw_args(self, color, width, offset):
         ox, oy = offset
         closed, points = self
-        points = tuple((x-ox, y-oy) for x, y in points)
+        points = tuple((x+ox, y+oy) for x, y in points)
         return (color, closed, points, width)
 
 
 class Polygon(
     namedtuple('PolygonBase', 'points'),
+    DrawMixin,
 ):
     draw_func = pygame.draw.polygon
 
     def draw_args(self, color, width, offset):
         ox, oy = offset
-        points = ((x+ox, y+oy) for x, y in self.points)
+        points = tuple((x+ox, y+oy) for x, y in self.points)
         return (color, points, width)
 
 
@@ -718,7 +719,7 @@ class Rectangle(
     def draw_args(self, color, width, offset):
         ox, oy = offset
         (x, y, w, h), *borders = self
-        rect = (x-ox, y-oy, w, h)
+        rect = (x+ox, y+oy, w, h)
         return (color, rect, width, *borders)
 
 
@@ -1024,16 +1025,17 @@ class CircularMeterRenderer:
 # shape producing
 
 def step_for_radius(radius):
+    # NOTE
+    # - this is the step between start and end angle
+    # - smaller number is more segments
+    # TODO
     # dialing in n radian steps for good enough looking circles made of lines.
-    if radius < 100:
-        return 18
-    elif radius < 200:
-        return 10
-    else:
-        # greater than 200
+    if radius >= 300:
         return 2
+    else:
+        return 8
 
-def circle_segment_points(angle, offset, radii, closed=False):
+def circle_segment_points1(angle, offset, radii, closed=False):
     """
     :param angle:
         Used with offset to get two angles either side of this one.
@@ -1066,6 +1068,32 @@ def circle_segment_points(angle, offset, radii, closed=False):
 
     step = math.radians(step_for_radius(outer_radius))
     while greater_angle > angle - offset:
+        yield circle_point(greater_angle, outer_radius)
+        greater_angle -= step
+
+    if closed:
+        yield first
+
+def circle_segment_points(angles, radii, closed=False):
+    lesser_angle, greater_angle = angles
+    inner_radius, outer_radius = radii
+
+    # two points, straight line from outer to inner radii
+    first = circle_point(lesser_angle, outer_radius)
+    yield first
+    yield circle_point(lesser_angle, inner_radius)
+
+    step = math.radians(step_for_radius(inner_radius))
+    while lesser_angle < angles[1]:
+        yield circle_point(lesser_angle, inner_radius)
+        lesser_angle += step
+
+    # straight line from inner to outer
+    yield circle_point(greater_angle, inner_radius)
+    yield circle_point(greater_angle, outer_radius)
+
+    step = math.radians(step_for_radius(outer_radius))
+    while greater_angle > angles[0]:
         yield circle_point(greater_angle, outer_radius)
         greater_angle -= step
 
@@ -2244,13 +2272,17 @@ def generate_contiguous(rects):
         yield newrect
         generated.add(newrect)
 
-def line_points(p1, p2):
-    x1, y1 = p1
-    x2, y2 = p2
-    # want to "flatten" several lines on a rect
-    # ex: topleft -> topright -> bottomright as a list of points
+def minmax(iterable):
+    return (min(iterable), max(iterable))
 
-def reduce(rect, f):
+def bounding_rect(coords):
+    axes = zip(*coords)
+    (x, y), (right, bottom) = zip(*(map(minmax, axes)))
+    width = right - x
+    height = bottom - y
+    return (x, y, width, height)
+
+def reduce_rect(rect, f):
     _, _, width, height = rect
     if isinstance(f, (float, int)):
         f = (f, ) * 2
@@ -2301,8 +2333,8 @@ def circle_pointsf(start, stop, step, radius):
         y = -math.sin(angle) * radius
         yield (x, y)
 
-def circle_points(start, stop, step, radius):
-    for angle in map(math.radians, range(start, stop, step)):
+def circle_points(degrees, radius):
+    for angle in map(math.radians, degrees):
         x = +math.cos(angle) * radius
         y = -math.sin(angle) * radius
         yield (x, y)
@@ -2347,10 +2379,6 @@ def rect_diagonal_lines(rect, steps, reverse=False, clip=False):
                 x2, y2 = line_line_intersection(line, bottomline)
         yield ((x1, y1), (x2, y2))
 
-def swaplinex(line):
-    (x1, y1), (x2, y2) = line
-    return ((x2, y1), (x1, y2))
-
 def intersection_point(point1, slope1, point2, slope2):
     # Check if the slopes are equal (parallel lines)
     if slope1 == slope2:
@@ -2380,10 +2408,14 @@ def cubic_bezier(p0, p1, p2, p3, t):
     Return position on cubic bezier curve at time t.
     """
     one_minus_t = 1 - t
-    b0 = one_minus_t * one_minus_t * one_minus_t # (1 - t) ** 3
-    b1 = 3 * one_minus_t * one_minus_t * t # 3 * (1 - t) ** 2
-    b2 = 3 * one_minus_t * t * t # 3 * (1 - t) * t ** 2
-    b3 = t * t * t # t ** 3
+    # (1 - t) ** 3
+    b0 = one_minus_t * one_minus_t * one_minus_t
+    # 3 * (1 - t) ** 2
+    b1 = 3 * (one_minus_t * one_minus_t)
+    # 3 * (1 - t) * t ** 2
+    b2 = 3 * one_minus_t * (t * t)
+    # t ** 3
+    b3 = t * t * t
     # NOTE: unpacking is slower than getitem indexing
     x = b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0]
     y = b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1]
@@ -2392,14 +2424,13 @@ def cubic_bezier(p0, p1, p2, p3, t):
 def cubic_bezier_derivative(p0, p1, p2, p3, t):
     one_minus_t = 1 - t
     # -3 * (1 - t) ** 2
-    b0 = -3 * one_minus_t * one_minus_t
+    b0 = -3 * (one_minus_t * one_minus_t)
     # 3 * (1 - t) ** 2 - 6 * (1 - t) * t
-    b1 = 3 * one_minus_t * one_minus_t - 6 * one_minus_t * t
+    b1 = 3 * (one_minus_t * one_minus_t) - 6 * one_minus_t * t
     # 6 * (1 - t) * t -3 * t ** 2
-    b2 = 6 * one_minus_t * t - 3 * t * t
+    b2 = 6 * one_minus_t * t - 3 * (t * t)
     # 3 * t ** 2
-    b3 = 3 * t * t
-
+    b3 = 3 * (t * t)
     dx = b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0]
     dy = b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1]
     return (dx, dy)
@@ -2418,6 +2449,30 @@ def bezier_tangent(control_points, t):
         )
         delta += coefficient
     return delta
+
+def bernstein_poly(i, degree, t):
+    """
+    Bernstein polynomial for index i, degree n, evaluated at t.
+    """
+    return math.comb(degree, i) * (t ** i) * ((1 - t) ** (degree - i))
+
+def bezier_curve(control_points, t):
+    """
+    Compute the point on the Bézier curve for parameter t.
+
+    :param control_points: List of control points [(x0, y0), (x1, y1), ..., (xn, yn)]
+    :param t: Parameter value, ranging from 0 to 1
+    :return: Point on the curve at parameter t
+    """
+    n = len(control_points)
+    degree = n - 1
+    x = sum(bernstein_poly(i, degree, t) * control_points[i][0] for i in range(n))
+    y = sum(bernstein_poly(i, degree, t) * control_points[i][1] for i in range(n))
+    return (x, y)
+
+def bezier_curve_points(control_points, n):
+    for i in range(n):
+        yield bezier_curve(control_points, i/n)
 
 def parse_xml(xmlfile):
     tree = ET.parse(xmlfile)

@@ -148,6 +148,11 @@ class ShapeBrowser(pygamelib.DemoBase):
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
             pygamelib.post_quit()
 
+    def do_mousemotion(self, event):
+        if event.buttons[0]:
+            self.offset += event.rel
+            self.draw()
+
     def do_videoexpose(self, event):
         self.draw()
 
@@ -424,8 +429,7 @@ class CircleSegments(DemoCommand):
 
     @staticmethod
     def add_parser_arguments(parser):
-        parser.add_argument('inner_radius', type=int)
-        parser.add_argument('outer_radius', type=int)
+        parser.add_argument('radii', type=pygamelib.sizetype())
         parser.add_argument(
             'segment_offset',
             type = int,
@@ -454,7 +458,7 @@ class CircleSegments(DemoCommand):
 
         # put all the values under animations for consistency
         varargs = vars(args)
-        names = ('inner_radius', 'outer_radius', 'segment_offset', 'closed')
+        names = ('radii', 'segment_offset', 'closed')
         animations = {name: pygamelib.animation_tuple(varargs[name]) for name in names}
 
         if args.animate:
@@ -494,12 +498,19 @@ class CircleSegments(DemoCommand):
                         variables = initial_variables.copy()
             # update
             pygamelib.update_variables_from_animations(animations, variables, time)
-            points = pygamelib.circle_segment_points(
-                0,
-                math.radians(variables['segment_offset']),
-                (variables['inner_radius'], variables['outer_radius']),
-                closed = variables['closed'],
+            step = 8
+            items = zip(
+                variables['radii'],
+                (
+                    range(0, variables['segment_offset'], +step),
+                    range(variables['segment_offset'], 0, -step),
+                ),
             )
+            points = [
+                point
+                for radius, degrees in items
+                for point in pygamelib.circle_points(degrees, radius)
+            ]
             points = [pygame.Vector2(center) + point for point in points]
             # draw
             screen.fill('black')
@@ -570,7 +581,7 @@ class Heart(DemoCommand):
             f = args.fraction / 1000
         else:
             f = 0 # reduce by nothing
-        heart_rect = pygame.Rect(pygamelib.reduce(window, f))
+        heart_rect = pygame.Rect(pygamelib.reduce_rect(window, f))
         heart_rect.center = window.center
         heart_shape = pygamelib.HeartShape(
             cleft_angle = args.cleft_angle,
@@ -748,7 +759,7 @@ class DiagonalLineFill(
         if args.size:
             self.size = args.size
         else:
-            self.size = pygamelib.reduce(self.window, 0.20).size
+            self.size = pygamelib.reduce_rect(self.window, 0.20).size
         self.stepx, self.stepy = args.steps
         self.reverse = args.reverse
         self.overdraw = args.overdraw
@@ -798,7 +809,7 @@ class LineGradient(
         self.border_width = args.border_width
 
         self.window = pygame.Rect((0,0), args.display_size)
-        rect = pygamelib.reduce(self.window, (-0.20, -0.50))
+        rect = pygamelib.reduce_rect(self.window, (-0.20, -0.50))
         self.line = pygamelib.Line(rect.topleft, rect.bottomright)
         engine = pygamelib.Engine()
         pygame.display.set_mode(self.window.size)
@@ -841,6 +852,117 @@ class LineGradient(
         for image, rect in zip(images, rects):
             self.screen.blit(image, rect)
         pygame.display.flip()
+
+
+class DrawRing(
+    DemoCommand,
+):
+
+    command_name = 'ring'
+
+    @staticmethod
+    def parser_kwargs():
+        help_ = 'Draw a ring or donut shape.'
+        return dict(
+            description = help_,
+            help = help_,
+        )
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument('radii', type=pygamelib.sizetype())
+        parser.add_argument('angles', type=pygamelib.sizetype())
+        parser.add_argument('--steps', type=pygamelib.sizetype())
+        parser.add_argument('--width', type=int, default=0)
+
+    def main(self, args):
+        self.window = pygame.Rect((0,0), args.display_size)
+
+        radii = args.radii
+        if args.steps:
+            steps = args.steps
+        else:
+            steps = tuple(map(pygamelib.step_for_radius, radii))
+
+        angle1, angle2 = args.angles
+
+        # points around the inner radius and then the outer
+        points = [
+            point
+            for radius, step, flip in zip(radii, steps, range(2))
+            for point in pygamelib.circle_points(
+                range(angle1, angle2+step, step)
+                    if not flip else
+                    range(angle2, angle1-step, -step),
+                radius
+            )
+        ]
+        bounding = pygame.Rect(pygamelib.bounding_rect(points))
+        centered = pygamelib.make_rect(bounding, center=self.window.center)
+        delta = pygame.Vector2(centered.topleft) - bounding.topleft
+        points = [delta + point for point in points]
+        bounding = pygamelib.Rectangle(centered)
+        ring_shape = pygamelib.Polygon(points)
+        state = ShapeBrowser(
+            [ring_shape, bounding],
+            [
+                # TODO
+                # - gradient around the ring?
+                dict(color='red', width=args.width),
+                dict(color='blue', width=1),
+            ]
+        )
+        engine = pygamelib.Engine()
+        pygame.display.set_mode(self.window.size)
+        engine.run(state)
+
+
+class Bezier(DemoCommand):
+
+    command_name = 'bezier'
+
+    @staticmethod
+    def parser_kwargs():
+        help_ = 'Bezier curve from control points.'
+        return dict(
+            description = help_,
+            help = help_,
+        )
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument(
+            'control_groups',
+            nargs = '+',
+        )
+        parser.add_argument(
+            'steps',
+            type = int,
+        )
+
+    def main(self, args):
+        self.window = pygame.Rect((0,0), args.display_size)
+
+        control_points_groups = [
+            list(map(pygamelib.sizetype(), group.split()))
+            for group in args.control_groups
+        ]
+
+        steps = args.steps
+        points_groups = [
+            list(pygamelib.bezier_curve_points(control_points, steps))
+            for control_points in control_points_groups
+        ]
+        shapes = [
+            pygamelib.Lines(False, points) for points in points_groups
+        ]
+        state = ShapeBrowser(
+            shapes,
+            list(it.repeat(dict(color='blue', width=1), len(shapes))),
+        )
+        engine = pygamelib.Engine()
+        pygame.display.set_mode(self.window.size)
+        engine.run(state)
 
 
 def circularize(window, args):
