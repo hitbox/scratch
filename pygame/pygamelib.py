@@ -2,11 +2,13 @@ import abc
 import argparse
 import contextlib
 import enum
+import inspect
 import itertools as it
 import math
 import operator as op
 import os
 import random
+import re
 import string
 import sys
 import unittest
@@ -294,18 +296,20 @@ class Engine:
 
 class DemoCommand(abc.ABC):
 
-    @property
-    @abc.abstractmethod
-    def command_name(self):
-        ...
+    # optional `command_name` attribute for subparser name
 
     @staticmethod
-    @abc.abstractmethod
     def parser_kwargs():
-        ...
+        """
+        New subparser keyword arguments.
+        """
+        return {}
 
     @staticmethod
     def add_parser_arguments(parser):
+        """
+        Add arguments and options here.
+        """
         ...
 
 
@@ -1185,6 +1189,28 @@ def post_videoexpose():
 
 # general purpose
 
+class TestSnakeCaseFunction(unittest.TestCase):
+
+    def test_snake_case_simple(self):
+        self.assertEqual(snake_case('PascalCase'), 'pascal_case')
+
+    def test_snake_case_identity(self):
+        self.assertEqual(snake_case('pascal_case'), 'pascal_case')
+
+    def test_snake_case_weird(self):
+        self.assertEqual(snake_case('PC'), 'p_c')
+        # correct to ignore the underscore?
+        self.assertEqual(snake_case('P_C'), 'p_c')
+
+
+pascal_case_re = re.compile(r'[A-Z][a-z]*')
+
+def snake_case(name):
+    matches = list(pascal_case_re.finditer(name))
+    if not matches:
+        return name
+    return '_'.join(match.group().lower() for match in matches)
+
 def batched(iterable, n):
     """
     group items in iterable into n-length tuples
@@ -1419,6 +1445,22 @@ def update_variables_from_animations(animations, variables, time):
         if start_time <= time <= end_time:
             value = mix((time - start_time) / end_time, *values)
             variables[name] = value
+
+def is_demo_command(obj):
+    return (
+        inspect.isclass(obj)
+        and issubclass(obj, DemoCommand)
+        and obj is not DemoCommand
+    )
+
+def iterdemos(objects):
+    return filter(is_demo_command, objects)
+
+def get_subcommand_name(demo_class):
+    if hasattr(demo_class, 'command_name'):
+        return demo_class.command_name
+    else:
+        return snake_case(demo_class.__name__)
 
 # rects
 

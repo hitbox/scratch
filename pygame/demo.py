@@ -1,9 +1,5 @@
-import abc
-import argparse
-import inspect
 import itertools as it
 import math
-import random
 
 import pygamelib
 
@@ -190,14 +186,10 @@ class BlitBrowser(pygamelib.DemoBase):
 class CirclePoints(pygamelib.DemoCommand):
 
     command_name = 'circle_points'
-
-    @staticmethod
-    def parser_kwargs():
-        return dict(
-            help =
-                'Demonstrate the circle_points function is yielding circles'
-                ' in correct screen space.',
-        )
+    command_help = (
+        'Demonstrate the circle_points function is'
+        ' yielding circles in correct screen space.'
+    )
 
     @staticmethod
     def add_parser_arguments(parser):
@@ -239,16 +231,7 @@ class CirclePoints(pygamelib.DemoCommand):
 class MeterBarHorizontalRect(pygamelib.DemoCommand):
 
     command_name = 'meter_bar_horizontal_rect'
-
-    @staticmethod
-    def parser_kwargs():
-        return dict(
-            help = 'Simple horizontal bars representing an integer.',
-        )
-
-    @staticmethod
-    def add_parser_arguments(parser):
-        pass
+    comamnd_help = 'Simple horizontal bars representing an integer.'
 
     def main(self, args):
         window = pygame.Rect((0,0), args.display_size)
@@ -270,16 +253,7 @@ class MeterBarHorizontalRect(pygamelib.DemoCommand):
 class MeterBarCircular(pygamelib.DemoCommand):
 
     command_name = 'meter_bar_circular'
-
-    @staticmethod
-    def parser_kwargs():
-        return dict(
-            help = 'Circular arc segments representing an integer.',
-        )
-
-    @staticmethod
-    def add_parser_arguments(parser):
-        pass
+    command_help = 'Circular arc segments representing an integer.'
 
     def main(self, args):
         window = pygame.Rect((0,0), args.display_size)
@@ -321,12 +295,7 @@ class MeterBarCircular(pygamelib.DemoCommand):
 class Gradient(pygamelib.DemoCommand):
 
     command_name = 'gradient'
-
-    @staticmethod
-    def parser_kwargs():
-        return dict(
-            help = 'Color.lerp to create gradients.',
-        )
+    command_help = 'Color.lerp to create gradients.'
 
     @staticmethod
     def add_parser_arguments(parser):
@@ -356,15 +325,13 @@ class Gradient(pygamelib.DemoCommand):
         pygamelib.run(shape_browser)
 
 
-class CircleSegments(pygamelib.DemoCommand):
+class CircleSegments(
+    pygamelib.DemoCommand,
+    pygamelib.DemoBase,
+):
 
     command_name = 'circle_segments'
-
-    @staticmethod
-    def parser_kwargs():
-        return dict(
-            help = 'Draw a circle segment, optionally animated.',
-        )
+    command_help = 'Draw a circle segment, optionally animated.'
 
     @staticmethod
     def add_parser_arguments(parser):
@@ -388,17 +355,68 @@ class CircleSegments(pygamelib.DemoCommand):
             help = 'Animate variables over time.',
         )
 
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygamelib.post_quit()
+        elif event.key == (pygame.K_r):
+            # simulate first frame
+            self.time = self.elapsed
+            self.variables = self.initial_variables.copy()
+            self.update_points()
+
+    def update(self):
+        super().update()
+        self.draw()
+
+    def update_points(self):
+        self.time += self.elapsed
+        pygamelib.update_variables_from_animations(
+            self.animations,
+            self.variables,
+            self.time
+        )
+        radii = self.variables['radii']
+        segment_offset = self.variables['segment_offset']
+        items = zip(
+            radii,
+            (
+                range(0, segment_offset, +self.step),
+                range(segment_offset, 0, -self.step),
+            ),
+        )
+        self.points = [
+            point
+            for radius, degrees in items
+            for point in pygamelib.circle_points(degrees, radius)
+        ]
+        self.points = [pygame.Vector2(self.center) + point for point in self.points]
+        self.draw()
+
+    def draw(self):
+        self.screen.fill('black')
+        # draw points as little circles
+        for point in self.points:
+            pygame.draw.circle(self.screen, 'grey15', point, 8, 1)
+        # draw circle segment with polygon
+        pygame.draw.polygon(self.screen, 'red', self.points, 1)
+        pygame.display.flip()
+
     def main(self, args):
-        window = pygame.Rect((0,0), args.display_size)
+        self.window = pygame.Rect((0,0), args.display_size)
         try:
-            center = pygamelib.sizetype()(args.center)
+            self.center = pygamelib.sizetype()(args.center)
         except ValueError:
-            center = eval(args.center)
+            self.center = eval(args.center, dict(window=self.window))
 
         # put all the values under animations for consistency
         varargs = vars(args)
         names = ('radii', 'segment_offset', 'closed')
-        animations = {name: pygamelib.animation_tuple(varargs[name]) for name in names}
+        values = map(varargs.__getitem__, names)
+        values = map(pygamelib.animation_tuple, values)
+        self.animations = dict(zip(names, values))
 
         if args.animate:
             for animate_option in args.animate:
@@ -406,70 +424,29 @@ class CircleSegments(pygamelib.DemoCommand):
                 if name not in animations:
                     raise ValueError(f'invalid name {name}')
                 values_and_times = tuple(map(int, values_and_times))
-                animations[name] = (values_and_times[:2], values_and_times[2:])
+                self.animations[name] = (values_and_times[:2], values_and_times[2:])
 
         # initialize variables from animations
-        time = 0
-        variables = dict(pygamelib.variables_from_animations(animations, time))
-        initial_variables = variables.copy()
-
-        # TODO
-        # - take two points inside the points list
-        # - give a center and radius and circularize inplace
-        # motivation:
-        # - round over the circle segment ends
-
-        clock = pygame.time.Clock()
-        framerate = 60
-        running = True
-        screen = pygame.display.set_mode(window.size)
-        while running:
-            elapsed = clock.tick(framerate)
-            time += elapsed
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key in (pygame.K_ESCAPE, pygame.K_q):
-                        pygamelib.post_quit()
-                    elif event.key == (pygame.K_r):
-                        time = elapsed # simulate first frame
-                        variables = initial_variables.copy()
-            # update
-            pygamelib.update_variables_from_animations(animations, variables, time)
-            step = 8
-            items = zip(
-                variables['radii'],
-                (
-                    range(0, variables['segment_offset'], +step),
-                    range(variables['segment_offset'], 0, -step),
-                ),
+        self.time = 0
+        self.variables = dict(
+            pygamelib.variables_from_animations(
+                self.animations,
+                self.time
             )
-            points = [
-                point
-                for radius, degrees in items
-                for point in pygamelib.circle_points(degrees, radius)
-            ]
-            points = [pygame.Vector2(center) + point for point in points]
-            # draw
-            screen.fill('black')
-            # draw points as little circles
-            for point in points:
-                pygame.draw.circle(screen, 'grey15', point, 8, 1)
-            # draw circle segment with polygon
-            pygame.draw.polygon(screen, 'red', points, 1)
-            pygame.display.flip()
+        )
+        self.initial_variables = self.variables.copy()
+        self.step = 8
+        self.elapsed = None
+        self.update_points()
+        engine = pygamelib.Engine()
+        pygame.display.set_mode(self.window.size)
+        engine.run(self)
 
 
 class Blits(pygamelib.DemoCommand):
 
     command_name = 'blits'
-
-    @staticmethod
-    def parser_kwargs():
-        return dict(
-            help = 'Investigating speed of `Surface.blits` and surface size.',
-        )
+    command_help = 'Investigating speed of `Surface.blits` and surface size.'
 
     @staticmethod
     def add_parser_arguments(parser):
@@ -490,12 +467,7 @@ class Blits(pygamelib.DemoCommand):
 class Heart(pygamelib.DemoCommand):
 
     command_name = 'heart'
-
-    @staticmethod
-    def parser_kwargs():
-        return dict(
-            help = 'Draw heart with arcs and lines.',
-        )
+    command_help = 'Draw heart with arcs and lines.'
 
     @staticmethod
     def add_parser_arguments(parser):
@@ -546,16 +518,7 @@ class LineLineIntersection(
 ):
 
     command_name = 'line_line_intersect'
-
-    @staticmethod
-    def parser_kwargs():
-        return dict(
-            help = 'Demo line-line intersections.',
-        )
-
-    @staticmethod
-    def add_parser_arguments(parser):
-        pass
+    command_help =  'Demo line-line intersections.'
 
     def do_videoexpose(self, event):
         self.draw()
@@ -595,12 +558,7 @@ class DiagonalLineFill(
 ):
 
     command_name = 'diagonal_line_fill'
-
-    @staticmethod
-    def parser_kwargs():
-        return dict(
-            help = 'Fill with diagonal offset lines.',
-        )
+    command_help = 'Fill with diagonal offset lines.'
 
     @staticmethod
     def add_parser_arguments(parser):
@@ -716,14 +674,7 @@ class LineGradient(
 ):
 
     command_name = 'line_gradient'
-
-    @staticmethod
-    def parser_kwargs():
-        help_ =  'Produce a gradient along a line.'
-        return dict(
-            description = help_,
-            help = help_,
-        )
+    command_help = 'Produce a gradient along a line.'
 
     @staticmethod
     def add_parser_arguments(parser):
@@ -798,14 +749,7 @@ class DrawRing(
 ):
 
     command_name = 'ring'
-
-    @staticmethod
-    def parser_kwargs():
-        help_ = 'Draw a ring or donut shape.'
-        return dict(
-            description = help_,
-            help = help_,
-        )
+    command_help = 'Draw a ring or donut shape.'
 
     @staticmethod
     def add_parser_arguments(parser):
@@ -859,14 +803,7 @@ class DrawRing(
 class Bezier(pygamelib.DemoCommand):
 
     command_name = 'bezier'
-
-    @staticmethod
-    def parser_kwargs():
-        help_ = 'Bezier curve from control points.'
-        return dict(
-            description = help_,
-            help = help_,
-        )
+    command_help = 'Bezier curve from control points.'
 
     @staticmethod
     def add_parser_arguments(parser):
@@ -908,18 +845,7 @@ class Bezier(pygamelib.DemoCommand):
 class Circularize(pygamelib.DemoCommand):
 
     command_name = 'circularize'
-
-    @staticmethod
-    def parser_kwargs():
-        help_ = 'Make a circle polygon between two points.'
-        return dict(
-            description = help_,
-            help = help_,
-        )
-
-    @staticmethod
-    def add_parser_arguments(parser):
-        pass
+    command_help = 'Make a circle polygon between two points.'
 
     def main(self, args):
         # TODO
@@ -944,6 +870,11 @@ class Circularize(pygamelib.DemoCommand):
         engine.run(state)
 
 
+class Fire(pygamelib.DemoCommand):
+
+    command_help = 'Wiggle points on a triangle for fire.'
+
+
 def filled_shape_meter(window):
     """
     Fill a shape from bottom-up as an indication of a meter.
@@ -953,23 +884,17 @@ def filled_shape_meter(window):
     # they fill or drain from the bottom-up
     pass
 
-def is_demo_command(obj):
-    return (
-        inspect.isclass(obj)
-        and issubclass(obj, pygamelib.DemoCommand)
-        and obj is not pygamelib.DemoCommand
-    )
-
-def iterdemos(objects):
-    return filter(is_demo_command, objects)
-
 def add_subcommands(parser, **kwargs):
     subparsers = parser.add_subparsers(help='Demo to run.')
-    for demo_class in iterdemos(globals().values()):
-        sp = subparsers.add_parser(
-            demo_class.command_name,
-            **demo_class.parser_kwargs()
-        )
+    for demo_class in pygamelib.iterdemos(globals().values()):
+        subparser_name = pygamelib.get_subcommand_name(demo_class)
+        kwargs = dict()
+        if hasattr(demo_class, 'command_help'):
+            kwargs['help'] = demo_class.command_help
+            kwargs['description'] = demo_class.command_help
+        if hasattr(demo_class, 'parser_kwargs'):
+            kwargs.update(demo_class.parser_kwargs())
+        sp = subparsers.add_parser(subparser_name, **kwargs)
         demo_class.add_parser_arguments(sp)
         sp.set_defaults(demo_class=demo_class)
 
@@ -981,8 +906,9 @@ def main(argv=None):
 
     if args.list:
         # print demo names and exit
-        for demo_class in iterdemos(globals().values()):
-            print(demo_class.command_name)
+        for demo_class in pygamelib.iterdemos(globals().values()):
+            name = pygamelib.get_subcommand_name(demo_class)
+            print(name)
         return
 
     demo_class = args.demo_class
