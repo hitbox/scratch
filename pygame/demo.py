@@ -870,9 +870,65 @@ class Circularize(pygamelib.DemoCommand):
         engine.run(state)
 
 
-class Fire(pygamelib.DemoCommand):
+class Fire(
+    pygamelib.DemoCommand,
+    pygamelib.DemoBase,
+):
 
     command_help = 'Wiggle points on a triangle for fire.'
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        pass
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygamelib.post_quit()
+
+    def update(self):
+        super().update()
+        self.time += self.elapsed
+        offset = math.cos(self.time / 1000) * self.radius
+        self.update_control_points(offset)
+        self.draw()
+
+    def update_control_points(self, offset):
+        self.control_points1 = [
+            (self.rect.centerx - 100, self.rect.bottom),
+            (self.rect.centerx - 50 + offset, self.rect.centery),
+            (self.rect.centerx, self.rect.top),
+        ]
+        self.control_points2 = [
+            (self.rect.centerx + 100, self.rect.bottom),
+            (self.rect.centerx + 50 + offset, self.rect.centery),
+            (self.rect.centerx, self.rect.top),
+        ]
+        self.curve1 = list(pygamelib.bezier_curve_points(self.control_points1, self.steps))
+        self.curve2 = list(pygamelib.bezier_curve_points(self.control_points2, self.steps))
+
+    def main(self, args):
+        self.window = pygame.Rect((0,)*2, args.display_size)
+        self.radius = 100
+        self.steps = 25
+        self.time = 0
+        self.rect = pygamelib.reduce_rect(self.window, -0.5)
+        self.run()
+
+    def run(self):
+        engine = pygamelib.Engine()
+        pygame.display.set_mode(self.window.size)
+        engine.run(self)
+
+    def draw(self):
+        self.screen.fill('black')
+        pygame.draw.lines(self.screen, 'white', False, self.control_points1)
+        pygame.draw.lines(self.screen, 'white', False, self.control_points2)
+        pygame.draw.lines(self.screen, 'red', False, self.curve1, 4)
+        pygame.draw.lines(self.screen, 'red', False, self.curve2, 4)
+        pygame.display.flip()
 
 
 def filled_shape_meter(window):
