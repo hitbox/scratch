@@ -1,5 +1,8 @@
+import argparse
 import itertools as it
 import math
+
+from xml.etree import ElementTree
 
 import pygamelib
 
@@ -881,40 +884,8 @@ class Fire(
     def add_parser_arguments(parser):
         pass
 
-    def do_quit(self, event):
-        self.engine.stop()
-
-    def do_keydown(self, event):
-        if event.key in (pygame.K_ESCAPE, pygame.K_q):
-            pygamelib.post_quit()
-
-    def update(self):
-        super().update()
-        self.time += self.elapsed
-        offset = math.cos(self.time / 1000) * self.radius
-        self.update_control_points(offset)
-        self.draw()
-
-    def update_control_points(self, offset):
-        self.control_points1 = [
-            (self.rect.centerx - 100, self.rect.bottom),
-            (self.rect.centerx - 50 + offset, self.rect.centery),
-            (self.rect.centerx, self.rect.top),
-        ]
-        self.control_points2 = [
-            (self.rect.centerx + 100, self.rect.bottom),
-            (self.rect.centerx + 50 + offset, self.rect.centery),
-            (self.rect.centerx, self.rect.top),
-        ]
-        self.curve1 = list(pygamelib.bezier_curve_points(self.control_points1, self.steps))
-        self.curve2 = list(pygamelib.bezier_curve_points(self.control_points2, self.steps))
-
     def main(self, args):
         self.window = pygame.Rect((0,)*2, args.display_size)
-        self.radius = 100
-        self.steps = 25
-        self.time = 0
-        self.rect = pygamelib.reduce_rect(self.window, -0.5)
         self.run()
 
     def run(self):
@@ -922,13 +893,64 @@ class Fire(
         pygame.display.set_mode(self.window.size)
         engine.run(self)
 
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygamelib.post_quit()
+
     def draw(self):
         self.screen.fill('black')
-        pygame.draw.lines(self.screen, 'white', False, self.control_points1)
-        pygame.draw.lines(self.screen, 'white', False, self.control_points2)
-        pygame.draw.lines(self.screen, 'red', False, self.curve1, 4)
-        pygame.draw.lines(self.screen, 'red', False, self.curve2, 4)
         pygame.display.flip()
+
+
+class PointsFile(
+    pygamelib.DemoCommand,
+):
+
+    command_help = 'Load points from a file.'
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument('file', type=argparse.FileType())
+
+    def main(self, args):
+        points = list(pygamelib.points_from_file(args.file))
+
+
+class XMLShapes(
+    pygamelib.DemoCommand,
+):
+    # TODO
+    # - docs
+    # - load shapes from XML
+    # - define animations in XML
+    # - associate shapes with animations
+
+    command_name = 'xml_shapes'
+    command_help = 'Load shapes from xml.'
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument('file', type=argparse.FileType())
+
+    def main(self, args):
+        tree = ElementTree.parse(args.file)
+        root = tree.getroot()
+
+        shapes = pygamelib.Shapes.from_xml(root)
+        print(shapes.database)
+        print(shapes.shapes)
+
+        # NOTES
+        # - thinking what we need is a <document> that represents all the
+        #   objects in the world
+        # - we need to search it like CSS and other things
+        # - we need to get the objects in it and attach or associate things
+        #   with it
+        # - working on deciding where animations, a thing that modifies the
+        #   attributes of another thing over time, should go.
 
 
 def filled_shape_meter(window):

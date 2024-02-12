@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<data>
+    <lines>
+        <points>
+            <point x="0" y="0">
+                <animate attribute="x" values="0;10;0" duration="1000"/>
+            </point>
+            <point x="-10" y="10">
+                <animate attribute="x" values="-10;10;-10" duration="1000"/>
+            </point>
+            <point x="100" y="100">
+                <animate attribute="x" values="100;-100;100" duration="1000"/>
+            </point>
+            <point x="0" y="400">
+                <animate attribute="x" values="0;10;0" duration="1000"/>
+            </point>
+        </points>
+    </lines>
+</data>

@@ -1,0 +1,6 @@
+# lines of comma or whitespace separated 2d points
+
+0, 0 # top point
+-10, 10
+100, 100
+0, 400

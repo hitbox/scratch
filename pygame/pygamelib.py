@@ -657,6 +657,21 @@ class DrawMixin:
         self.draw_func(surf, *args)
 
 
+class Animate(
+    namedtuple('AnimateBase', 'parent attribute values duration'),
+):
+
+    def __repr__(self):
+        s = 'Animate('
+        if self.parent:
+            s += f'{self.parent!r}, '
+        s += f'{self.attribute!r}, {self.values!r}, {self.duration!r})'
+        return s
+
+    def update(self):
+        raise NotImplementedError
+
+
 class Arc(
     namedtuple('ArcBase', 'rect angle1 angle2'),
     DrawMixin,
@@ -720,10 +735,23 @@ class Line(
 
 
 class Lines(
-    namedtuple('LinesBase', 'closed points'),
+    namedtuple(
+        'LinesBase',
+        'closed points animations',
+        defaults = (
+            None, # animations
+        ),
+    ),
     DrawMixin,
 ):
     draw_func = pygame.draw.lines
+
+    def __repr__(self):
+        s = f'Lines(closed={self.closed}, points={self.points}'
+        if self.animations:
+            s += f', {self.animations}'
+        s += ')'
+        return s
 
     def scale(self, scale):
         closed, points = self
@@ -735,6 +763,18 @@ class Lines(
         closed, points = self
         points = tuple((x+ox, y+oy) for x, y in points)
         return (color, closed, points, width)
+
+
+class Point:
+    # NOTES
+    # - wanted namedtuple
+    # - creating objects from XML, for now, requires adding animations after
+    #   the object is created
+
+    def __init__(self, x, y, animations=None):
+        self.x = x
+        self.y = y
+        self.animations = animations
 
 
 class Polygon(
@@ -1191,24 +1231,33 @@ def post_videoexpose():
 
 class TestSnakeCaseFunction(unittest.TestCase):
 
-    def test_snake_case_simple(self):
+    def test_simple(self):
         self.assertEqual(snake_case('PascalCase'), 'pascal_case')
 
-    def test_snake_case_identity(self):
-        self.assertEqual(snake_case('pascal_case'), 'pascal_case')
+    def test_underscore_in_pascal(self):
+        # not sure what to do if underscores are in pascal case
+        with self.assertRaises(ValueError):
+            snake_case('Pascal_Case')
 
-    def test_snake_case_weird(self):
-        self.assertEqual(snake_case('PC'), 'p_c')
-        # correct to ignore the underscore?
-        self.assertEqual(snake_case('P_C'), 'p_c')
+    def test_weird(self):
+        self.assertEqual(snake_case('PC'), 'pc')
+        # leave runs of caps alone
+        self.assertEqual(snake_case('XML'), 'xml')
+
+    def test_todo_fix_loses_parts(self):
+        # FIXME
+        # - loses the XML part
+        self.assertEqual(snake_case('XMLShapes'), 'shapes')
 
 
-pascal_case_re = re.compile(r'[A-Z][a-z]*')
+pascal_case_re = re.compile(r'[A-Z][a-z]+')
 
 def snake_case(name):
+    if '_' in name:
+        raise ValueError
     matches = list(pascal_case_re.finditer(name))
     if not matches:
-        return name
+        return name.lower()
     return '_'.join(match.group().lower() for match in matches)
 
 def batched(iterable, n):
@@ -2617,6 +2666,85 @@ def parse_xml(xmlfile):
                 yield Rectangle(color, (x, y, w, h), width, **border_kwargs)
             elif child.tag == 'use':
                 yield Use(child.attrib['href'])
+
+getxy = op.itemgetter('x', 'y')
+
+def shape_from_element(element, parent=None):
+    shape = None
+    if element.tag == 'lines':
+        closed = element.attrib.get('closed', False)
+        # child <point> elements required
+        points_elements = element.findall('points')
+        assert len(points_elements) == 1
+        points = list(shape_from_element(points_elements[0]))
+        shape = Lines(closed, points)
+
+    elif element.tag == 'points':
+        shape = tuple(map(shape_from_element, element.findall('point')))
+
+    elif element.tag == 'point':
+        shape = Point(*map(int, getxy(element.attrib)))
+
+    elif element.tag == 'animate':
+        # NOTES
+        # - animate is not a shape
+        # - should it be an attribute of the object?
+        # - should it be an attribute of the object's attribute?
+        shape = Animate(
+            parent,
+            element.attrib['attribute'],
+            element.attrib['values'],
+            element.attrib['duration'],
+        )
+
+    if shape is not None:
+        animate_elements = element.findall('animate')
+        if animate_elements:
+            shape.animations = []
+            for animate_element in animate_elements:
+                animate = shape_from_element(animate_element, parent=shape)
+                shape.animations.append(animate)
+        return shape
+
+class Shapes:
+
+    def __init__(self, database, shapes):
+        self.database = database
+        self.shapes = shapes
+
+    @classmethod
+    def from_xml(cls, root):
+        database = {}
+        shapes = []
+        for element in root.iter():
+            shape = shape_from_element(element)
+            if shape:
+                if 'id' in element.attrib:
+                    shape_id = element.attrib['id']
+                    assert shape_id not in database
+                    database[shape_id] = shape
+                shapes.append(shape)
+        return cls(database, shapes)
+
+
+def points_from_file(file):
+    """
+    Load points from text file supporting comments.
+    """
+    # probably not going to continue this function
+    # want to do animations on shapes and things
+    # do NOT want to write my own parsing
+    # probably going xml
+    for line in file:
+        line = line.strip()
+        if not line:
+            continue
+        if '#' in line:
+            if line.strip().startswith('#'):
+                continue
+            line = line[:line.index('#')]
+        line = line.replace(',', ' ')
+        yield tuple(map(int, line.split()))
 
 # clockwise ordered rect side attribute names mapped with their opposites
 SIDENAMES = ['top', 'right', 'bottom', 'left']
