@@ -1,4 +1,5 @@
 import argparse
+import fileinput
 import itertools as it
 import math
 
@@ -96,7 +97,7 @@ class GradientLineRenderer:
                 pygame.draw.polygon(surface, border_color, points, border_width)
 
 
-class BlitsDemo(pygamelib.DemoBase):
+class BlitTilesDemo(pygamelib.DemoBase):
 
     def __init__(self, display_size, tilesize, font):
         self.display_size = display_size
@@ -152,37 +153,6 @@ class BlitsDemo(pygamelib.DemoBase):
         )
         images, rects = pygamelib.make_blitables_from_font(lines, self.font, 'azure')
         self.screen.blits(zip(images, rects))
-        pygame.display.flip()
-
-
-class BlitBrowser(pygamelib.DemoBase):
-
-    def __init__(self, blitables, offset):
-        self.blitables = blitables
-        self.offset = pygame.Vector2(offset)
-
-    def do_quit(self, event):
-        self.engine.stop()
-
-    def do_keydown(self, event):
-        if event.key in (pygame.K_ESCAPE, pygame.K_q):
-            pygamelib.post_quit()
-
-    def do_mousemotion(self, event):
-        if event.buttons[0]:
-            self.offset += event.rel
-            self.draw()
-
-    def do_videoexpose(self, event):
-        self.draw()
-
-    def blitables_for_offset(self):
-        for image, rect in self.blitables:
-            yield (image, self.offset + rect.topleft)
-
-    def draw(self):
-        self.screen.fill('black')
-        self.screen.blits(self.blitables_for_offset())
         pygame.display.flip()
 
 
@@ -461,7 +431,7 @@ class Blits(pygamelib.DemoCommand):
     def main(self, args):
         window = pygame.Rect((0,0), args.display_size)
         font = pygamelib.monospace_font(30)
-        state = BlitsDemo(window.size, args.tile_size, font)
+        state = BlitTilesDemo(window.size, args.tile_size, font)
         pygame.display.set_mode(window.size)
         engine = pygamelib.Engine()
         engine.run(state)
@@ -951,6 +921,93 @@ class XMLShapes(
         #   with it
         # - working on deciding where animations, a thing that modifies the
         #   attributes of another thing over time, should go.
+
+
+class Grid(
+    pygamelib.DemoCommand,
+    pygamelib.DemoBase,
+):
+
+    command_help = 'Demonstrate rect arrangement in a grid.'
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument(
+            'rects',
+            nargs = '+',
+            type = pygamelib.rect_type,
+        )
+        parser.add_argument(
+            '--colattr',
+            default = 'left',
+            help = 'Attribute to align rects inside their grid cells.',
+        )
+        parser.add_argument(
+            '--rowattr',
+            default = 'top',
+            help = 'Attribute to align rects inside their grid cells.',
+        )
+        parser.add_argument(
+            '--columns',
+            type = int,
+            help =
+                'Number of columns.'
+                ' Default to square root of number of rects.',
+        )
+        parser.add_argument('--no-labels', action='store_true')
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygamelib.post_quit()
+
+    def do_mousemotion(self, event):
+        if event.buttons[0]:
+            for _, rect in self.blits:
+                rect.move_ip(event.rel)
+            self.draw()
+
+    def do_videoexpose(self, event):
+        self.draw()
+
+    def draw(self):
+        self.screen.fill('black')
+        self.screen.blits(self.blits)
+        pygame.display.flip()
+
+    def main(self, args):
+        if args.columns:
+            ncols = args.columns
+        else:
+            ncols = math.isqrt(len(args.rects))
+
+        pygamelib.arrange_columns(args.rects, ncols, args.colattr, args.rowattr)
+
+        font = pygamelib.monospace_font(20)
+        def _render(index, rect):
+            # resolve size
+            if args.no_labels:
+                size = rect.size
+            else:
+                text = 'x'.join(map(str, rect.size))
+                size = tuple(map(max, zip(font.size(text), rect.size)))
+
+            result = pygame.Surface(size, pygame.SRCALPHA)
+            drawn = result.get_rect(size=rect.size, center=result.get_rect().center)
+            pygame.draw.rect(result, 'red', drawn, 1)
+
+            if not args.no_labels:
+                text = font.render(text, True, 'white')
+                result.blit(text, text.get_rect(center=result.get_rect().center))
+            return result
+
+        images = list(map(_render, *zip(*enumerate(args.rects))))
+        self.blits = list(zip(images, args.rects))
+        engine = pygamelib.Engine()
+        pygame.display.set_mode(args.display_size)
+        engine.run(self)
 
 
 def filled_shape_meter(window):

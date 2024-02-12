@@ -1,8 +1,5 @@
 import itertools as it
 
-from abc import ABC
-from abc import abstractmethod
-from collections import deque
 from operator import attrgetter
 from types import SimpleNamespace
 
@@ -285,7 +282,7 @@ class InventoryState(pygamelib.DemoBase):
     def do_keydown(self, event):
         if event.key in (pygame.K_q, ):
             # quit
-            post_quit()
+            pygamelib.post_quit()
         elif event.key in MOVEKEY_DELTA:
             # key to move event
             delta = MOVEKEY_DELTA[event.key]
@@ -380,17 +377,6 @@ class InventoryState(pygamelib.DemoBase):
         pygame.display.flip()
 
 
-def callable_name_for_event(event):
-    event_name = pygame.event.event_name(event.type)
-    callable_name = f'do_{event_name.lower()}'
-    return callable_name
-
-def first_or_none(iterable):
-    try:
-        return next(iterable)
-    except StopIteration:
-        pass
-
 def render_lines(font, color, lines, antialias=True):
     """
     Render lines of text with a font.
@@ -415,9 +401,6 @@ def post_drop(cursor, items):
 def post_rotate_holding(cursor):
     event = pygame.event.Event(ROTATE_HOLDING, cursor=cursor)
     pygame.event.post(event)
-
-def post_quit():
-    pygame.event.post(pygame.event.Event(pygame.QUIT))
 
 def align(rects, attrmap):
     """
@@ -517,7 +500,7 @@ def rotate_rects(rects):
     topleft.
     """
     grouped = it.groupby(sorted(rects, key=gety), key=gety)
-    table = ( list(items) for key, items in grouped )
+    table = (list(items) for key, items in grouped)
     #
     rotated_table = zip(*table)
     wrapped = pygame.Rect(pygamelib.wrap(rects))
