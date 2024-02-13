@@ -1032,7 +1032,10 @@ class CreateShape(
                 rect = pygamelib.rect_type(shape_value)
                 frames = [
                     list(
-                        pygamelib.trace_rect(
+                        # XXX
+                        # - worth bothering to make ints?
+                        (tuple(map(int, start)), tuple(map(int, end)))
+                        for start, end in pygamelib.trace_rect(
                             rect,
                             pygamelib.cubic_ease_in_out(i / args.steps)
                         )

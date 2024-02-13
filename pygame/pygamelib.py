@@ -1433,7 +1433,7 @@ def add_null_separator_flag(parser, **kwargs):
     kwargs.setdefault('help', 'Separate rects with null.')
     parser.add_argument('-0', **kwargs)
 
-def add_rect_dimension_separator_option(parser, **kwargs):
+def add_dimension_separator_option(parser, **kwargs):
     kwargs.setdefault('default', ' ')
     kwargs.setdefault('help', 'Rect dimensions separator.')
     parser.add_argument('-d', '--dimsep', **kwargs)
@@ -2752,6 +2752,8 @@ def lerp_rect(rect, time):
     """
     Return point on rect border at time.
     """
+    # TODO
+    # - arbitrary starting corner
     topleft, topright, bottomright, bottomleft = corners(rect)
     if time < 0.25:
         start = topleft
@@ -2769,7 +2771,9 @@ def lerp_rect(rect, time):
     # - trouble getting my head around modulo .25 and then divide by .25
     # - modulo to put the time in the range of one of the sides
     # - division because there are four sides
-    return mix((time % 0.25) / 0.25, pygame.Vector2(start), pygame.Vector2(end))
+    # - division to scale time to that side
+    time = (time % 0.25) / 0.25
+    return mix(time, pygame.Vector2(start), pygame.Vector2(end))
 
 def trace_rect(rect, time):
     """
@@ -2777,19 +2781,20 @@ def trace_rect(rect, time):
     """
     topleft, topright, bottomright, bottomleft = corners(rect)
     if time < 0.25:
-        yield (topleft, lerp_rect(rect, time))
+        start = topleft
     elif time < 0.50:
         yield (topleft, topright)
-        yield (topright, lerp_rect(rect, time))
+        start = topright
     elif time < 0.75:
         yield (topleft, topright)
         yield (topright, bottomright)
-        yield (bottomright, lerp_rect(rect, time))
+        start = bottomright
     else:
         yield (topleft, topright)
         yield (topright, bottomright)
         yield (bottomright, bottomleft)
-        yield (bottomleft, lerp_rect(rect, time))
+        start = bottomleft
+    yield (start, lerp_rect(rect, time))
 
 def cubic_ease_in_out(time):
     # NOTES
