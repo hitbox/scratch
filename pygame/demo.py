@@ -1010,6 +1010,62 @@ class Grid(
         engine.run(self)
 
 
+class CreateShape(
+    pygamelib.DemoCommand,
+    pygamelib.DemoBase,
+):
+
+    command_help = 'Demonstrate creating a shape like Manim'
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument('shape', choices=['rect'])
+        parser.add_argument('values', nargs='+')
+        parser.add_argument('--steps', type=int, default=60)
+
+    def main(self, args):
+        window = pygame.Rect((0,)*2, args.display_size)
+
+        self.animations = []
+        for shape_value in args.values:
+            if args.shape == 'rect':
+                rect = pygamelib.rect_type(shape_value)
+                frames = [
+                    list(
+                        pygamelib.trace_rect(
+                            rect,
+                            pygamelib.cubic_ease_in_out(i / args.steps)
+                        )
+                    )
+                    for i in range(args.steps)
+                ]
+                self.animations.append(it.cycle(frames))
+
+        self.time = 0
+        engine = pygamelib.Engine()
+        pygame.display.set_mode(window.size)
+        engine.run(self)
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygamelib.post_quit()
+
+    def update(self):
+        super().update()
+        self.time += self.elapsed
+        self.draw()
+
+    def draw(self):
+        self.screen.fill('black')
+        for animation in self.animations:
+            for line in next(animation):
+                pygame.draw.line(self.screen, 'red', *line)
+        pygame.display.flip()
+
+
 def filled_shape_meter(window):
     """
     Fill a shape from bottom-up as an indication of a meter.

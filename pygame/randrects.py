@@ -3,20 +3,12 @@ import random
 
 import pygamelib
 
-def random_size(minwidth, minheight, maxwidth, maxheight):
-    width = random.randint(minwidth, maxwidth)
-    height = random.randint(minheight, maxheight)
-    return (width, height)
-
-def generate_rects(n, minsize, maxsize):
-    minwidth, minheight = minsize
-    maxwidth, maxheight = maxsize
-
-    def _randrect():
-        return random_size(minwidth, minheight, maxwidth, maxheight)
-
-    for _ in range(n):
-        yield (0, 0, *_randrect())
+def random_rect(xrange, yrange, widthrange, heightrange):
+    x = random.randint(*xrange)
+    y = random.randint(*yrange)
+    w = random.randint(*widthrange)
+    h = random.randint(*heightrange)
+    return (x, y, w, h)
 
 def argument_parser():
     parser = argparse.ArgumentParser()
@@ -27,16 +19,26 @@ def argument_parser():
         help = 'Number of random rects.',
     )
     parser.add_argument(
-        '--minsize',
+        '--xrange',
         type = pygamelib.sizetype(),
-        default = '50',
-        help = 'Minimum rect size.',
+        default = '0,100',
     )
     parser.add_argument(
-        '--maxsize',
+        '--yrange',
         type = pygamelib.sizetype(),
-        default = '100',
-        help = 'Maximum rect size.',
+        default = '0,100',
+    )
+    parser.add_argument(
+        '--wrange',
+        type = pygamelib.sizetype(),
+        default = '10,100',
+        help = 'Range of widths',
+    )
+    parser.add_argument(
+        '--hrange',
+        type = pygamelib.sizetype(),
+        default = '10,100',
+        help = 'Range of heights',
     )
     pygamelib.add_null_separator_flag(parser)
     pygamelib.add_rect_dimension_separator_option(parser)
@@ -48,26 +50,10 @@ def main(argv=None):
     """
     parser = argument_parser()
     args = parser.parse_args(argv)
-
-    # validate size values
-    if not all(val > 0 for val in args.minsize):
-        parser.error('min must be greater than zero')
-
-    if not all(val > 0 for val in args.maxsize):
-        parser.error('max must be greater than zero')
-
-    # validate sizes in relation to each other
-    minwidth, minheight = args.minsize
-    maxwidth, maxheight = args.maxsize
-
-    if minwidth > maxwidth:
-        parser.error('min width greater than max')
-
-    if minheight > maxheight:
-        parser.error('min height greater than max')
-
-    rects = generate_rects(args.n, args.minsize, args.maxsize)
     null_separator = vars(args)['0']
+
+    rects = [random_rect(args.xrange, args.yrange, args.wrange, args.hrange)
+             for _ in range(args.n)]
 
     rect_string = pygamelib.format_pipe(rects, null_separator, args.dimsep)
     pygamelib.print_pipe(rect_string, null_separator)

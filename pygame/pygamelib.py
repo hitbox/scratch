@@ -1365,6 +1365,8 @@ def mix(time, a, b):
     """
     return a * (1 - time) + b * time
 
+lerp = mix
+
 def remap(x, a, b, c, d):
     """
     Return x from range a and b to range c and d.
@@ -2745,6 +2747,55 @@ def points_from_file(file):
             line = line[:line.index('#')]
         line = line.replace(',', ' ')
         yield tuple(map(int, line.split()))
+
+def lerp_rect(rect, time):
+    """
+    Return point on rect border at time.
+    """
+    topleft, topright, bottomright, bottomleft = corners(rect)
+    if time < 0.25:
+        start = topleft
+        end = topright
+    elif time < 0.50:
+        start = topright
+        end = bottomright
+    elif time < 0.75:
+        start = bottomright
+        end = bottomleft
+    else:
+        start = bottomleft
+        end = topleft
+    # NOTES
+    # - trouble getting my head around modulo .25 and then divide by .25
+    # - modulo to put the time in the range of one of the sides
+    # - division because there are four sides
+    return mix((time % 0.25) / 0.25, pygame.Vector2(start), pygame.Vector2(end))
+
+def trace_rect(rect, time):
+    """
+    Generate lines along border of rect at time.
+    """
+    topleft, topright, bottomright, bottomleft = corners(rect)
+    if time < 0.25:
+        yield (topleft, lerp_rect(rect, time))
+    elif time < 0.50:
+        yield (topleft, topright)
+        yield (topright, lerp_rect(rect, time))
+    elif time < 0.75:
+        yield (topleft, topright)
+        yield (topright, bottomright)
+        yield (bottomright, lerp_rect(rect, time))
+    else:
+        yield (topleft, topright)
+        yield (topright, bottomright)
+        yield (bottomright, bottomleft)
+        yield (bottomleft, lerp_rect(rect, time))
+
+def cubic_ease_in_out(time):
+    # NOTES
+    # - unsure about these constants but I put them into desmos and they come
+    #   out between 0 and 1
+    return time * time * time * (time * (6 * time - 15) + 10)
 
 # clockwise ordered rect side attribute names mapped with their opposites
 SIDENAMES = ['top', 'right', 'bottom', 'left']
