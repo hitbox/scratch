@@ -265,6 +265,25 @@ class sizetype:
         return size
 
 
+class eval_type:
+    # NOTES
+    # - originally specifically designed to evaluate expressions given on the
+    #   command line for sorting and filtering colors.
+    # - trying to generalize it here
+    # - we give keys for the globals/context dict on init
+
+    def __init__(self, name, *keys):
+        self.name = name
+        self.keys = keys
+
+    def __call__(self, expression_string):
+        code = compile(expression_string, self.name, 'eval')
+        def code_func(*args):
+            context = dict(zip(self.keys, args))
+            return eval(code, context)
+        return code_func
+
+
 class EventMethodName:
     """
     Callable to create a method name from a pygame event.

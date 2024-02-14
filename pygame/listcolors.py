@@ -123,13 +123,13 @@ def parse_args(argv=None):
     parser.add_argument('--print', action='store_true')
     parser.add_argument(
         '--filter',
-        type = color_eval_function('filter'),
+        type = pygamelib.eval_type('filter', 'color'),
         default = 'True', # default to all colors
         help = 'Expression filter function.',
     )
     parser.add_argument(
         '--sort',
-        type = color_eval_function('sort'),
+        type = pygamelib.eval_type('sort', 'color'),
         # NOTE:
         # - pygame.Color do not have __lt__
         default = 'tuple(color)', # default to (r, g, b, a) sort
@@ -137,7 +137,7 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         '--text',
-        type = color_eval_function('text'),
+        type = pygamelib.eval_type('text', 'color'),
         default = 'str',
         help = 'Expression for color labels.',
     )
