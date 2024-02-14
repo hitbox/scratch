@@ -1019,12 +1019,17 @@ class CreateShape(
 
     @staticmethod
     def add_parser_arguments(parser):
-        parser.add_argument('shape', choices=['rect'])
+        parser.add_argument('shape', choices=['circle', 'rect'])
         parser.add_argument('values', nargs='+')
         parser.add_argument('--steps', type=int, default=60)
 
     def main(self, args):
         window = pygame.Rect((0,)*2, args.display_size)
+
+        if args.shape == 'rect':
+            self.draw_for = self.draw_for_rects
+        elif args.shape == 'circle':
+            self.draw_for = self.draw_for_circles
 
         self.animations = []
         for shape_value in args.values:
@@ -1042,6 +1047,13 @@ class CreateShape(
                     )
                     for i in range(args.steps)
                 ]
+                self.animations.append(it.cycle(frames))
+            elif args.shape == 'circle':
+                circle = pygamelib.Circle(*pygamelib.circle_type(shape_value))
+                frames = [
+                    [circle.create_draw_args(i / args.steps, 1) for i in range(args.steps)]
+                ]
+                print(frames)
                 self.animations.append(it.cycle(frames))
 
         self.time = 0
@@ -1063,10 +1075,18 @@ class CreateShape(
 
     def draw(self):
         self.screen.fill('black')
+        self.draw_for()
+        pygame.display.flip()
+
+    def draw_for_rects(self):
         for animation in self.animations:
             for line in next(animation):
                 pygame.draw.line(self.screen, 'red', *line)
-        pygame.display.flip()
+
+    def draw_for_circles(self):
+        for animation in self.animations:
+            for arc_args in next(animation):
+                pygame.draw.arc(self.screen, 'red', *arc_args)
 
 
 def filled_shape_meter(window):

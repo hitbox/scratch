@@ -2,7 +2,9 @@ import argparse
 import itertools as it
 import math
 import operator as op
+import os
 import string
+import textwrap
 
 from pprint import pprint
 
@@ -96,31 +98,55 @@ def run(display_size, colors, names, font_size, colortext, predicate, sortkey):
     pygame.display.set_mode(display_size)
     engine.run(demo)
 
-class color_eval_function:
-    """
-    Makes functions taking a color and return the result of a user expression.
-    """
+def auto_completion_script():
+    # TODO
+    # - this is a work in progress
+    # - have not discovered how to complete after
+    #   something like `python listcolors.py`
+    # - would like after `python listcolors.py`<tab><tab> to
+    #   show all the options
+    filename = os.path.basename(__file__)
+    root, ext = os.path.splitext(filename)
+    template = textwrap.dedent('''\
+    _{root}() {{
+        local cur prev opts
+        cur="${{COMP_WORDS[COMP_CWORD]}}"
+        prev="${{COMP_WORDS[COMP_CWORD-1]}}"
+        case "${{prev}}" in
+            --filter)
+                COMPREPLY=($(compgen -W "test1 test2 test3" -- ${{cur}}))
+                ;;
+            *)
+                COMPREPLY=()
+                ;;
+        esac
+    }}
+    # -F function
+    complete -F _{root} "python {filename}"
+    ''')
+    context = globals()
+    context.update(ext=ext, filename=filename, root=root)
+    return template.format(**context)
 
-    def __init__(self, name):
-        self.name = name
-
-    def __call__(self, expression_string):
-        code = compile(expression_string, self.name, 'eval')
-        def code_func(color):
-            color = pygamelib.ColorAttributes(color)
-            return eval(code, {'color': color})
-        return code_func
-
-
-def parse_args(argv=None):
+def argument_parser():
     parser = argparse.ArgumentParser()
-    pygamelib.add_display_size_option(parser, default='1900,900')
+    pygamelib.add_display_size_option(
+        parser,
+        default = '1900,900',
+    )
+    parser.add_argument(
+        '--auto-completion',
+        action = 'store_true',
+    )
     parser.add_argument(
         '--font-size',
         type = int,
         default = '15',
     )
-    parser.add_argument('--print', action='store_true')
+    parser.add_argument(
+        '--print',
+        action = 'store_true',
+    )
     parser.add_argument(
         '--filter',
         type = pygamelib.eval_type('filter', 'color'),
@@ -141,12 +167,16 @@ def parse_args(argv=None):
         default = 'str',
         help = 'Expression for color labels.',
     )
-    args = parser.parse_args(argv)
-    return args
+    return parser
 
-def main():
-    args = parse_args()
-    colors = map(pygame.Color, set(pygamelib.UNIQUE_THECOLORS.values()))
+def main(argv=None):
+    parser = argument_parser()
+    args = parser.parse_args(argv)
+    if args.auto_completion:
+        print(auto_completion_script())
+        return
+    colors = pygamelib.UNIQUE_THECOLORS.values()
+    colors = map(pygamelib.ColorAttributes, colors)
     colors = sorted(filter(args.filter, colors), key=args.sort)
     names = list(map(pygamelib.color_name, colors))
     if args.print:

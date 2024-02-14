@@ -725,6 +725,15 @@ class Circle(
         center = (x+ox, y+oy)
         return (color, center, radius, width)
 
+    def rect(self):
+        (x, y), radius = self
+        return (x - radius, y - radius, x + radius * 2, y + radius * 2)
+
+    def create_draw_args(self, time, width):
+        angle = mix(time, 0, math.tau)
+        rect = self.rect()
+        return (rect, 0, angle, width)
+
 
 class Line(
     namedtuple('LineBase', 'start end'),
@@ -1432,6 +1441,10 @@ def rect_type(string):
     pygame Rect arguments as from command line or text file.
     """
     return pygame.Rect(*intargs(string))
+
+def circle_type(string):
+    x, y, radius = intargs(string)
+    return ((x, y), radius)
 
 def add_display_size_option(parser, **kwargs):
     kwargs.setdefault('type', sizetype())
@@ -2814,6 +2827,9 @@ def trace_rect(rect, time):
         yield (bottomright, bottomleft)
         start = bottomleft
     yield (start, lerp_rect(rect, time))
+
+def trace_circle(time):
+    return mix(time, 0, math.tau)
 
 def cubic_ease_in_out(time):
     # NOTES
