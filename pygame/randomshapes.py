@@ -7,7 +7,7 @@ def random_circle(args):
     x = random.randint(*args.xrange)
     y = random.randint(*args.yrange)
     r = random.randint(*args.radiusrange)
-    return ((x, y), r)
+    return (x, y, r)
 
 def random_rect(args):
     x = random.randint(*args.xrange)
