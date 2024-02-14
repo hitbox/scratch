@@ -16,8 +16,9 @@ from pygame.color import THECOLORS
 
 class ColorGrid(pygamelib.DemoBase):
 
-    def __init__(self, drawables):
+    def __init__(self, drawables, background_color):
         self.drawables = drawables
+        self.background_color = background_color
         self.offset = pygame.Vector2()
 
     def do_quit(self, event):
@@ -36,11 +37,42 @@ class ColorGrid(pygamelib.DemoBase):
         self.draw()
 
     def draw(self):
-        self.screen.fill('black')
+        self.screen.fill(self.background_color)
         for image, rect in self.drawables:
             x, y, *_ = rect
             self.screen.blit(image, self.offset + (x, y))
         pygame.display.flip()
+
+
+class ColorCardRenderer:
+
+    def __init__(self, font, text_color, label_margin, antialias=True):
+        self.font = font
+        self.text_color = text_color
+        self.label_margin = label_margin
+        self.antialias = antialias
+
+    def make_result(self, size, color):
+        result_image = pygame.Surface(size)
+        result_image.fill(color)
+        result_rect = result_image.get_rect()
+        return (result_image, result_rect)
+
+    def make_label(self, text, color, background_color, shade_amount):
+        label_size = pygame.Vector2(self.font.size(text)) + self.label_margin
+        # label image and rect
+        label_image = pygame.Surface(label_size, pygame.SRCALPHA)
+        label_image.fill(pygame.Color(color).lerp(background_color, shade_amount))
+        label_rect = label_image.get_rect()
+        return (label_image, label_rect)
+
+    def __call__(self, size, color, text, background_color, shade_amount):
+        result_image, result_rect = self.make_result(size, color)
+        label_image, label_rect = self.make_label(text, color, background_color, shade_amount)
+        text_image = self.font.render(text, self.antialias, self.text_color)
+        label_image.blit(text_image, text_image.get_rect(center=label_rect.center))
+        result_image.blit(label_image, label_image.get_rect(center=result_rect.center))
+        return result_image
 
 
 def _arrange(rects, ncols):
@@ -75,7 +107,7 @@ def _arrange(rects, ncols):
                 rect.width = colwrap.width
                 rect.left = colwrap.left
 
-def run(display_size, colors, names, font_size, colortext, predicate, sortkey):
+def run(display_size, colors, names, font_size, background_color):
     assert len(colors) == len(names)
     font = pygamelib.monospace_font(font_size)
 
@@ -83,18 +115,32 @@ def run(display_size, colors, names, font_size, colortext, predicate, sortkey):
     ncols = math.isqrt(len(rects))
     _arrange(rects, ncols)
 
-    def text(color, name):
+    def get_text(color, name):
         return name
 
-    images = [pygamelib.render_text(font, rect.size, color, 'white', text(color, name))
-              for rect, color, name in zip(rects, colors, names)]
+    # XXX
+    # - relying on big number to make the width of the color card image
+    color_card_renderer = ColorCardRenderer(font, 'white', (999, 10))
 
+    def render_text(rect, color, name):
+        """
+        Name of color rendered onto an image of size rect with a black shaded
+        background the width of the image.
+        """
+        return color_card_renderer(
+            rect.size,
+            color,
+            get_text(color, name),
+            background_color,
+            0.50,
+        )
+
+    images = list(map(render_text, rects, colors, names))
     drawables = list(zip(images, rects))
-    demo = ColorGrid(drawables)
-    demo.offset = -pygamelib.centered_offset(rects, display_size)
+    demo = ColorGrid(drawables, background_color)
+    demo.offset = pygamelib.centered_offset(rects, display_size)
 
     engine = pygamelib.Engine()
-
     pygame.display.set_mode(display_size)
     engine.run(demo)
 
@@ -144,6 +190,11 @@ def argument_parser():
         default = '15',
     )
     parser.add_argument(
+        '--background-color',
+        type = pygame.Color,
+        default = 'black',
+    )
+    parser.add_argument(
         '--print',
         action = 'store_true',
     )
@@ -181,7 +232,7 @@ def main(argv=None):
     names = list(map(pygamelib.color_name, colors))
     if args.print:
         pprint(names)
-    run(args.display_size, colors, names, args.font_size, args.text, args.filter, args.sort)
+    run(args.display_size, colors, names, args.font_size, args.background_color)
 
 if __name__ == '__main__':
     main()

@@ -1903,7 +1903,7 @@ def centered_offset(rects, window):
         window = pygame.Rect((0,)*2, window)
     rect = pygame.Rect(wrap(rects))
     rect.center = window.center
-    return -pygame.Vector2(rect.topleft)
+    return pygame.Vector2(rect.topleft)
 
 def line_center(line):
     (x1, y1), (x2, y2) = line
