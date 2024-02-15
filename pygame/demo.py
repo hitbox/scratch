@@ -71,33 +71,46 @@ class VariableManager:
 
 class GradientLineRenderer:
 
-    def __init__(self, n, length):
+    def __init__(self, steps, length):
         """
-        :param n: number of segments along line.
+        :param steps: number of segments along line.
         :param length: length of each side of perpendicular lines.
         """
-        self.n = n
+        self.steps = steps
         self.length = length
 
     @classmethod
     def from_dict(cls, **kwargs):
-        return cls(n=kwargs['n'], length=kwargs['length'])
+        return cls(steps=kwargs['steps'], length=kwargs['length'])
 
     def update_from_dict(self, **kwargs):
-        self.n = kwargs['n']
+        self.steps = kwargs['steps']
         self.length = kwargs['length']
 
-    def draw(self, surface, line, color1, color2, border_color=None, border_width=None):
-        lines = pygamelib.perpendicular_line_segments(line, self.n, self.length)
+    # NOTES
+    # - a function like enumerate that associates a time with an iterable over
+    #   a number of steps?
+
+    def points_times(self, line):
+        lines = pygamelib.perpendicular_line_segments(line, self.steps, self.length)
         for i, points in enumerate(pygamelib.line_segments_polygons(lines)):
-            time = i / (self.n - 1)
+            time = i / (self.steps - 1)
+            yield (points, time)
+
+    def draw(self, surface, line, color1, color2, border_color=None, border_width=None):
+        for points, time in self.points_times(line):
             color = pygame.Color(color1).lerp(color2, time)
             pygame.draw.polygon(surface, color, points)
             if border_color:
+                assert border_width is not None
                 pygame.draw.polygon(surface, border_color, points, border_width)
 
 
-class BlitTilesDemo(pygamelib.DemoBase):
+class BlitTilesDemo(
+    pygamelib.DemoBase,
+    pygamelib.QuitKeydownMixin,
+    pygamelib.StopMixin,
+):
 
     def __init__(self, display_size, tilesize, font):
         self.display_size = display_size
@@ -130,13 +143,6 @@ class BlitTilesDemo(pygamelib.DemoBase):
         for event in pygame.event.get():
             pygamelib.dispatch(self, event)
         pygamelib.post_videoexpose()
-
-    def do_quit(self, event):
-        self.engine.stop()
-
-    def do_keydown(self, event):
-        if event.key in (pygame.K_ESCAPE, pygame.K_q):
-            pygamelib.post_quit()
 
     def do_videoexpose(self, event):
         self.draw()
@@ -301,6 +307,7 @@ class Gradient(pygamelib.DemoCommand):
 class CircleSegments(
     pygamelib.DemoCommand,
     pygamelib.DemoBase,
+    pygamelib.StopMixin,
 ):
 
     command_name = 'circle_segments'
@@ -327,9 +334,6 @@ class CircleSegments(
             parser,
             help = 'Animate variables over time.',
         )
-
-    def do_quit(self, event):
-        self.engine.stop()
 
     def do_keydown(self, event):
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
@@ -488,6 +492,7 @@ class LineLineIntersection(
     pygamelib.DemoCommand,
     pygamelib.DemoBase,
     pygamelib.SimpleQuitMixin,
+    pygamelib.StopMixin,
 ):
 
     command_name = 'line_line_intersect'
@@ -528,9 +533,9 @@ class DiagonalLineFill(
     pygamelib.DemoCommand,
     pygamelib.DemoBase,
     pygamelib.SimpleQuitMixin,
+    pygamelib.StopMixin,
 ):
 
-    command_name = 'diagonal_line_fill'
     command_help = 'Fill with diagonal offset lines.'
 
     @staticmethod
@@ -644,15 +649,24 @@ class DiagonalLineFill(
 class LineGradient(
     pygamelib.DemoCommand,
     pygamelib.DemoBase,
+    pygamelib.StopMixin,
 ):
 
-    command_name = 'line_gradient'
+    #command_name = 'line_gradient'
     command_help = 'Produce a gradient along a line.'
 
     @staticmethod
     def add_parser_arguments(parser):
-        parser.add_argument('n', type=int)
-        parser.add_argument('length', type=int)
+        parser.add_argument(
+            'steps',
+            type = int,
+            help = 'Gradient color steps.',
+        )
+        parser.add_argument(
+            'length',
+            type = int,
+            help = 'Length either side of a line.',
+        )
         parser.add_argument('--color1', default='orangered')
         parser.add_argument('--color2', default='gold')
         parser.add_argument('--border-color')
@@ -661,7 +675,7 @@ class LineGradient(
     def main(self, args):
         gradient_line_dict = {
             key: val for key, val in vars(args).items()
-            if key in ('length', 'n')
+            if key in ('length', 'steps')
         }
         self.variables = VariableManager(gradient_line_dict)
         self.keydown_variables = KeydownVariables(self.variables)
@@ -678,9 +692,6 @@ class LineGradient(
         pygame.display.set_mode(self.window.size)
         self.font = pygamelib.monospace_font(25)
         engine.run(self)
-
-    def do_quit(self, event):
-        self.engine.stop()
 
     def do_keydown(self, event):
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
@@ -705,10 +716,10 @@ class LineGradient(
             self.border_color,
             self.border_width,
         )
-        n = self.variables['n']
+        steps = self.variables['steps']
         length = self.variables['length']
         lines = [
-            f'{n=}',
+            f'{steps=}',
             f'{length=}',
         ]
         images, rects = pygamelib.make_blitables_from_font(lines, self.font, 'ghostwhite')
@@ -717,11 +728,10 @@ class LineGradient(
         pygame.display.flip()
 
 
-class DrawRing(
+class Ring(
     pygamelib.DemoCommand,
 ):
 
-    command_name = 'ring'
     command_help = 'Draw a ring or donut shape.'
 
     @staticmethod
@@ -740,18 +750,29 @@ class DrawRing(
         else:
             steps = tuple(map(pygamelib.step_for_radius, radii))
 
+        # TODO
+        # - the edges of the circular segments do not look like they are the
+        #   angles given
         angle1, angle2 = args.angles
 
         # points around the inner radius and then the outer
+        def _range_for_flip(step, flip):
+            # NOTES
+            # - the flip is for tracing out a circular segment one way for a
+            #   radii and then the other way for the other radii
+            # - grab a copy into function namespace to avoid changing the outer
+            #   context, even though they're not used otherwise
+            a1 = angle1
+            a2 = angle2
+            if flip:
+                a1, a2 = a2, a1
+                step = -step
+            return range(a1, a2+step, step)
+
         points = [
             point
             for radius, step, flip in zip(radii, steps, range(2))
-            for point in pygamelib.circle_points(
-                range(angle1, angle2+step, step)
-                    if not flip else
-                    range(angle2, angle1-step, -step),
-                radius
-            )
+            for point in pygamelib.circle_points(_range_for_flip(step, flip), radius)
         ]
         bounding = pygame.Rect(pygamelib.bounding_rect(points))
         centered = pygamelib.make_rect(bounding, center=self.window.center)
@@ -775,7 +796,6 @@ class DrawRing(
 
 class Bezier(pygamelib.DemoCommand):
 
-    command_name = 'bezier'
     command_help = 'Bezier curve from control points.'
 
     @staticmethod
@@ -817,7 +837,6 @@ class Bezier(pygamelib.DemoCommand):
 
 class Circularize(pygamelib.DemoCommand):
 
-    command_name = 'circularize'
     command_help = 'Make a circle polygon between two points.'
 
     def main(self, args):
@@ -846,13 +865,10 @@ class Circularize(pygamelib.DemoCommand):
 class Fire(
     pygamelib.DemoCommand,
     pygamelib.DemoBase,
+    pygamelib.QuitKeydownMixin,
 ):
 
     command_help = 'Wiggle points on a triangle for fire.'
-
-    @staticmethod
-    def add_parser_arguments(parser):
-        pass
 
     def main(self, args):
         self.window = pygame.Rect((0,)*2, args.display_size)
@@ -862,13 +878,6 @@ class Fire(
         engine = pygamelib.Engine()
         pygame.display.set_mode(self.window.size)
         engine.run(self)
-
-    def do_quit(self, event):
-        self.engine.stop()
-
-    def do_keydown(self, event):
-        if event.key in (pygame.K_ESCAPE, pygame.K_q):
-            pygamelib.post_quit()
 
     def draw(self):
         self.screen.fill('black')
@@ -926,6 +935,7 @@ class XMLShapes(
 class Grid(
     pygamelib.DemoCommand,
     pygamelib.DemoBase,
+    pygamelib.QuitKeydownMixin,
 ):
 
     command_help = 'Demonstrate rect arrangement in a grid.'
@@ -958,10 +968,6 @@ class Grid(
 
     def do_quit(self, event):
         self.engine.stop()
-
-    def do_keydown(self, event):
-        if event.key in (pygame.K_ESCAPE, pygame.K_q):
-            pygamelib.post_quit()
 
     def do_mousemotion(self, event):
         if event.buttons[0]:
@@ -1013,6 +1019,7 @@ class Grid(
 class CreateShape(
     pygamelib.DemoCommand,
     pygamelib.DemoBase,
+    pygamelib.QuitKeydownMixin,
 ):
 
     command_help = 'Demonstrate creating a shape like Manim'
@@ -1063,10 +1070,6 @@ class CreateShape(
 
     def do_quit(self, event):
         self.engine.stop()
-
-    def do_keydown(self, event):
-        if event.key in (pygame.K_ESCAPE, pygame.K_q):
-            pygamelib.post_quit()
 
     def update(self):
         super().update()

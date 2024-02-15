@@ -668,6 +668,25 @@ class ShapeParser:
                 yield from squircle_shapes(color, (x, y), radius, width, corners)
 
 
+class StopMixin:
+    """
+    Common pattern to stop engine on pygame.QUIT event.
+    """
+
+    def do_quit(self, event):
+        self.engine.stop()
+
+
+class QuitKeydownMixin:
+    """
+    Common pattern to quit on Escape or Q key press.
+    """
+
+    def do_keydown(self, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            post_quit()
+
+
 class DrawMixin:
 
     def draw(self, surf, color, width, offset=(0,0)):
@@ -787,9 +806,8 @@ class Lines(
 
     def draw_args(self, color, width, offset):
         ox, oy = offset
-        closed, points = self
-        points = tuple((x+ox, y+oy) for x, y in points)
-        return (color, closed, points, width)
+        points = tuple((x+ox, y+oy) for x, y in self.points)
+        return (color, self.closed, points, width)
 
 
 class Point:
@@ -2631,9 +2649,9 @@ def bezier_curve(control_points, t):
     y = sum(bernstein_poly(i, degree, t) * control_points[i][1] for i in range(n))
     return (x, y)
 
-def bezier_curve_points(control_points, n):
-    for i in range(n):
-        yield bezier_curve(control_points, i/n)
+def bezier_curve_points(control_points, steps):
+    for i in range(steps+1):
+        yield bezier_curve(control_points, i/steps)
 
 def parse_xml(xmlfile):
     tree = ET.parse(xmlfile)
