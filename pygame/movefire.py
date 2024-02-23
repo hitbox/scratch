@@ -23,6 +23,8 @@ SHOT_THROW = 0.05
 SHOTSPREAD_ANGLE = 20
 SHOTSPREAD_STEP = 5
 
+DEBUG_PLAYER_ATTRS = ['acceleration', 'velocity', 'position']
+
 class Entity(pygame.sprite.Sprite):
 
     def __init__(self, image, position, time, *groups):
@@ -152,8 +154,11 @@ while running:
     entities.update(elapsed)
     screen.fill('black')
     entities.draw(screen)
-    attrs = ['acceleration', 'velocity', 'position']
-    texts = [f'{name}={getattr(player, name)}' for name in attrs]
+    texts = [
+        'WASD to move',
+        'Arrow keys to shoot',
+    ]
+    texts.extend(f'{name}={getattr(player, name)}' for name in DEBUG_PLAYER_ATTRS)
     texts.append(f'{fired=}')
     images = [font.render(text, True, 'white') for text in texts]
     rects = [image.get_rect() for image in images]
