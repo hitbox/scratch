@@ -7,23 +7,40 @@ import os
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
 
+BULLET_LIVE_TIME = 1000
+FIRE_COOLDOWN = 100
 FIRE_VELOCITY = 10
 PLAYER_ACCELERATION = 0.5
 PLAYER_MAX_ACCELERATION = 10
-STOP = 0.3
-BULLET_LIVE_TIME = 1000
-FIRE_COOLDOWN = 100
-ANGLES = {
-    pygame.K_w: math.radians(90),
-    pygame.K_d: math.radians(0),
-    pygame.K_s: math.radians(270),
-    pygame.K_a: math.radians(180),
-}
-SHOT_THROW = 0.05
+
+# SHOTSPREAD_ANGLE: the angle either side of the angle shot in, to make a
+#                   shotgun spread of bullets.
 SHOTSPREAD_ANGLE = 20
+
+# SHOTSPREAD_STEP: the steps between the shot spread angles.
 SHOTSPREAD_STEP = 5
 
+# SHOT_THROW_FACTOR: how much movement affects shots.
+SHOT_THROW_FACTOR = 0.05
+
+# STOP: threshold below which a value should just be zero.
+STOP = 0.3
+
 DEBUG_PLAYER_ATTRS = ['acceleration', 'velocity', 'position']
+
+MOVEKEYS = (
+    pygame.K_w,
+    pygame.K_d,
+    pygame.K_s,
+    pygame.K_a,
+)
+
+FIREKEYS = (
+    pygame.K_UP,
+    pygame.K_RIGHT,
+    pygame.K_DOWN,
+    pygame.K_LEFT,
+)
 
 class Entity(pygame.sprite.Sprite):
 
@@ -42,28 +59,8 @@ class Entity(pygame.sprite.Sprite):
         self.time -= elapsed
         if self.time <= 0:
             self.kill()
-        self.acceleration.move_towards_ip(
-            origin,
-            self.acceleration.magnitude() * self.acceleration_friction
-        )
-        if abs(self.acceleration.x) < STOP:
-            self.acceleration.x = 0
-        if abs(self.acceleration.y) < STOP:
-            self.acceleration.y = 0
-        self.velocity.move_towards_ip(
-            origin,
-            self.velocity.magnitude() * self.velocity_friction
-        )
-        if abs(self.velocity.x) < STOP:
-            self.velocity.x = 0
-        if abs(self.velocity.y) < STOP:
-            self.velocity.y = 0
-        self.velocity += self.acceleration
-        if self.velocity.magnitude():
-            self.velocity.clamp_magnitude_ip(PLAYER_MAX_ACCELERATION)
-        self.position += self.velocity
+        integrate(self, ORIGIN, STOP)
         self.rect.center = self.position
-
 
 
 def shot_velocity(fire_keys):
@@ -72,9 +69,9 @@ def shot_velocity(fire_keys):
     if fire_up:
         center_velocity.y = -FIRE_VELOCITY
     if fire_right:
-        center_velocity.x = FIRE_VELOCITY
+        center_velocity.x = +FIRE_VELOCITY
     if fire_down:
-        center_velocity.y = FIRE_VELOCITY
+        center_velocity.y = +FIRE_VELOCITY
     if fire_left:
         center_velocity.x = -FIRE_VELOCITY
     return center_velocity
@@ -88,8 +85,34 @@ def shot_angles(center_velocity):
         yield angle
         angle += step
 
-get_movekeys = op.itemgetter(pygame.K_w, pygame.K_d, pygame.K_s, pygame.K_a)
-get_firekeys = op.itemgetter(pygame.K_UP, pygame.K_RIGHT, pygame.K_DOWN, pygame.K_LEFT)
+def zero(value, threshold):
+    if abs(value) < threshold:
+        return 0
+    return value
+
+def zero_vector(vector, threshold):
+    if abs(vector.x) < threshold:
+        vector.x = zero(vector.x, threshold)
+    if abs(vector.y) < threshold:
+        vector.y = zero(vector.y, threshold)
+
+def integrate(obj, origin, stop_threshold):
+    obj.acceleration.move_towards_ip(
+        origin,
+        obj.acceleration.magnitude() * obj.acceleration_friction
+    )
+    zero_vector(obj.velocity, stop_threshold)
+    obj.velocity.move_towards_ip(
+        origin,
+        obj.velocity.magnitude() * obj.velocity_friction
+    )
+    obj.velocity += obj.acceleration
+    if obj.velocity.magnitude():
+        obj.velocity.clamp_magnitude_ip(PLAYER_MAX_ACCELERATION)
+    obj.position += obj.velocity
+
+get_movekeys = op.itemgetter(*MOVEKEYS)
+get_firekeys = op.itemgetter(*FIREKEYS)
 
 pygame.font.init()
 font = pygame.font.SysFont('monospace', 20)
@@ -97,7 +120,7 @@ clock = pygame.time.Clock()
 framerate = 60
 screen = pygame.display.set_mode((800,)*2)
 window = screen.get_rect()
-origin = pygame.Vector2()
+ORIGIN = pygame.Vector2()
 
 entities = pygame.sprite.Group()
 
@@ -131,6 +154,7 @@ while running:
         player.acceleration.y += PLAYER_ACCELERATION
     if move_left:
         player.acceleration.x -= PLAYER_ACCELERATION
+    zero_vector(player.acceleration, STOP)
     if (fired - elapsed) < 0:
         fired = 0
     else:
@@ -140,7 +164,7 @@ while running:
         if any(fire_keys):
             fired = FIRE_COOLDOWN
             center_velocity = shot_velocity(fire_keys)
-            center_velocity += player.velocity * SHOT_THROW
+            center_velocity += player.velocity * SHOT_THROW_FACTOR
             for angle in shot_angles(center_velocity):
                 bullet = Entity(
                     bullet_image,
