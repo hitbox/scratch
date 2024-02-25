@@ -79,11 +79,11 @@ def shot_velocity(fire_keys):
         center_velocity.x = -FIRE_VELOCITY
     return center_velocity
 
-def shot_angles(center_velocity):
+def shot_angles(center_velocity, spread, step):
     center_angle = math.atan2(center_velocity.y, center_velocity.x)
-    angle = center_angle - math.radians(SHOTSPREAD_ANGLE)
-    stop = center_angle + math.radians(SHOTSPREAD_ANGLE)
-    step = math.radians(SHOTSPREAD_STEP)
+    angle = center_angle - math.radians(spread)
+    stop = center_angle + math.radians(spread)
+    step = math.radians(step)
     while angle < stop:
         yield angle
         angle += step
@@ -185,7 +185,7 @@ while running:
             fired = FIRE_COOLDOWN
             center_velocity = shot_velocity(fire_keys)
             center_velocity += player.velocity * SHOT_THROW_FACTOR
-            for angle in shot_angles(center_velocity):
+            for angle in shot_angles(center_velocity, SHOTSPREAD_ANGLE, SHOTSPREAD_STEP):
                 bullet = Entity(
                     bullet_image,
                     player.rect.center,
