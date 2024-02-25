@@ -28,6 +28,9 @@ STOP = 0.3
 
 DEBUG_PLAYER_ATTRS = ['acceleration', 'velocity', 'position']
 
+FRAMERATE = 60
+ORIGIN = pygame.Vector2()
+
 MOVEKEYS = (
     pygame.K_w,
     pygame.K_d,
@@ -111,16 +114,43 @@ def integrate(obj, origin, stop_threshold):
         obj.velocity.clamp_magnitude_ip(PLAYER_MAX_ACCELERATION)
     obj.position += obj.velocity
 
+def apply_movekeys(vector, movekeys, acceleration):
+    move_up, move_right, move_down, move_left = movekeys
+    if move_up:
+        vector.y -= acceleration
+    if move_right:
+        vector.x += acceleration
+    if move_down:
+        vector.y += acceleration
+    if move_left:
+        vector.x -= acceleration
+
+def timer_update(time, elapsed):
+    new = time - elapsed
+    if new < 0:
+        return 0
+    else:
+        return new
+
+def cossin(value):
+    yield math.cos(value)
+    yield math.sin(value)
+
+def scale_by_angle(angle, magnitude):
+    for value in cossin(angle):
+        yield value * magnitude
+
+def update_scale_angle(vector, angle, magnitude):
+    vector.update(*(scale_by_angle(angle, magnitude)))
+
 get_movekeys = op.itemgetter(*MOVEKEYS)
 get_firekeys = op.itemgetter(*FIREKEYS)
 
 pygame.font.init()
 font = pygame.font.SysFont('monospace', 20)
 clock = pygame.time.Clock()
-framerate = 60
 screen = pygame.display.set_mode((800,)*2)
 window = screen.get_rect()
-ORIGIN = pygame.Vector2()
 
 entities = pygame.sprite.Group()
 
@@ -137,7 +167,7 @@ fired = 0
 
 running = True
 while running:
-    elapsed = clock.tick(framerate)
+    elapsed = clock.tick(FRAMERATE)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -145,20 +175,10 @@ while running:
             if event.key == pygame.K_ESCAPE:
                 pygame.event.post(pygame.event.Event(pygame.QUIT))
     keys = pygame.key.get_pressed()
-    move_up, move_right, move_down, move_left = get_movekeys(keys)
-    if move_up:
-        player.acceleration.y -= PLAYER_ACCELERATION
-    if move_right:
-        player.acceleration.x += PLAYER_ACCELERATION
-    if move_down:
-        player.acceleration.y += PLAYER_ACCELERATION
-    if move_left:
-        player.acceleration.x -= PLAYER_ACCELERATION
+    movekeys = get_movekeys(keys)
+    apply_movekeys(player.acceleration, movekeys, PLAYER_ACCELERATION)
     zero_vector(player.acceleration, STOP)
-    if (fired - elapsed) < 0:
-        fired = 0
-    else:
-        fired -= elapsed
+    fired = timer_update(fired, elapsed)
     if not fired:
         fire_keys = get_firekeys(keys)
         if any(fire_keys):
@@ -172,8 +192,7 @@ while running:
                     BULLET_LIVE_TIME,
                     entities,
                 )
-                bullet.velocity.x = math.cos(angle) * FIRE_VELOCITY
-                bullet.velocity.y = math.sin(angle) * FIRE_VELOCITY
+                update_scale_angle(bullet.velocity, angle, FIRE_VELOCITY)
                 bullet.velocity += player.velocity
     entities.update(elapsed)
     screen.fill('black')
