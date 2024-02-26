@@ -66,18 +66,44 @@ class Entity(pygame.sprite.Sprite):
         self.rect.center = self.position
 
 
-def shot_velocity(fire_keys):
-    fire_up, fire_right, fire_down, fire_left = fire_keys
-    center_velocity = pygame.Vector2()
-    if fire_up:
-        center_velocity.y = -FIRE_VELOCITY
-    if fire_right:
-        center_velocity.x = +FIRE_VELOCITY
-    if fire_down:
-        center_velocity.y = +FIRE_VELOCITY
-    if fire_left:
-        center_velocity.x = -FIRE_VELOCITY
-    return center_velocity
+class Autofire:
+
+    def __init__(self, delay):
+        self.delay = delay
+        self.time = 0
+
+    def __bool__(self):
+        return self.time == 0
+
+    def fire(self):
+        self.time = self.delay
+
+    def update(self, elapsed):
+        if self.time > 0:
+            if self.time - elapsed < 0:
+                self.time = 0
+            else:
+                self.time -= elapsed
+
+
+class Shotgun:
+
+    def __init__(self, spread, step, image, fire_velocity):
+        self.spread = spread
+        self.step = step
+        self.image = image
+        self.fire_velocity = fire_velocity
+
+    def shoot(self, group, center_velocity, impart_velocity, origin, live_time):
+        for angle in shot_angles(center_velocity, self.spread, self.step):
+            bullet = Entity(self.image, origin, live_time, group)
+            update_scale_angle(bullet.velocity, angle, self.fire_velocity)
+            bullet.velocity += impart_velocity
+
+
+def keyed_vector(keys, magnitude):
+    up, right, down, left = map(bool, keys)
+    return (-magnitude * left + magnitude * right, -magnitude * up + magnitude * down)
 
 def shot_angles(center_velocity, spread, step):
     center_angle = math.atan2(center_velocity.y, center_velocity.x)
@@ -114,27 +140,9 @@ def integrate(obj, origin, stop_threshold):
         obj.velocity.clamp_magnitude_ip(PLAYER_MAX_ACCELERATION)
     obj.position += obj.velocity
 
-def apply_movekeys(vector, movekeys, acceleration):
-    move_up, move_right, move_down, move_left = movekeys
-    if move_up:
-        vector.y -= acceleration
-    if move_right:
-        vector.x += acceleration
-    if move_down:
-        vector.y += acceleration
-    if move_left:
-        vector.x -= acceleration
-
-def timer_update(time, elapsed):
-    new = time - elapsed
-    if new < 0:
-        return 0
-    else:
-        return new
-
-def cossin(value):
-    yield math.cos(value)
-    yield math.sin(value)
+def cossin(angle):
+    yield math.cos(angle)
+    yield math.sin(angle)
 
 def scale_by_angle(angle, magnitude):
     for value in cossin(angle):
@@ -154,16 +162,17 @@ window = screen.get_rect()
 
 entities = pygame.sprite.Group()
 
-player_image = pygame.Surface((32,)*2)
-player_image.fill('magenta')
-player = Entity(player_image, window.center, math.inf, entities)
-player.acceleration_friction = 0.05
-player.velocity_friction = 0.90
-
 bullet_image = pygame.Surface((16,)*2, pygame.SRCALPHA)
 pygame.draw.circle(bullet_image, 'red', (8,)*2, 8)
 
-fired = 0
+player_image = pygame.Surface((32,)*2)
+player_image.fill('magenta')
+
+player = Entity(player_image, window.center, math.inf, entities)
+player.acceleration_friction = 0.05
+player.velocity_friction = 0.90
+player.autofire = Autofire(FIRE_COOLDOWN)
+player.gun = Shotgun(SHOTSPREAD_ANGLE, SHOTSPREAD_STEP, bullet_image, FIRE_VELOCITY)
 
 running = True
 while running:
@@ -176,24 +185,19 @@ while running:
                 pygame.event.post(pygame.event.Event(pygame.QUIT))
     keys = pygame.key.get_pressed()
     movekeys = get_movekeys(keys)
-    apply_movekeys(player.acceleration, movekeys, PLAYER_ACCELERATION)
+    player.acceleration += keyed_vector(movekeys, PLAYER_ACCELERATION)
     zero_vector(player.acceleration, STOP)
-    fired = timer_update(fired, elapsed)
-    if not fired:
+    player.autofire.update(elapsed)
+    if player.autofire:
         fire_keys = get_firekeys(keys)
         if any(fire_keys):
-            fired = FIRE_COOLDOWN
-            center_velocity = shot_velocity(fire_keys)
-            center_velocity += player.velocity * SHOT_THROW_FACTOR
-            for angle in shot_angles(center_velocity, SHOTSPREAD_ANGLE, SHOTSPREAD_STEP):
-                bullet = Entity(
-                    bullet_image,
-                    player.rect.center,
-                    BULLET_LIVE_TIME,
-                    entities,
-                )
-                update_scale_angle(bullet.velocity, angle, FIRE_VELOCITY)
-                bullet.velocity += player.velocity
+            player.autofire.fire()
+            center_velocity = keyed_vector(fire_keys, FIRE_VELOCITY) + player.velocity * SHOT_THROW_FACTOR
+            # TODO
+            # - too many args
+            # - probably not responsible for group management
+            # - impart shot-throw outside, here
+            player.gun.shoot(entities, center_velocity, player.velocity, player.rect.center, BULLET_LIVE_TIME)
     entities.update(elapsed)
     screen.fill('black')
     entities.draw(screen)
@@ -202,7 +206,6 @@ while running:
         'Arrow keys to shoot',
     ]
     texts.extend(f'{name}={getattr(player, name)}' for name in DEBUG_PLAYER_ATTRS)
-    texts.append(f'{fired=}')
     images = [font.render(text, True, 'white') for text in texts]
     rects = [image.get_rect() for image in images]
     for r1, r2 in it.pairwise(rects):
