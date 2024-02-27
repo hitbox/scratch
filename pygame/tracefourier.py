@@ -61,3 +61,7 @@ def main(argv=None):
 
 if __name__ == '__main__':
     main()
+
+# 2024-02-27 Tue.
+# - https://injuly.in/blog/fourier-series/index.html
+# - want to draw with fourier series
