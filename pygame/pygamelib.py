@@ -1487,6 +1487,10 @@ def add_dimension_separator_option(parser, **kwargs):
     kwargs.setdefault('help', 'Rect dimensions separator.')
     parser.add_argument('-d', '--dimsep', **kwargs)
 
+def add_point_arguments(parser, name, **kwargs):
+    kwargs.setdefault('help', 'One or more point arguments.')
+    parser.add_argument(name, nargs='+', type=sizetype())
+
 def format_pipe(iterable, null_separator, dimsep):
     """
     :param iterable: iterable of iterables
