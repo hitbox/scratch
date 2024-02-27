@@ -1,8 +1,10 @@
+import argparse
 import contextlib
 import itertools as it
 import math
 import operator as op
 import os
+import unittest
 
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
@@ -44,6 +46,41 @@ FIREKEYS = (
     pygame.K_DOWN,
     pygame.K_LEFT,
 )
+
+class TestInfiniteMix(unittest.TestCase):
+
+    def setUp(self):
+        self.mixinf = Mixinf(-1, +1, -2, +2)
+
+    def test_infinite_mix(self):
+        self.assertEqual(self.mixinf(+0), -1)
+        self.assertEqual(self.mixinf(+1), +1)
+        self.assertEqual(self.mixinf(-1.5), -2)
+        self.assertEqual(self.mixinf(+1.5), +2)
+
+
+class Camera:
+
+    def __init__(self, viewport, focus):
+        self.viewport = viewport
+        self.focus = focus
+        self.position = pygame.Vector2(self.focus.center)
+        self.acceleration = pygame.Vector2()
+        self.velocity = pygame.Vector2()
+        self.acceleration_friction = 0
+        self.velocity_friction = 0
+
+    def rect_delta(self):
+        return -pygame.Vector2(self.viewport.topleft)
+
+    def update(self):
+        zero_vector(self.acceleration, STOP)
+        zero_vector(self.velocity, STOP)
+        self.velocity += self.acceleration
+        self.position += self.velocity
+        self.focus.center = self.position
+        self.viewport.center = self.position
+
 
 class Entity(pygame.sprite.Sprite):
 
@@ -101,6 +138,32 @@ class Shotgun:
             bullet.velocity += impart_velocity
 
 
+class Mixinf:
+
+    def __init__(self, a, b, below, above):
+        self.a = a
+        self.b = b
+        self.below = below
+        self.above = above
+
+    def __call__(self, time):
+        if 0 <= time <= 1:
+            return self.a * (1 - time) + self.b * time
+        elif time < 0:
+            return self.below
+        elif time > 1:
+            return self.above
+
+
+def crosslines(rect):
+    x, y, w, h = rect
+    r = x + w
+    b = y + h
+    hw = w // 2
+    hh = h // 2
+    yield ((x, hh), (r, hh))
+    yield ((hw, y), (hw, b))
+
 def keyed_vector(keys, magnitude):
     up, right, down, left = map(bool, keys)
     return (-magnitude * left + magnitude * right, -magnitude * up + magnitude * down)
@@ -125,19 +188,23 @@ def zero_vector(vector, threshold):
     if abs(vector.y) < threshold:
         vector.y = zero(vector.y, threshold)
 
+def update_friction(vector, friction):
+    vector.move_towards_ip((0,0), vector.magnitude() * friction)
+
 def integrate(obj, origin, stop_threshold):
+    # brake acceleration
     obj.acceleration.move_towards_ip(
         origin,
         obj.acceleration.magnitude() * obj.acceleration_friction
     )
-    zero_vector(obj.velocity, stop_threshold)
+    if obj.velocity.magnitude():
+        obj.velocity.clamp_magnitude_ip(PLAYER_MAX_ACCELERATION)
     obj.velocity.move_towards_ip(
         origin,
         obj.velocity.magnitude() * obj.velocity_friction
     )
+    zero_vector(obj.velocity, stop_threshold)
     obj.velocity += obj.acceleration
-    if obj.velocity.magnitude():
-        obj.velocity.clamp_magnitude_ip(PLAYER_MAX_ACCELERATION)
     obj.position += obj.velocity
 
 def cossin(angle):
@@ -151,68 +218,141 @@ def scale_by_angle(angle, magnitude):
 def update_scale_angle(vector, angle, magnitude):
     vector.update(*(scale_by_angle(angle, magnitude)))
 
-get_movekeys = op.itemgetter(*MOVEKEYS)
-get_firekeys = op.itemgetter(*FIREKEYS)
+def blits_with_camera(sprites, camera):
+    dx, dy = camera.rect_delta()
+    for sprite in sprites:
+        yield (sprite.image, sprite.rect.move(dx, dy))
 
-pygame.font.init()
-font = pygame.font.SysFont('monospace', 20)
-clock = pygame.time.Clock()
-screen = pygame.display.set_mode((800,)*2)
-window = screen.get_rect()
+def coordinates(rect):
+    x, y, w, h = rect
+    r = w + x
+    b = h + y
+    return (x, y, r, b)
 
-entities = pygame.sprite.Group()
-
-bullet_image = pygame.Surface((16,)*2, pygame.SRCALPHA)
-pygame.draw.circle(bullet_image, 'red', (8,)*2, 8)
-
-player_image = pygame.Surface((32,)*2)
-player_image.fill('magenta')
-
-player = Entity(player_image, window.center, math.inf, entities)
-player.acceleration_friction = 0.05
-player.velocity_friction = 0.90
-player.autofire = Autofire(FIRE_COOLDOWN)
-player.gun = Shotgun(SHOTSPREAD_ANGLE, SHOTSPREAD_STEP, bullet_image, FIRE_VELOCITY)
-
-running = True
-while running:
-    elapsed = clock.tick(FRAMERATE)
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE:
-                pygame.event.post(pygame.event.Event(pygame.QUIT))
-    keys = pygame.key.get_pressed()
-    movekeys = get_movekeys(keys)
-    player.acceleration += keyed_vector(movekeys, PLAYER_ACCELERATION)
-    zero_vector(player.acceleration, STOP)
-    player.autofire.update(elapsed)
-    if player.autofire:
-        fire_keys = get_firekeys(keys)
-        if any(fire_keys):
-            player.autofire.fire()
-            center_velocity = keyed_vector(fire_keys, FIRE_VELOCITY) + player.velocity * SHOT_THROW_FACTOR
-            # TODO
-            # - too many args
-            # - probably not responsible for group management
-            # - impart shot-throw outside, here
-            player.gun.shoot(entities, center_velocity, player.velocity, player.rect.center, BULLET_LIVE_TIME)
-    entities.update(elapsed)
-    screen.fill('black')
-    entities.draw(screen)
-    texts = [
-        'WASD to move',
-        'Arrow keys to shoot',
-    ]
-    texts.extend(f'{name}={getattr(player, name)}' for name in DEBUG_PLAYER_ATTRS)
-    images = [font.render(text, True, 'white') for text in texts]
+def blit_text_lines(surf, font, color, texts, antialias=True):
+    images = [font.render(text, antialias, color) for text in texts]
     rects = [image.get_rect() for image in images]
     for r1, r2 in it.pairwise(rects):
         r2.top = r1.bottom
-    screen.blits(zip(images, rects))
-    pygame.display.flip()
+    surf.blits(zip(images, rects))
+
+def run():
+    get_movekeys = op.itemgetter(*MOVEKEYS)
+    get_firekeys = op.itemgetter(*FIREKEYS)
+
+    pygame.font.init()
+    font = pygame.font.SysFont('monospace', 20)
+    clock = pygame.time.Clock()
+    screen = pygame.display.set_mode((800,)*2)
+    window = screen.get_rect()
+    camera = Camera(window.copy(), window.inflate((-400,)*2))
+
+    entities = pygame.sprite.Group()
+
+    bullet_image = pygame.Surface((16,)*2, pygame.SRCALPHA)
+    pygame.draw.circle(bullet_image, 'red', (8,)*2, 8)
+
+    player_image = pygame.Surface((32,)*2)
+    player_image.fill('magenta')
+
+    player = Entity(player_image, window.center, math.inf, entities)
+    player.acceleration_friction = 0.05
+    player.velocity_friction = 0.90
+    player.autofire = Autofire(FIRE_COOLDOWN)
+    player.gun = Shotgun(SHOTSPREAD_ANGLE, SHOTSPREAD_STEP, bullet_image, FIRE_VELOCITY)
+
+    paused = False
+    running = True
+    while running:
+        elapsed = clock.tick(FRAMERATE)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.event.post(pygame.event.Event(pygame.QUIT))
+                elif event.key == pygame.K_p:
+                    paused = not paused
+        if not paused:
+            keys = pygame.key.get_pressed()
+            movekeys = get_movekeys(keys)
+            player.acceleration += keyed_vector(movekeys, PLAYER_ACCELERATION)
+            zero_vector(player.acceleration, STOP)
+            player.autofire.update(elapsed)
+            if player.autofire:
+                fire_keys = get_firekeys(keys)
+                if any(fire_keys):
+                    player.autofire.fire()
+                    center_velocity = (
+                        keyed_vector(fire_keys, FIRE_VELOCITY)
+                        + player.velocity
+                        * SHOT_THROW_FACTOR
+                    )
+                    # TODO
+                    # - too many args
+                    # - probably not responsible for group management
+                    # - impart shot-throw outside, here
+                    player.gun.shoot(
+                        entities,
+                        center_velocity,
+                        player.velocity,
+                        player.rect.center,
+                        BULLET_LIVE_TIME,
+                    )
+            entities.update(elapsed)
+            # TODO
+            # - move camera
+            if camera.focus.contains(player.rect):
+                update_friction(camera.acceleration, 0.1)
+                update_friction(camera.velocity, 0.5)
+            else:
+                x1, y1 = camera.focus.center
+                x2, y2 = player.rect.center
+                angle = math.atan2(y2 - y1, x2 - x1)
+                camera.acceleration.x = math.cos(angle)
+                camera.acceleration.y = math.sin(angle)
+            camera.update()
+        screen.fill('black')
+        screen.blits(blits_with_camera(entities, camera))
+        #entities.draw(screen)
+        crossbox = pygame.Rect(0, 0, 30, 30)
+        crossbox.center = window.center
+        blit_text_lines(
+            screen,
+            font,
+            'white',
+            texts = [
+                'WASD to move - Arrow keys to shoot',
+                #f'{paused=}',
+                f'{camera.focus.center=}',
+                #f'{coordinates(camera.focus)=}',
+                #f'{coordinates(camera.viewport)=}',
+                #f'{camera.acceleration=}',
+                #f'{camera.velocity=}',
+                #f'{camera.position=}',
+                #f'{coordinates(player.rect)=}',
+                f'{player.rect.center=}',
+                f'{crossbox=}',
+            ]
+        )
+        for start, end in crosslines(crossbox):
+            pygame.draw.line(screen, 'white', start, end)
+        #texts.extend(f'player.{name}={getattr(player, name)}' for name in DEBUG_PLAYER_ATTRS)
+        pygame.display.flip()
+
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    args = parser.parse_args(argv)
+    run()
+
+if __name__ == '__main__':
+    main()
 
 # 2024-02-22 Thu.
 # Prompted to make a little demo of "Binding of Isaac" style shot throwing.
 # https://www.reddit.com/r/pygame/comments/1awi7zu/pygame_problem_projectiles_not_firing_towards/
+# 2024-02-26 Mon.
+# Draft: posts-mortem
+# I like how few classes there are. Feels like a good optimimum of their
+# usefulness.
+# Text is still frustrating. It takes an awful lot to get print-like output.
