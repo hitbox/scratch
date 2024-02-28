@@ -1167,6 +1167,69 @@ class CircularMeterRenderer:
             angle += segment_angle_step
 
 
+class BorderStyle(
+    namedtuple(
+        'BorderStyle',
+        'width color',
+        defaults = ('magenta',)
+    ),
+):
+
+    @classmethod
+    def from_shorthand(cls, string):
+        items = zip([int, pygame.Color], string.split())
+        args = (func(arg) for func, arg in items)
+        return cls(*args)
+
+
+class SpriteSheet(
+    namedtuple(
+        'SpriteSheet',
+        'image width height scale',
+        defaults = (-1, -1, 1),
+    )
+):
+    """
+    :param image:
+    :param width: slice width
+    :param height: slice height
+    :param scale: scale after slicing
+    """
+    # XXX
+    # - too much in this class
+    # - probably want a separate "ImageSlicer" class
+
+    @classmethod
+    def from_shorthand(cls, string):
+        items = zip([pygame.image.load, int, int, int], string.split())
+        args = (func(arg) for func, arg in items)
+        return cls(*args)
+
+    def get_images(self):
+        image_width, image_height = self.image.get_size()
+        width = self.width
+        height = self.height
+        if width < 0:
+            width = image_width
+        if height < 0:
+            height = image_height
+        width = min(width, image_width)
+        height = min(height, image_height)
+        return sliceimage(self.image, (width, height))
+
+
+def scale(factor, image):
+    # - partial-able function
+    size = pygame.Vector2(image.get_size()) * factor
+    return pygame.transform.scale(image, size)
+
+def sliceimage(image, size):
+    width, height = size
+    image_width, image_height = image.get_size()
+    for x in range(0, image_width, width):
+        for y in range(0, image_height, height):
+            yield image.subsurface(x, y, width, height)
+
 # shape producing
 
 def step_for_radius(radius):
@@ -1475,7 +1538,13 @@ def add_display_size_option(parser, **kwargs):
 def command_line_parser(**kwargs):
     parser = argparse.ArgumentParser(**kwargs)
     add_display_size_option(parser)
+    add_framerate_option(parser)
     return parser
+
+def add_framerate_option(parser, name='--framerate', **kwargs):
+    kwargs.setdefault('type', int)
+    kwargs.setdefault('default', 60)
+    parser.add_argument(name, **kwargs)
 
 def add_null_separator_flag(parser, **kwargs):
     kwargs.setdefault('action', 'store_true')
