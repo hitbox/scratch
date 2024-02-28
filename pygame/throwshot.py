@@ -1,13 +1,11 @@
-import argparse
-import contextlib
 import itertools as it
 import math
 import operator as op
-import os
 import unittest
 
-with contextlib.redirect_stdout(open(os.devnull, 'w')):
-    import pygame
+import pygamelib
+
+from pygamelib import pygame
 
 BULLET_LIVE_TIME = 1000
 FIRE_COOLDOWN = 100
@@ -30,7 +28,6 @@ STOP = 0.3
 
 DEBUG_PLAYER_ATTRS = ['acceleration', 'velocity', 'position']
 
-FRAMERATE = 60
 ORIGIN = pygame.Vector2()
 
 MOVEKEYS = (
@@ -236,14 +233,14 @@ def blit_text_lines(surf, font, color, texts, antialias=True):
         r2.top = r1.bottom
     surf.blits(zip(images, rects))
 
-def run():
+def run(display_size, framerate):
     get_movekeys = op.itemgetter(*MOVEKEYS)
     get_firekeys = op.itemgetter(*FIREKEYS)
 
     pygame.font.init()
     font = pygame.font.SysFont('monospace', 20)
     clock = pygame.time.Clock()
-    screen = pygame.display.set_mode((800,)*2)
+    screen = pygame.display.set_mode(display_size)
     window = screen.get_rect()
     camera = Camera(window.copy(), window.inflate((-400,)*2))
 
@@ -264,7 +261,7 @@ def run():
     paused = False
     running = True
     while running:
-        elapsed = clock.tick(FRAMERATE)
+        elapsed = clock.tick(framerate)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -341,9 +338,9 @@ def run():
         pygame.display.flip()
 
 def main(argv=None):
-    parser = argparse.ArgumentParser()
+    parser = pygamelib.command_line_parser()
     args = parser.parse_args(argv)
-    run()
+    run(args.display_size, args.framerate)
 
 if __name__ == '__main__':
     main()
