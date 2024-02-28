@@ -1199,6 +1199,11 @@ class SpriteSheet(
     # - too much in this class
     # - probably want a separate "ImageSlicer" class
 
+    help = (
+        'path/to/image.ext width=-1 height=-1 scale=1.'
+        ' Negative slice dimensions use image dimension.'
+    )
+
     @classmethod
     def from_shorthand(cls, string):
         items = zip([pygame.image.load, int, int, int], string.split())

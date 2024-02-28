@@ -1,6 +1,6 @@
-import argparse
 import functools
 import itertools as it
+import operator as op
 
 import pygamelib
 
@@ -23,7 +23,12 @@ def run(
     scaler = functools.partial(pygamelib.scale, spritesheet.scale)
     images = list(map(scaler, images))
     masks = list(map(pygame.mask.from_surface, images))
-    flashes = [mask.to_surface(setcolor=flash_color, unsetcolor=None) for mask in masks]
+    flashimage = op.methodcaller(
+        'to_surface',
+        setcolor = flash_color,
+        unsetcolor = None,
+    )
+    flashes = list(map(flashimage, masks))
 
     masks = it.cycle(masks)
     images = it.cycle(images)
@@ -78,6 +83,7 @@ def argument_parser():
     parser.add_argument(
         'spritesheet',
         type = pygamelib.SpriteSheet.from_shorthand,
+        help = pygamelib.SpriteSheet.help,
     )
     parser.add_argument(
         '--animation-delay',
