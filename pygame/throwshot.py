@@ -154,25 +154,26 @@ class Mixinf:
 
 def crosslines(rect):
     x, y, w, h = rect
-    r = x + w
-    b = y + h
-    hw = w // 2
-    hh = h // 2
-    yield ((x, hh), (r, hh))
-    yield ((hw, y), (hw, b))
+    cx = x + w // 2
+    cy = y + h // 2
+    yield ((x, cy), (x + w, cy))
+    yield ((cx, y), (cx, y + h))
 
-def keyed_vector(keys, magnitude):
-    up, right, down, left = map(bool, keys)
+def keyed_vector(pressed, magnitude):
+    up, right, down, left = map(bool, pressed)
     return (-magnitude * left + magnitude * right, -magnitude * up + magnitude * down)
+
+def rangef(start, stop, step):
+    while start < stop:
+        yield start
+        start += step
 
 def shot_angles(center_velocity, spread, step):
     center_angle = math.atan2(center_velocity.y, center_velocity.x)
     angle = center_angle - math.radians(spread)
     stop = center_angle + math.radians(spread)
     step = math.radians(step)
-    while angle < stop:
-        yield angle
-        angle += step
+    yield from rangef(angle, stop, step)
 
 def zero(value, threshold):
     if abs(value) < threshold:
@@ -285,10 +286,6 @@ def run(display_size, framerate):
                         + player.velocity
                         * SHOT_THROW_FACTOR
                     )
-                    # TODO
-                    # - too many args
-                    # - probably not responsible for group management
-                    # - impart shot-throw outside, here
                     player.gun.shoot(
                         entities,
                         center_velocity,
@@ -297,8 +294,6 @@ def run(display_size, framerate):
                         BULLET_LIVE_TIME,
                     )
             entities.update(elapsed)
-            # TODO
-            # - move camera
             if camera.focus.contains(player.rect):
                 update_friction(camera.acceleration, 0.1)
                 update_friction(camera.velocity, 0.5)
@@ -311,7 +306,6 @@ def run(display_size, framerate):
             camera.update()
         screen.fill('black')
         screen.blits(blits_with_camera(entities, camera))
-        #entities.draw(screen)
         crossbox = pygame.Rect(0, 0, 30, 30)
         crossbox.center = window.center
         blit_text_lines(
@@ -320,21 +314,14 @@ def run(display_size, framerate):
             'white',
             texts = [
                 'WASD to move - Arrow keys to shoot',
-                #f'{paused=}',
+                f'{clock.get_fps()=:.2f}',
                 f'{camera.focus.center=}',
-                #f'{coordinates(camera.focus)=}',
-                #f'{coordinates(camera.viewport)=}',
-                #f'{camera.acceleration=}',
-                #f'{camera.velocity=}',
-                #f'{camera.position=}',
-                #f'{coordinates(player.rect)=}',
                 f'{player.rect.center=}',
                 f'{crossbox=}',
             ]
         )
         for start, end in crosslines(crossbox):
             pygame.draw.line(screen, 'white', start, end)
-        #texts.extend(f'player.{name}={getattr(player, name)}' for name in DEBUG_PLAYER_ATTRS)
         pygame.display.flip()
 
 def main(argv=None):
