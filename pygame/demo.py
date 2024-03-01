@@ -1092,6 +1092,14 @@ class CreateShape(
                 pygame.draw.arc(self.screen, 'red', *arc_args)
 
 
+class PartialBorder(
+    pygamelib.DemoCommand,
+    pygamelib.DemoBase,
+    pygamelib.QuitKeydownMixin,
+):
+    pass
+
+
 def filled_shape_meter(window):
     """
     Fill a shape from bottom-up as an indication of a meter.
