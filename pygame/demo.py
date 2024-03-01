@@ -1097,7 +1097,30 @@ class PartialBorder(
     pygamelib.DemoBase,
     pygamelib.QuitKeydownMixin,
 ):
-    pass
+
+    command_help = 'Fill the border of a rect partially and offset.'
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument('text')
+        parser.add_argument('--font-size', type=int, default=40)
+
+    def main(self, args):
+        window = pygame.Rect((0,)*2, args.display_size)
+
+        font = pygamelib.monospace_font(args.font_size)
+        image = font.render(args.text, True, 'white')
+
+        engine = pygamelib.Engine()
+        screen = pygame.display.set_mode(window.size)
+
+        screen.blit(image, image.get_rect(center=window.center))
+        pygame.display.flip()
+
+        engine.run(self)
+
+    def do_quit(self, event):
+        self.engine.stop()
 
 
 def filled_shape_meter(window):
