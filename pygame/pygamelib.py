@@ -2880,6 +2880,31 @@ def lerp_rect(rect, time):
     time = (time % 0.25) / 0.25
     return mix(time, pygame.Vector2(start), pygame.Vector2(end))
 
+SIDE_ENDS = [0.25, 0.50, 0.75, 1.00]
+
+def lerp_rect_lines(rect, start, end):
+    """
+    Generate the lines needed to get from a point on the border of a rect at
+    start time to end time.
+    """
+    p1 = lerp_rect(rect, start)
+    p2 = lerp_rect(rect, end)
+
+    # TODO
+    # - is this good? indexing for end of side and having to modulo for
+    #   protection
+    side1 = int(start / 0.25) % len(SIDE_ENDS)
+    side2 = int(end / 0.25) % len(SIDE_ENDS)
+
+    if side1 == side2:
+        # base case
+        yield (p1, p2)
+    else:
+        endtime1 = SIDE_ENDS[side1]
+        p12 = lerp_rect(rect, endtime1)
+        yield (p1, p12)
+        yield from lerp_rect_lines(rect, endtime1, end)
+
 def trace_rect(rect, time):
     """
     Generate lines along border of rect at time.

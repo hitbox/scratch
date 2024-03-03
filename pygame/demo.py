@@ -1103,24 +1103,77 @@ class PartialBorder(
     @staticmethod
     def add_parser_arguments(parser):
         parser.add_argument('text')
-        parser.add_argument('--font-size', type=int, default=40)
+        parser.add_argument(
+            'start',
+            type = float,
+        )
+        parser.add_argument(
+            'end',
+            type = float,
+        )
+        parser.add_argument(
+            '--font-size',
+            type = int,
+            default = 40,
+        )
+        parser.add_argument(
+            '--inflate',
+            type = pygamelib.sizetype(),
+            default = '40',
+        )
 
     def main(self, args):
+        # start and end time between 0 and 1 on the border of a rect
+        self.start_time = args.start
+        self.end_time = args.end
+        self.step_delay = 100
+        self.step_timer = 0
+        # render text given on command line
+        self.font = pygamelib.monospace_font(args.font_size)
+        self.image = self.font.render(args.text, True, 'white')
         window = pygame.Rect((0,)*2, args.display_size)
-
-        font = pygamelib.monospace_font(args.font_size)
-        image = font.render(args.text, True, 'white')
-
+        # rect used for centering text now and enlarged border later
+        self.rect = self.image.get_rect(center=window.center)
+        self.image_pos = self.rect.copy()
+        self.rect.inflate_ip(args.inflate)
+        # start it up
         engine = pygamelib.Engine()
-        screen = pygame.display.set_mode(window.size)
-
-        screen.blit(image, image.get_rect(center=window.center))
-        pygame.display.flip()
-
+        pygame.display.set_mode(args.display_size)
         engine.run(self)
 
     def do_quit(self, event):
         self.engine.stop()
+
+    def update(self):
+        super().update()
+        self.draw()
+
+        if self.step_timer == 0:
+            self.step_timer = self.step_delay
+            step = 0.005
+            self.start_time = (self.start_time + step) % 1
+            self.end_time = (self.end_time + step) % 1
+        elif self.step_timer > 0:
+            if self.step_timer - self.elapsed <= 0:
+                self.step_timer = 0
+            else:
+                self.step_timer -= self.elapsed
+
+    def draw(self):
+        self.screen.fill('black')
+        self.screen.blit(self.image, self.image_pos)
+        pygame.draw.rect(self.screen, 'red', self.rect, 1)
+        lines = pygamelib.lerp_rect_lines(self.rect, self.start_time, self.end_time)
+        for p1, p2 in lines:
+            pygame.draw.line(self.screen, 'magenta', p1, p2, 8)
+        lines = (
+            f'start={self.start_time:.02f}',
+            f'end={self.end_time:.02f}',
+            f'step_timer={self.step_timer}',
+        )
+        images, rects = pygamelib.make_blitables_from_font(lines, self.font, 'azure')
+        self.screen.blits(zip(images, rects))
+        pygame.display.flip()
 
 
 def filled_shape_meter(window):
