@@ -1169,7 +1169,6 @@ class PartialBorder(
         lines = (
             f'start={self.start_time:.02f}',
             f'end={self.end_time:.02f}',
-            f'step_timer={self.step_timer}',
         )
         images, rects = pygamelib.make_blitables_from_font(lines, self.font, 'azure')
         self.screen.blits(zip(images, rects))

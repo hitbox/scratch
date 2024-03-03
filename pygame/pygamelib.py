@@ -2888,21 +2888,17 @@ def lerp_rect_lines(rect, start, end):
     start time to end time.
     """
     p1 = lerp_rect(rect, start)
-    p2 = lerp_rect(rect, end)
-
     # TODO
     # - is this good? indexing for end of side and having to modulo for
     #   protection
     side1 = int(start / 0.25) % len(SIDE_ENDS)
     side2 = int(end / 0.25) % len(SIDE_ENDS)
-
     if side1 == side2:
-        # base case
-        yield (p1, p2)
+        # base case and done
+        yield (p1, lerp_rect(rect, end))
     else:
         endtime1 = SIDE_ENDS[side1]
-        p12 = lerp_rect(rect, endtime1)
-        yield (p1, p12)
+        yield (p1, lerp_rect(rect, endtime1))
         yield from lerp_rect_lines(rect, endtime1, end)
 
 def trace_rect(rect, time):
