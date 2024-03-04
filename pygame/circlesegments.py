@@ -1,19 +1,14 @@
 import argparse
-import contextlib
 import functools as ft
 import itertools as it
 import math
-import os
-import random
-import textwrap
 import unittest
 
-with contextlib.redirect_stdout(open(os.devnull, 'w')):
-    import pygame
+import pygamelib
 
-angles = (0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330)
-angles = (0, 45, 90, 180, 270)
-angles = list(map(math.radians, angles))
+from pygamelib import pygame
+
+angles = list(map(math.radians, range(0, 360, 45)))
 
 class TestModuloRange(unittest.TestCase):
 
@@ -34,22 +29,11 @@ def modulorange(start, distance, length):
         start = (start + 1) % length
         _distance += 1
 
-def wraprects(rects):
-    return pygame.Rect((0,)*4).unionall(rects)
-
-def copyrect(rect, **kwargs):
-    rect = rect.copy()
-    for key, val in kwargs.items():
-        setattr(rect, key, val)
-    return rect
-
-def run():
-    pygame.font.init()
-    screen = pygame.display.set_mode((800,)*2)
+def run(display_size, framerate):
+    screen = pygame.display.set_mode(display_size)
     frame = screen.get_rect()
     clock = pygame.time.Clock()
-    font = pygame.font.SysFont('monospace', 30)
-    framerate = 60
+    font = pygamelib.monospace_font(30)
 
     subject = frame.inflate((-2*min(frame.size)/3,)*2)
 
@@ -72,9 +56,7 @@ def run():
     )
     arcs = ((draw_arc, angles + (10,)) for angles in it.combinations(angles, 2))
     draws = it.cycle(it.chain(lines, arcs))
-    from pprint import pprint
 
-    frame_number = 0
     running = True
     while running:
         elapsed = clock.tick(framerate)
@@ -93,9 +75,9 @@ def run():
         ]
         images = [font.render(line, True, color) for line in text_lines]
         rects = [image.get_rect() for image in images]
-        for r1, r2 in zip(rects, rects[1:]):
+        for r1, r2 in it.pairwise(rects):
             r2.topright = r1.bottomright
-        wrapped = pygame.Rect((0,)*4).unionall(rects)
+        wrapped = pygame.Rect(pygamelib.wrap(rects))
         positioned = wrapped.copy()
         positioned.bottomright = frame.bottomright
         delta = pygame.Vector2(positioned.topleft) - wrapped.topleft
@@ -104,12 +86,11 @@ def run():
         for image, rect in zip(images, rects):
             screen.blit(image, rect)
         pygame.display.update()
-        frame_number += 1
 
 def main(argv=None):
-    parser = argparse.ArgumentParser()
+    parser = pygamelib.command_line_parser()
     args = parser.parse_args(argv)
-    run()
+    run(args.display_size, args.framerate)
 
 if __name__ == '__main__':
     main()
