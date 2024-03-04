@@ -8,6 +8,7 @@ rect = screen.get_rect().inflate((-600,)*2)
 # - this works but also "pushes" the rect
 # - maybe maintain a collection of draggables and which ones were initially
 #   clicked and only those are considered dragging
+# - other problem is you can drag too fast and lose the dragging
 
 running = True
 while running:
