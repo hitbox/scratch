@@ -1114,7 +1114,7 @@ class PartialBorder(
         parser.add_argument(
             '--font-size',
             type = int,
-            default = 40,
+            default = 20,
         )
         parser.add_argument(
             '--inflate',
