@@ -1367,7 +1367,7 @@ pascal_case_re = re.compile(r'[A-Z][a-z]+')
 
 def snake_case(name):
     if '_' in name:
-        raise ValueError
+        raise ValueError('Underscore in name')
     matches = list(pascal_case_re.finditer(name))
     if not matches:
         return name.lower()
@@ -1380,6 +1380,26 @@ def batched(iterable, n):
     iterable = iter(iterable)
     while batch := tuple(it.islice(iterable, n)):
         yield batch
+
+def range_with_end(start, stop, step):
+    r = range(start, stop, step)
+    for value in r:
+        yield value
+    if len(r) > 0 and value != stop:
+        yield stop
+
+def range_with_end_float(start, stop, step):
+    if step < 0:
+        loop_cmp = op.gt
+        final_cmp = op.le
+    else:
+        loop_cmp = op.lt
+        final_cmp = op.ge
+    while loop_cmp(start, stop):
+        yield start
+        start += step
+    if final_cmp(start, stop):
+        yield stop
 
 def ranges_overlap(start1, stop1, start2, stop2):
     return (
@@ -1479,6 +1499,9 @@ def mix(time, a, b):
     return a * (1 - time) + b * time
 
 lerp = mix
+
+# TODO
+# - lerp a string? sounds kinda neat.
 
 def remap(x, a, b, c, d):
     """
@@ -1591,15 +1614,21 @@ def add_animate_option(parser, **kwargs):
     4. start time
     5. end time
     """
-    kwargs.setdefault('nargs', 5)
-    kwargs.setdefault(
-        'metavar',
-        ('NAME', 'START_VALUE', 'END_VALUE', 'START_TIME', 'END_TIME')
-    )
+    # NOTES
+    # - holding off enforcing here, that the values and times are int or float
+    #   because who knows?
+    argnames = ('NAME', 'START_VALUE', 'END_VALUE', 'START_TIME', 'END_TIME')
+    kwargs.setdefault('nargs', len(argnames))
+    kwargs.setdefault('metavar', argnames)
     kwargs.setdefault('action', 'append')
     parser.add_argument('--animate', **kwargs)
 
 def animation_tuple(value, end_value=None, start_time=0, end_time=0):
+    """
+    Return a tuple meant to be inside a container for animations with default
+    values so that everything can be treated like an animation, even if it is
+    not changing.
+    """
     if end_value is None:
         end_value = value
     return ((value, end_value), (start_time, end_time))
@@ -1618,10 +1647,11 @@ def variables_from_animations(animations, time):
         yield (name, value)
 
 def update_variables_from_animations(animations, variables, time):
-    for name, (values, times) in animations.items():
+    for name, ((value1, value2), times) in animations.items():
         start_time, end_time = times
         if start_time <= time <= end_time:
-            value = mix((time - start_time) / end_time, *values)
+            time = (time - start_time) / end_time
+            value = mix(time, value1, value2)
             variables[name] = value
 
 def is_demo_command(obj):
@@ -1636,9 +1666,10 @@ def iterdemos(objects):
 
 def get_subcommand_name(demo_class):
     if hasattr(demo_class, 'command_name'):
-        return demo_class.command_name
+        name = demo_class.command_name
     else:
-        return snake_case(demo_class.__name__)
+        name = snake_case(demo_class.__name__)
+    return name
 
 # rects
 

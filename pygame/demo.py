@@ -309,17 +309,26 @@ class CircleSegments(
     pygamelib.DemoBase,
     pygamelib.StopMixin,
 ):
-
-    command_name = 'circle_segments'
+    # TODO
+    # - animating start to same value as end is not reaching the end
     command_help = 'Draw a circle segment, optionally animated.'
 
     @staticmethod
     def add_parser_arguments(parser):
-        parser.add_argument('radii', type=pygamelib.sizetype())
         parser.add_argument(
-            'segment_offset',
+            'radii',
+            type = pygamelib.sizetype(),
+        )
+        parser.add_argument(
+            'segment_range',
+            type = pygamelib.sizetype(),
+            help = 'Start and stop circle segment in degrees.',
+        )
+        parser.add_argument(
+            '--step',
             type = int,
-            help = 'Either side offset in degrees of each circle segment.',
+            default = 8,
+            help = 'Step in degrees to draw the circle as a polygon.',
         )
         # options
         parser.add_argument(
@@ -346,6 +355,7 @@ class CircleSegments(
 
     def update(self):
         super().update()
+        self.update_points()
         self.draw()
 
     def update_points(self):
@@ -356,12 +366,15 @@ class CircleSegments(
             self.time
         )
         radii = self.variables['radii']
-        segment_offset = self.variables['segment_offset']
+        segment_start, segment_stop = self.variables['segment_range']
+        # TODO
+        # - evenly distribute the steps
+        # draw from, assumed, smaller radius to larger radius
         items = zip(
             radii,
             (
-                range(0, segment_offset, +self.step),
-                range(segment_offset, 0, -self.step),
+                pygamelib.range_with_end_float(segment_start, segment_stop, +self.step),
+                pygamelib.range_with_end_float(segment_stop, segment_start, -self.step),
             ),
         )
         self.points = [
@@ -388,19 +401,40 @@ class CircleSegments(
         except ValueError:
             self.center = eval(args.center, dict(window=self.window))
 
+        self.step = args.step
+
         # put all the values under animations for consistency
+        # then overwrite from command line
         varargs = vars(args)
-        names = ('radii', 'segment_offset', 'closed')
+        names = ('radii', 'segment_range', 'closed')
         values = map(varargs.__getitem__, names)
         values = map(pygamelib.animation_tuple, values)
         self.animations = dict(zip(names, values))
 
+        def map_segment_range(string):
+            return map(
+                pygame.Vector2,
+                map(
+                    tuple,
+                    map(pygamelib.intargs, string)
+                ),
+            )
+
         if args.animate:
             for animate_option in args.animate:
-                name, *values_and_times = animation
-                if name not in animations:
+                name, *values_and_times = animate_option
+                if name not in self.animations:
                     raise ValueError(f'invalid name {name}')
-                values_and_times = tuple(map(int, values_and_times))
+                if name == 'segment_range':
+                    values_and_times = (
+                        # first two are two-tuples of ints
+                        tuple(map_segment_range(values_and_times[:2]))
+                        # last two are the normal times in milliseconds of int
+                        + tuple(map(int, values_and_times[2:]))
+                    )
+                else:
+                    values_and_times = tuple(map(int, values_and_times))
+                print((name, values_and_times))
                 self.animations[name] = (values_and_times[:2], values_and_times[2:])
 
         # initialize variables from animations
@@ -412,9 +446,7 @@ class CircleSegments(
             )
         )
         self.initial_variables = self.variables.copy()
-        self.step = 8
         self.elapsed = None
-        self.update_points()
         engine = pygamelib.Engine()
         pygame.display.set_mode(self.window.size)
         engine.run(self)
@@ -1173,6 +1205,19 @@ class PartialBorder(
         images, rects = pygamelib.make_blitables_from_font(lines, self.font, 'azure')
         self.screen.blits(zip(images, rects))
         pygame.display.flip()
+
+
+class CircleSegmentPermutations:
+
+    # 2023-11-27
+    # - https://quillette.com/2023/11/27/chasing-the-ice-moon/
+    # - https://cdn.quillette.com/2023/11/Screenshot-2023-11-24-at-6.32.33-AM.png
+    # - Thought the line and circle segments were cool and wanted to generate every
+    #   permutation.
+    # - pull in circlesegments.py
+    # - jumped off doing that to fix CircleSegments
+
+    command_help = 'Generate line segments and arcs on a circle.'
 
 
 def filled_shape_meter(window):
