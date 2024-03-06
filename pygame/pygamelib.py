@@ -2,6 +2,7 @@ import abc
 import argparse
 import contextlib
 import enum
+import functools
 import inspect
 import itertools as it
 import math
@@ -14,6 +15,7 @@ import sys
 import unittest
 import xml.etree.ElementTree as ET
 
+from collections import defaultdict
 from collections import namedtuple
 
 # silently import pygame
@@ -2627,6 +2629,31 @@ def circle_points(degrees, radius):
         y = -math.sin(angle) * radius
         yield (x, y)
 
+def atan2_full(dy, dx):
+    return math.atan2(dy, dx) % math.tau
+
+def absolute_angle(p1, p2):
+    # NOTE
+    # - return for screen space
+    p1x, p1y = p1
+    p2x, p2y = p2
+    return atan2_full(-(p2y - p1y), p2x - p1x)
+
+def lines_arc(center, radius, p1, p2, divisor):
+    """
+    Generate points for an arc on a circle from p1 to p2.
+    """
+    start_angle = int(math.degrees(absolute_angle(center, p1)))
+    end_angle = int(math.degrees(absolute_angle(center, p2)))
+    between_degrees = end_angle - start_angle
+    step = abs(between_degrees // divisor)
+    if start_angle > end_angle:
+        step = -step
+    degrees = range_with_end(start_angle, end_angle, step)
+    cx, cy = center
+    for px, py in circle_points(degrees, radius):
+        yield (cx + px, cy + py)
+
 def circle_slope_tangent(center, point):
     cx, cy = center
     x, y = point
@@ -2634,6 +2661,56 @@ def circle_slope_tangent(center, point):
     derivative_y = 2 * (y - cy)
     slope = derivative_x / derivative_y
     return slope
+
+def graph_from_circle(center, radius, step, start_angle=0, end_angle=360):
+    """
+    Return a dict of points and their neighbors.
+    """
+    cx, cy = center
+    degrees = range(start_angle, end_angle, step)
+    points_on_circle = [
+        (cx + px, cy + py) for px, py in circle_points(degrees, radius)
+    ]
+    n = len(points_on_circle)
+    graph = defaultdict(list)
+    graph[center] = points_on_circle
+    for index, point in enumerate(points_on_circle):
+        graph[point].append(center)
+        for delta in [-1, +1]:
+            neighbor_index = (index + delta) % n
+            graph[point].append(points_on_circle[neighbor_index])
+    return graph
+
+def random_path_circle(
+    all_points,
+    circle_points,
+    center,
+    start,
+    end,
+):
+    # TODO
+    # - build a real graph to randomly find paths through
+    n = len(circle_points)
+    path = [start]
+    while path[-1] != end:
+        # center is always a neighbor
+        neighbors = [center]
+        if path[-1] in circle_points:
+            # last point is on the circle
+            index = circle_points.index(path[-1])
+            # add points on circle either side of last point
+            neighbors += [
+                circle_points[(index - 1) % n],
+                circle_points[(index + 1) % n],
+            ]
+        else:
+            # last point is center, so any point on circle is neighbor
+            neighbors += circle_points
+        point = random.choice(neighbors)
+        if point not in path:
+            path.append(point)
+    return path
+
 
 def rect_diagonal_lines(rect, steps, reverse=False, clip=False):
     """

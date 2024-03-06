@@ -1,7 +1,7 @@
 import argparse
-import fileinput
 import itertools as it
 import math
+import random
 
 from xml.etree import ElementTree
 
@@ -312,6 +312,7 @@ class CircleSegments(
     # TODO
     # - animating start to same value as end is not reaching the end
     command_help = 'Draw a circle segment, optionally animated.'
+    animatable_names = ('radii', 'segment_range', 'closed')
 
     @staticmethod
     def add_parser_arguments(parser):
@@ -342,6 +343,9 @@ class CircleSegments(
         pygamelib.add_animate_option(
             parser,
             help = 'Animate variables over time.',
+        )
+        parser.epilog = (
+            f'Animatable names: {CircleSegments.animatable_names}'
         )
 
     def do_keydown(self, event):
@@ -406,10 +410,9 @@ class CircleSegments(
         # put all the values under animations for consistency
         # then overwrite from command line
         varargs = vars(args)
-        names = ('radii', 'segment_range', 'closed')
-        values = map(varargs.__getitem__, names)
+        values = map(varargs.__getitem__, self.animatable_names)
         values = map(pygamelib.animation_tuple, values)
-        self.animations = dict(zip(names, values))
+        self.animations = dict(zip(self.animatable_names, values))
 
         def map_segment_range(string):
             return map(
@@ -434,7 +437,6 @@ class CircleSegments(
                     )
                 else:
                     values_and_times = tuple(map(int, values_and_times))
-                print((name, values_and_times))
                 self.animations[name] = (values_and_times[:2], values_and_times[2:])
 
         # initialize variables from animations
@@ -1207,7 +1209,12 @@ class PartialBorder(
         pygame.display.flip()
 
 
-class CircleSegmentPermutations:
+class CircleSegmentPermutations(
+    pygamelib.DemoCommand,
+    pygamelib.DemoBase,
+    pygamelib.StopMixin,
+    pygamelib.QuitKeydownMixin,
+):
 
     # 2023-11-27
     # - https://quillette.com/2023/11/27/chasing-the-ice-moon/
@@ -1216,8 +1223,136 @@ class CircleSegmentPermutations:
     #   permutation.
     # - pull in circlesegments.py
     # - jumped off doing that to fix CircleSegments
+    # 2024-03-06
+    # - class is way too big
+    # - running into issues with having attributes available, like the screen
+    # - lost track of original goal: generate all the patterns
 
     command_help = 'Generate line segments and arcs on a circle.'
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument(
+            'circle_divisions',
+            type = int,
+            help = 'Number of times to divide circle.',
+        )
+        parser.add_argument(
+            '--min-path',
+            type = int,
+            default = 2,
+            help = 'Minimum number of points to randomly select.',
+        )
+
+    def main(self, args):
+        self.min_path = args.min_path
+        # NOTES
+        # - thinking:
+        # - randomly select a direction to go
+        #   like from center out, and clockwise
+        #   or outside-in, and anti-clockwise
+        # - select points or paths that have some minimum number of segments
+        self.window = pygame.Rect((0,0), args.display_size)
+        self.center = self.window.center
+        self.radius = min(args.display_size) // 3
+
+        self.font = pygamelib.monospace_font(40)
+
+        step = 360 // args.circle_divisions
+        circle_points = pygamelib.circle_points(range(0, 360, step), self.radius)
+        self.points_on_circle = [
+            pygame.Vector2(self.center) + point
+            for point in circle_points
+        ]
+
+        # TODO
+        # - use a graph instead
+        # - fix random path, it is getting locked up regularly
+        print(pygamelib.graph_from_circle(self.center, self.radius, step))
+
+        self.all_points = self.points_on_circle + [self.center]
+
+        self.screen = pygame.display.set_mode(self.window.size)
+        self.update_random_path()
+        self.update_draw_commands()
+
+        # start engine on this instance
+        engine = pygamelib.Engine()
+        engine.run(self)
+
+    def update_random_path(self):
+        self.start_point, self.end_point = random.sample(self.all_points, 2)
+        self.path = pygamelib.random_path_circle(
+            self.all_points,
+            self.points_on_circle,
+            self.center,
+            self.start_point,
+            self.end_point,
+        )
+
+    def update_draw_commands(self):
+        # motivated to reduce computation and to print the arc paths but only
+        # once on generation
+        faint = 'grey20'
+        self.draw_commands = [
+            (pygame.draw.circle, self.screen, faint, self.center, self.radius, 1),
+        ]
+        for point in self.all_points:
+            if point == self.start_point:
+                color = 'purple'
+            elif point == self.end_point:
+                color = 'orange'
+            else:
+                color = faint
+            self.draw_commands.append(
+                (pygame.draw.line, self.screen, faint, self.center, point)
+            )
+            self.draw_commands.append(
+                (pygame.draw.circle, self.screen, color, point, 10, 1)
+            )
+
+        width = 32
+        self.draw_commands.append(
+            (pygame.draw.lines, self.screen, faint, False, self.path, width)
+        )
+
+        color = 'magenta'
+        width = 4
+        divisor = 8
+        for index, (p1, p2) in enumerate(it.pairwise(self.path)):
+            if p1 in self.points_on_circle and p2 in self.points_on_circle:
+                points = pygamelib.lines_arc(self.center, self.radius, p1, p2, divisor)
+                arc_line = list(points)
+                if len(arc_line) > 1:
+                    self.draw_commands.append(
+                        (pygame.draw.lines, self.screen, color, False, arc_line, width)
+                    )
+            else:
+                self.draw_commands.append(
+                    (pygame.draw.line, self.screen, color, p1, p2, width)
+                )
+            text_image = self.font.render(f'{index}', True, 'white')
+            text_rect = text_image.get_rect(center=p1)
+            self.draw_commands.append(
+                (self.screen.blit, text_image, text_rect.topleft)
+            )
+
+    def do_keydown(self, event):
+        super().do_keydown(event)
+        if event.key == pygame.K_r:
+            self.update_random_path()
+            self.update_draw_commands()
+
+    def update(self):
+        super().update()
+        self.draw()
+
+    def draw(self):
+        self.screen.fill('black')
+        for draw_command in self.draw_commands:
+            func, *funcargs = draw_command
+            func(*funcargs)
+        pygame.display.flip()
 
 
 def filled_shape_meter(window):
