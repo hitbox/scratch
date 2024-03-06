@@ -3,6 +3,47 @@ import operator as op
 from pprint import pprint
 
 facts = {
+    ('female', 'anne'),
+    ('female', 'esther'),
+    ('female', 'god'),
+    ('female', 'greatgramma'),
+    ('female', 'mildred'),
+    ('female', 'rosie'),
+
+    ('male', 'blair'),
+    ('male', 'dicky'),
+    ('male', 'don'),
+    ('male', 'elmer'),
+    ('male', 'god'),
+    ('male', 'mel'),
+    ('male', 'mike'),
+    ('male', 'randy'),
+    ('male', 'teo'),
+
+    ('parent', 'don', 'anne'),
+    ('parent', 'don', 'mike'),
+    ('parent', 'don', 'randy'),
+    ('parent', 'elmer', 'don'),
+    ('parent', 'esther', 'dicky'),
+    ('parent', 'esther', 'rosie'),
+    ('parent', 'greatgramma', 'esther'),
+    ('parent', 'melsr', 'mel'),
+    ('parent', 'melsr', 'teo'),
+    ('parent', 'mildred', 'don'),
+    ('parent', 'randy', 'blair'),
+    ('parent', 'rosie', 'anne'),
+    ('parent', 'rosie', 'mike'),
+    ('parent', 'rosie', 'randy'),
+
+    ('american', 'anne'),
+
+    # TODO
+    # - left off here adding Anniepoo's database
+    # - thinking about how implications should be implemented
+
+}
+
+facts = {
     ('female', 'alice'),
     ('female', 'jessica'),
     ('female', 'emily'),
@@ -113,3 +154,8 @@ pprint(set(iter_grandparents()))
 #pprint(set(iter_brothers()))
 #pprint(set(iter_sisters()))
 #pprint(set(iter_parents_siblings()))
+
+# 2024-03-06 Wed.
+# Noting a real prolog program like this:
+# https://github.com/Anniepoo/prolog-examples/blob/master/familytree.pl
+# /home/hitbox/repos/reference/Anniepoo/prolog-examples/familytree.pl
