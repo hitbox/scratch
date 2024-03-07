@@ -1,62 +1,14 @@
 import argparse
-import contextlib
 import enum
 import itertools as it
 import math
-import os
 import time
 
 from operator import attrgetter
 
-with open(os.devnull, 'w') as devnull:
-    with contextlib.redirect_stdout(devnull):
-        import pygame
+import pygamelib
 
-del devnull
-
-class EventHandlerMixin:
-    """
-    Mixin event handling. Dispatch events to methods named
-    `on_{lowercase_event_type_name}`. Like `on_keydown`.
-    """
-
-    def on_event(self, event):
-        attrname = event_attrname(event)
-        attr = getattr(self, attrname, None)
-        if attr:
-            attr(event)
-
-
-class Engine:
-    """
-    Run a state until the quit event.
-    """
-
-    def __init__(self):
-        self.running = False
-
-    def get_event_handler(self, state):
-        def on_event(event):
-            "No operation callable."
-        if hasattr(state, 'on_event'):
-            on_event = state.on_event
-        return on_event
-
-    def run(self, state):
-        on_event = self.get_event_handler(state)
-        self.running = True
-        while self.running:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-                    break
-                else:
-                    on_event(event)
-            else:
-                # normal frame
-                state.update()
-                state.draw()
-
+from pygamelib import pygame
 
 class Lerp:
     """
@@ -254,7 +206,7 @@ class NotificationRenderer:
 
 
 class NotificationDemo(
-    EventHandlerMixin,
+    pygamelib.DemoBase,
 ):
     """
     Stacking notification demo.
@@ -274,7 +226,7 @@ class NotificationDemo(
         self.animation_manager = NotificationAnimationManager()
         self.sprites_renderer = NotificationRenderer()
 
-    def on_keydown(self, event):
+    def do_keydown(self, event):
         notification = NotificationSprite.from_string(
             str(event),
             self.font,
@@ -284,7 +236,7 @@ class NotificationDemo(
         self.sprites.add(notification)
         self.animation_manager.reveal(notification)
 
-    def on_mousebuttondown(self, event):
+    def do_mousebuttondown(self, event):
         for sprite in self.sprites:
             if (
                 sprite.state is NotifyState.NORMAL
@@ -303,10 +255,12 @@ class NotificationDemo(
         midbottom_midtop(map(get_rect, reversed(self.sprites.sprites())))
 
     def update(self):
+        super().update()
         elapsed = self.clock.tick(self.frames_per_second)
         self.update_notification_stack()
         self.sprites.update(elapsed)
         self.animation_manager.update(elapsed)
+        self.draw()
 
     def draw(self):
         self.screen.fill('black')
@@ -331,11 +285,6 @@ topleft_bottomleft = pairwise_setattr('topleft', 'bottomleft')
 bottomleft_topleft = pairwise_setattr('bottomleft', 'topleft')
 midbottom_midtop = pairwise_setattr('midbottom', 'midtop')
 
-def event_attrname(event):
-    name = pygame.event.event_name(event.type)
-    attrname = f'on_{ name.lower() }'
-    return attrname
-
 def lerp(a, b, t):
     return a * (1 - t) + b * t
 
@@ -355,20 +304,20 @@ def lerp_attribute_timer(obj, attr, a, b, duration, end_callback=None):
     )
     return timer
 
-def demo_notifications():
+def demo_notifications(display_size, framerate):
     pygame.font.init()
-    screen = pygame.display.set_mode((800,)*2)
-    state = NotificationDemo(screen)
-    engine = Engine()
+    screen = pygame.display.set_mode(display_size)
+    state = NotificationDemo(screen, framerate)
+    engine = pygamelib.Engine()
     engine.run(state)
 
 def main(argv=None):
     """
     Notifications
     """
-    parser = argparse.ArgumentParser()
+    parser = pygamelib.command_line_parser()
     args = parser.parse_args(argv)
-    demo_notifications()
+    demo_notifications(args.display_size, args.framerate)
 
 if __name__ == '__main__':
     main()
