@@ -1,4 +1,5 @@
 import argparse
+import re
 
 from types import SimpleNamespace
 from xml.etree import ElementTree
@@ -20,12 +21,12 @@ class Animate:
         # - what if it can be several types?
         # - explicit type converter
         # - but allow just about anything?
-        attribute = attrib.pop('attribute')
+
         kwargs = {fixkey(key): int(value) for key, value in attrib.items()}
 
         kwargs.setdefault('obj', None)
         # default to value from object
-        kwargs.setdefault('from_', getattr(obj, attribute))
+        kwargs.setdefault('from_', getattr(obj, attrib['attribute']))
 
         if 'dur' in attrib:
             dur = int(kwargs.pop('dur'))
@@ -193,6 +194,13 @@ def save_animation_code():
                 else:
                     setattr(shape, attr, value)
 
+def walk_elements(root, parents=None):
+    if parents is None:
+        parents = []
+    yield (root, parents)
+    for child in root:
+        yield from walk_elements(child, parents=parents + [root])
+
 def system_from_xml(xml):
     tree = ElementTree.parse(xml)
     root = tree.getroot()
@@ -262,21 +270,12 @@ def system_from_xml(xml):
     )
     return systems
 
-def main(argv=None):
-    parser = pygamelib.command_line_parser()
-    parser.add_argument(
-        'xml',
-        type = argparse.FileType(),
-    )
-    args = parser.parse_args(argv)
-
-    systems = system_from_xml(args.xml)
+def run(display_size, framerate, systems):
     default_style = Style(color='magenta', width=1)
-    framerate = args.framerate
     clock = pygame.time.Clock()
     running = True
     time = 0
-    screen = pygame.display.set_mode(args.display_size)
+    screen = pygame.display.set_mode(display_size)
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -303,6 +302,65 @@ def main(argv=None):
         #
         elapsed = clock.tick(framerate)
         time += elapsed
+
+def href_id(s):
+    return s.lstrip('#')
+
+anytag_re = re.compile(r'[a-z]+')
+
+class AllMatch:
+
+    def __init__(self, *regular_expressions):
+        self.regular_expressions = list(map(re.compile, regular_expressions))
+
+    def __call__(self, *values):
+        items = zip(self.regular_expressions, values)
+        return all(re_.match(value) for re_, value in items)
+
+
+anyname = '[a-z]+'
+
+def points_converter(string):
+    return tuple(int_tuple(tuple_string.split(',')) for tuple_string in string.split())
+
+attribute_converters = {
+    AllMatch(anyname, 'id'): str,
+    AllMatch(anyname, 'href'): href_id,
+    AllMatch(anyname, 'color'): pygame.Color,
+    AllMatch(anyname, 'points'): points_converter,
+    AllMatch('animate|animation', 'repeat'): str,
+    AllMatch('animate', 'attribute'): str,
+    AllMatch(anyname, anyname): int,
+}
+
+def get_converter(tag, key):
+    for matcher, converter in attribute_converters.items():
+        if matcher(tag, key):
+            return converter
+
+def convert_attributes(tag, attrib):
+    for key, val in attrib.items():
+        converter = get_converter(tag, key)
+        yield (key, converter(val))
+
+def main(argv=None):
+    parser = pygamelib.command_line_parser()
+    parser.add_argument(
+        'xml',
+        type = argparse.FileType(),
+    )
+    args = parser.parse_args(argv)
+
+    tree = ElementTree.parse(args.xml)
+    root = tree.getroot()
+
+    for element in root.iter():
+        attrs = dict(convert_attributes(element.tag, element.attrib))
+        print((element, attrs))
+
+    return
+    systems = system_from_xml(args.xml)
+    run(args.display_size, args.framerate, systems)
 
 if __name__ == '__main__':
     main()
