@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <data>
+    <!-- this xml is for developing animate.py -->
     <engine>
         <offset x="200" y="100" />
     </engine>

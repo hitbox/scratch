@@ -7,32 +7,46 @@ import pygamelib
 
 from pygamelib import pygame
 
-# NOTES
-# - want objects that have any amount of attributes for dimensions and styling
-#   and such
-# - want to animate those attributes
-# - want to ignore missing attributes
-
 class Style(SimpleNamespace):
     pass
 
 
 class Animate:
 
-    def __init__(self, obj, attribute, from_, to, start=0, end=0):
-        self.obj = obj
-        self.attribute = attribute
-        self.from_ = from_
-        self.to = to
-        self.start = start # time
-        self.end = end # time
-
     @classmethod
-    def from_attrib(cls, attrib, obj):
+    def from_attrib(cls, **attrib):
+        # XXX: Thinking
+        # - get type from object attribute?
+        # - what if it can be several types?
+        # - explicit type converter
+        # - but allow just about anything?
         attribute = attrib.pop('attribute')
         kwargs = {fixkey(key): int(value) for key, value in attrib.items()}
+
+        kwargs.setdefault('obj', None)
+        # default to value from object
         kwargs.setdefault('from_', getattr(obj, attribute))
-        return cls(obj, attribute, **kwargs)
+
+        if 'dur' in attrib:
+            dur = int(kwargs.pop('dur'))
+            kwargs.setdefault('end', dur - kwargs.get('start', 0))
+
+        return cls(**kwargs)
+
+    def update(self, time):
+        if not hasattr(self, 'obj'):
+            return
+
+        if hasattr(self, 'start') and hasattr(self, 'end'):
+            self.update_absolute(time)
+        elif hasattr(self, 'dur'):
+            pass
+
+    def update_absolute(self, time):
+        if self.start <= time <= self.end:
+            mixtime = (time - self.start) / (self.end - self.start)
+            value = pygamelib.mix(mixtime, self.from_, self.to)
+            setattr(self.obj, self.attribute, value)
 
 
 class Circle(SimpleNamespace):
@@ -47,6 +61,21 @@ class Circle(SimpleNamespace):
     def draw(self, surf, color, width, offset):
         x, y = offset + (self.cx, self.cy)
         return pygame.draw.circle(surf, color, (x, y), self.r, width)
+
+
+class Lines(SimpleNamespace):
+
+    @classmethod
+    def from_attrib(cls, **kwargs):
+        kwargs['closed'] = int(kwargs.get('closed', '0'))
+        kwargs['points'] = [
+            int_tuple(tuple_string.split(',')) for tuple_string in kwargs['points'].split()
+        ]
+        return cls(**kwargs)
+
+    def draw(self, surf, color, width, offset):
+        points = [offset + point for point in self.points]
+        return pygame.draw.lines(surf, color, self.closed, points, width)
 
 
 class Rect(SimpleNamespace):
@@ -138,6 +167,7 @@ int_tuple = typed_container(tuple, int)
 
 tag2class = {
     'circle': Circle,
+    'lines': Lines,
     'polygon': Polygon,
     'rect': Rect,
 }
@@ -192,16 +222,37 @@ def system_from_xml(xml):
                 style = Style(obj=shape, color=color, width=width)
                 styles.append(style)
 
+    # animations referencing shapes
     for animate_element in root.findall('.//animate[@href]'):
         element_attrib = animate_element.attrib.copy()
         href = element_attrib.pop('href').lstrip('#')
         for shape in shapes:
-            if shape.id == href:
+            if getattr(shape, 'id', None) == href:
                 break
         else:
             raise ValueError(f'{href} not found.')
         animate = Animate.from_attrib(element_attrib, shape)
         animations.append(animate)
+
+    for animation_element in root.findall('.//animation'):
+        repeat = animation_element.attrib.get('repeat', 'none')
+
+        objects = []
+        for object_element in animation_element.findall('object'):
+            href = object_element.attrib['href'].lstrip('#')
+            for shape in shapes:
+                if getattr(shape, 'id', None) == href:
+                    break
+            else:
+                raise ValueError(f'{href} not found.')
+            objects.append(shape)
+
+        for obj in objects:
+            for animate_element in animation_element.findall('animate'):
+                attrib = animate_element.attrib.copy()
+                attrib['obj'] = obj
+                animate = Animate.from_attrib(**attrib)
+                animations.append(animate)
 
     systems = SimpleNamespace(
         offset = offset,
@@ -248,10 +299,7 @@ def main(argv=None):
         pygame.display.flip()
         # animate
         for animate in systems.animations:
-            if animate.start <= time <= animate.end:
-                mixtime = (time - animate.start) / (animate.end - animate.start)
-                value = pygamelib.mix(mixtime, animate.from_, animate.to)
-                setattr(animate.obj, animate.attribute, value)
+            animate.update(time)
         #
         elapsed = clock.tick(framerate)
         time += elapsed
