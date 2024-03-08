@@ -5,10 +5,22 @@
     </engine>
     <shapes>
         <circle id="circle" cx="150" cy="200" r="100">
+            <animate attribute="cx" from="150" to="300" start="500" end="1500" />
+            <style color="orange" width="1" />
         </circle>
-        <rect id="rect1" x="120" y="50" w="100" h="75" />
-        <rect id="rect2" x="250" y="125" w="50" h="100" />
+        <rect id="rect1" x="120" y="50" w="100" h="75">
+            <style color="purple" width="4" />
+            <animate attribute="y" to="600" start="1000" end="1250" />
+            <animate attribute="w" to="300" start="1000" end="1250" />
+        </rect>
+        <rect id="rect2" x="250" y="125" w="50" h="100">
+            <style color="limegreen" width="0" />
+            <!-- another animate below, outside -->
+            <animate attribute="x" to="10" start="1000" end="2000" />
+            <animate attribute="y" to="10" start="1000" end="2000" />
+        </rect>
         <!-- goofy looking star shape -->
         <polygon points="50,50 75,75 125,75 75,90 125,125 50,90 -25,125 25,90 -25,75 25,75" />
     </shapes>
+    <animate href="#rect2" attribute="h" to="50" start="500" end="1500" />
 </data>

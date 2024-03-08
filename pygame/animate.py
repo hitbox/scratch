@@ -13,6 +13,28 @@ from pygamelib import pygame
 # - want to animate those attributes
 # - want to ignore missing attributes
 
+class Style(SimpleNamespace):
+    pass
+
+
+class Animate:
+
+    def __init__(self, obj, attribute, from_, to, start=0, end=0):
+        self.obj = obj
+        self.attribute = attribute
+        self.from_ = from_
+        self.to = to
+        self.start = start # time
+        self.end = end # time
+
+    @classmethod
+    def from_attrib(cls, attrib, obj):
+        attribute = attrib.pop('attribute')
+        kwargs = {fixkey(key): int(value) for key, value in attrib.items()}
+        kwargs.setdefault('from_', getattr(obj, attribute))
+        return cls(obj, attribute, **kwargs)
+
+
 class Circle(SimpleNamespace):
 
     @classmethod
@@ -65,6 +87,11 @@ class typed_container:
     def __call__(self, iterable):
         return self.container(map(self.type_, iterable))
 
+
+def fixkey(name):
+    if name == 'from':
+        name = 'from_'
+    return name
 
 def splitarg(string):
     return string.replace(',', ' ').split()
@@ -136,6 +163,54 @@ def save_animation_code():
                 else:
                     setattr(shape, attr, value)
 
+def system_from_xml(xml):
+    tree = ElementTree.parse(xml)
+    root = tree.getroot()
+
+    engine_element = root.find('engine')
+    if engine_element:
+        offset = int_tuple(engine_element.find('offset').attrib.values())
+    offset = pygame.Vector2(offset)
+
+    styles = []
+    animations = []
+    shapes = []
+    for shape_elements in root.findall('shapes'):
+        for shape_element in shape_elements:
+            shape_class = tag2class[shape_element.tag]
+            shape = shape_class.from_attrib(**shape_element.attrib)
+            shapes.append(shape)
+            # animate
+            for animate_element in shape_element.findall('animate'):
+                animate = Animate.from_attrib(animate_element.attrib.copy(), shape)
+                animations.append(animate)
+            # style
+            for style_element in shape_element.findall('.//style'):
+                attrib = style_element.attrib.copy()
+                color = pygame.Color(attrib.pop('color'))
+                width = int(attrib.pop('width'))
+                style = Style(obj=shape, color=color, width=width)
+                styles.append(style)
+
+    for animate_element in root.findall('.//animate[@href]'):
+        element_attrib = animate_element.attrib.copy()
+        href = element_attrib.pop('href').lstrip('#')
+        for shape in shapes:
+            if shape.id == href:
+                break
+        else:
+            raise ValueError(f'{href} not found.')
+        animate = Animate.from_attrib(element_attrib, shape)
+        animations.append(animate)
+
+    systems = SimpleNamespace(
+        offset = offset,
+        styles = styles,
+        animations = animations,
+        shapes = shapes,
+    )
+    return systems
+
 def main(argv=None):
     parser = pygamelib.command_line_parser()
     parser.add_argument(
@@ -144,21 +219,10 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
-    tree = ElementTree.parse(args.xml)
-    root = tree.getroot()
-
-    engine_element = root.find('engine')
-    if engine_element:
-        offset = int_tuple(engine_element.find('offset').attrib.values())
-    offset = pygame.Vector2(offset)
-
-    shapes = list()
-    for shapes_element in root.findall('shapes'):
-        shapes.extend(shapes_from_xml(shapes_element))
-
+    systems = system_from_xml(args.xml)
+    default_style = Style(color='magenta', width=1)
     framerate = args.framerate
     clock = pygame.time.Clock()
-
     running = True
     time = 0
     screen = pygame.display.set_mode(args.display_size)
@@ -171,12 +235,23 @@ def main(argv=None):
                     pygame.event.post(pygame.event.Event(pygame.QUIT))
             elif event.type == pygame.MOUSEMOTION:
                 if event.buttons[0]:
-                    offset += event.rel
+                    systems.offset += event.rel
         # draw
         screen.fill('black')
-        for shape in shapes:
-            shape.draw(screen, 'magenta', 1, offset)
+        for shape in systems.shapes:
+            for style in systems.styles:
+                if getattr(style, 'obj', None) == shape:
+                    break
+            else:
+                style = default_style
+            shape.draw(screen, style.color, style.width, systems.offset)
         pygame.display.flip()
+        # animate
+        for animate in systems.animations:
+            if animate.start <= time <= animate.end:
+                mixtime = (time - animate.start) / (animate.end - animate.start)
+                value = pygamelib.mix(mixtime, animate.from_, animate.to)
+                setattr(animate.obj, animate.attribute, value)
         #
         elapsed = clock.tick(framerate)
         time += elapsed
