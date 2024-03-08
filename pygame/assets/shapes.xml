@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<data>
+    <engine>
+        <offset x="200" y="100" />
+    </engine>
+    <shapes>
+        <circle id="circle" cx="150" cy="200" r="100">
+        </circle>
+        <rect id="rect1" x="120" y="50" w="100" h="75" />
+        <rect id="rect2" x="250" y="125" w="50" h="100" />
+        <!-- goofy looking star shape -->
+        <polygon points="50,50 75,75 125,75 75,90 125,125 50,90 -25,125 25,90 -25,75 25,75" />
+    </shapes>
+</data>

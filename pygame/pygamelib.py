@@ -1500,6 +1500,9 @@ def mix(time, a, b):
     """
     return a * (1 - time) + b * time
 
+def mixiters(time, iter1, iter2):
+    return tuple(mix(time, a, b) for a, b in zip(iter1, iter2))
+
 lerp = mix
 
 # TODO
