@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<data>
+    <engine>
+        <offset x="400" y="400" />
+    </engine>
+    <shape>
+        <circle class="face" r="300" />
+        <circle class="eye" cx="-150" cy="-75" r="50" />
+        <circle class="eye" cx="150" cy="-75" r="50" />
+        <lines class="mouth" points="-175,75 -75,95 0,100 75,95 175,75" />
+    </shape>
+
+    <style select=".face" color="orange" width="0" />
+    <style select=".mouth" color="gray10" width="32" />
+    <style select="rect" color="orangered" width="0" />
+
+    <style select=".eye" color="gray10" width="0" animation="#eyepop" />
+    <animation id="eyepop" playback="sequence" repeat="cycle">
+        <animate attribute="r" from="50" to="55" start="500" dur="200" />
+        <animate attribute="r" from="55" to="50" dur="200" />
+    </animation>
+</data>
