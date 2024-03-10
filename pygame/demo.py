@@ -1355,6 +1355,103 @@ class CircleSegmentPermutations(
         pygame.display.flip()
 
 
+class TimerDemo(
+    pygamelib.DemoCommand,
+    pygamelib.DemoBase,
+    pygamelib.StopMixin,
+    pygamelib.QuitKeydownMixin,
+):
+    # 2024-03-10 Sun.
+    # - working out a good timer
+    # - started yesterday in another file
+    # - was working on animate.py and animations were very difficult
+    # - suspected need for timer
+    # - keeping a `time` in each timer should allow for cool slowdown effects
+
+    command_help = 'Demo the timer class.'
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument(
+            'start',
+            type = int,
+            help = 'Start time in milliseconds.'
+        )
+        parser.add_argument(
+            'duration',
+            type = int,
+            help = 'Duration in milliseconds.',
+        )
+        parser.add_argument(
+            'repeat',
+            type = pygamelib.repeat_type,
+            help = 'Repeat N times.',
+        )
+        parser.add_argument(
+            '--time-divisor',
+            type = int,
+            default = 1,
+        )
+
+    def main(self, args):
+        timer = pygamelib.Timer(args.start, args.duration, args.repeat)
+        self._run(args.display_size, args.framerate, timer, args.time_divisor)
+
+    def timer_lines(self, timer):
+        yield f'{timer.duration=}'
+        yield f'{timer.repeat=}'
+        yield f'{timer.is_running()=}'
+        yield f'{timer.is_stopped()=}'
+        yield f'{timer.should_start()=}'
+        yield f'{timer.should_end()=}'
+        yield f'{timer.start_count=}'
+        yield f'{timer.end_count=}'
+        yield f'{timer.start=}'
+        yield f'{timer.end=}'
+        yield f'{timer.time=}'
+        if timer.is_running():
+            yield f'{timer.normtime()=:.6f}'
+
+    def _run(self, display_size, framerate, timer, time_divisor):
+        # NOTES
+        # - using the run func developed in another file
+        # - not sure about the Engine class and its way of running
+        # - keep forgetting how to use it and I made it
+        font = pygamelib.monospace_font(30)
+        antialias = True
+        color = 'linen'
+        running = True
+        screen = pygame.display.set_mode(display_size)
+        clock = pygame.time.Clock()
+        elapsed = clock.tick(framerate)
+        timer_elapsed = max(1, elapsed // time_divisor)
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                        pygame.event.post(pygame.event.Event(pygame.QUIT))
+            # draw
+            screen.fill('black')
+            lines = [
+                f'fps={clock.get_fps():.2f}',
+                '',
+                f'{timer_elapsed=}',
+            ]
+            lines.extend(self.timer_lines(timer))
+            images = [font.render(line, antialias, color) for line in lines]
+            rects = [image.get_rect() for image in images]
+            pygamelib.flow_topbottom(rects)
+            screen.blits(list(zip(images, rects)))
+            pygame.display.flip()
+            # update
+            elapsed = clock.tick(framerate)
+            timer_elapsed = max(1, elapsed // time_divisor)
+            timer.update(timer_elapsed)
+
+
+
 def filled_shape_meter(window):
     """
     Fill a shape from bottom-up as an indication of a meter.

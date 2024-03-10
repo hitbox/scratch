@@ -1365,6 +1365,45 @@ class TestSnakeCaseFunction(unittest.TestCase):
         self.assertEqual(snake_case('XMLShapes'), 'shapes')
 
 
+class Timer:
+
+    def __init__(self, start, duration, repeat=1):
+        self.start = start
+        self.duration = duration
+        self.repeat = repeat
+        self.end = None
+        self.time = 0
+        self.start_count = 0
+        self.end_count = 0
+
+    def is_running(self):
+        return self.end_count < self.start_count
+
+    def is_stopped(self):
+        return self.end_count == self.start_count
+
+    def should_start(self):
+        return self.end_count < self.repeat and self.time >= self.start
+
+    def should_end(self):
+        return self.end and self.time >= self.end
+
+    def update(self, elapsed):
+        self.time += elapsed
+        if self.is_running():
+            if self.should_end():
+                self.end_count += 1
+        elif self.should_start():
+            self.start_count += 1
+            if self.end_count > 0:
+                # repeating, advance start by duration
+                self.start += self.duration
+            self.end = self.start + self.duration
+
+    def normtime(self):
+        return (self.time - self.start) / self.duration
+
+
 pascal_case_re = re.compile(r'[A-Z][a-z]+')
 
 def snake_case(name):
@@ -1443,8 +1482,11 @@ def sorted_groupby(iterable, key=None, reverse=False):
     """
     return it.groupby(sorted(iterable, key=key, reverse=reverse), key=key)
 
+def splitarg(string):
+    return string.replace(',', ' ').split()
+
 def intargs(string):
-    return map(int, string.replace(',', ' ').split())
+    return map(int, splitarg(string))
 
 def chunk(iterable, n):
     iterable = iter(iterable)
@@ -1548,6 +1590,14 @@ def color_name(color):
     return UNIQUE_COLORSTHE[tuple(color)]
 
 # command line
+
+def repeat_type(s):
+    """
+    Value for Timer.repeat from command line.
+    """
+    if s == 'inf':
+        return math.inf
+    return int(s)
 
 def rect_type(string):
     """
@@ -1846,20 +1896,25 @@ def left(rect):
     left, _, _, _ = rect
     return left
 
+def get_digits(s):
+    for char in s:
+        if char in string.digits:
+            yield char
+
 def best_name_colors(color_items):
     # NOTES
     # - pygame.color.THECOLORS has many names for some colors
     # - for instance 'grey100', 'gray100', and 'white' are all white.
     # - also 'red' and 'red1' are the same.
-    # Here, we group color items by the tuple value and yield the hightest
-    # quality name.
+    # Here, we group color items by the tuple value and yield the highest
+    # quality name. We prefer least amount of digits in name.
     second = op.itemgetter(1)
     grouped = sorted_groupby(color_items, key=second)
 
     def _quality(color_item):
         # count of digits in key
         key, val = color_item
-        return len(set(key).intersection(string.digits))
+        return len(list(get_digits(key)))
 
     for _, color_items in grouped:
         color_items = sorted(color_items, key=_quality)
@@ -2943,6 +2998,33 @@ class Shapes:
                     database[shape_id] = shape
                 shapes.append(shape)
         return cls(database, shapes)
+
+
+class matchall:
+    """
+    Callable returning true if all regular expressions match.
+    """
+
+    def __init__(self, *regular_expressions):
+        self.regular_expressions = list(map(re.compile, regular_expressions))
+
+    def __call__(self, *values):
+        items = zip(self.regular_expressions, values)
+        return all(re_.match(value) for re_, value in items)
+
+
+class typed_container:
+    """
+    Callable to take an iterable and type its items; and place them in a
+    container.
+    """
+
+    def __init__(self, container, type_):
+        self.container = container
+        self.type_ = type_
+
+    def __call__(self, iterable):
+        return self.container(map(self.type_, iterable))
 
 
 def points_from_file(file):
