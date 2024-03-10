@@ -1367,10 +1367,12 @@ class TestSnakeCaseFunction(unittest.TestCase):
 
 class Timer:
 
-    def __init__(self, start, duration, repeat=1):
+    def __init__(self, start, duration, end_stop=None):
         self.start = start
         self.duration = duration
-        self.repeat = repeat
+        if end_stop is None:
+            end_stop = 1
+        self.end_stop = end_stop
         self.end = None
         self.time = 0
         self.start_count = 0
@@ -1383,7 +1385,7 @@ class Timer:
         return self.end_count == self.start_count
 
     def should_start(self):
-        return self.end_count < self.repeat and self.time >= self.start
+        return self.end_count < self.end_stop and self.time >= self.start
 
     def should_end(self):
         return self.end and self.time >= self.end
