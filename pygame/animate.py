@@ -1,205 +1,199 @@
 import argparse
+import functools
+import itertools as it
 import re
 
+from collections import ChainMap
+from collections import defaultdict
+from pprint import pprint
 from types import SimpleNamespace
 from xml.etree import ElementTree
 
 import pygamelib
 
+from pygamelib import Timer
+from pygamelib import matchall
 from pygamelib import pygame
 
-class Style(SimpleNamespace):
-    pass
+repeat_func = {
+    'once': iter,
+    'cycle': it.cycle,
+}
 
-
-class Animate:
-
-    @classmethod
-    def from_attrib(cls, **attrib):
-        # XXX: Thinking
-        # - get type from object attribute?
-        # - what if it can be several types?
-        # - explicit type converter
-        # - but allow just about anything?
-
-        kwargs = {fixkey(key): int(value) for key, value in attrib.items()}
-
-        kwargs.setdefault('obj', None)
-        # default to value from object
-        kwargs.setdefault('from_', getattr(obj, attrib['attribute']))
-
-        if 'dur' in attrib:
-            dur = int(kwargs.pop('dur'))
-            kwargs.setdefault('end', dur - kwargs.get('start', 0))
-
-        return cls(**kwargs)
-
-    def update(self, time):
-        if not hasattr(self, 'obj'):
-            return
-
-        if hasattr(self, 'start') and hasattr(self, 'end'):
-            self.update_absolute(time)
-        elif hasattr(self, 'dur'):
-            pass
-
-    def update_absolute(self, time):
-        if self.start <= time <= self.end:
-            mixtime = (time - self.start) / (self.end - self.start)
-            value = pygamelib.mix(mixtime, self.from_, self.to)
-            setattr(self.obj, self.attribute, value)
-
-
-class Circle(SimpleNamespace):
+class Animation(SimpleNamespace):
+    """
+    Collection of animate objects.
+    """
 
     @classmethod
-    def from_attrib(cls, **kwargs):
-        kwargs['cx'] = int(kwargs.get('cx', '0'))
-        kwargs['cy'] = int(kwargs.get('cy', '0'))
-        kwargs['r'] = int(kwargs.get('r', '0'))
-        return cls(**kwargs)
+    def from_element(cls, element):
+        repeat = element.attrib.get('repeat', 'once')
+        container = repeat_func[repeat]
+        animates = container(parse_animation(element))
+        attrs = dict(convert_attributes(element))
+        return cls(animates=animates, **attrs)
 
-    def draw(self, surf, color, width, offset):
-        x, y = offset + (self.cx, self.cy)
-        return pygame.draw.circle(surf, color, (x, y), self.r, width)
+    def update(self, time, elapsed):
+        for animate in self.animates:
+            animate.update(time, elapsed)
+            break
 
-
-class Lines(SimpleNamespace):
-
-    @classmethod
-    def from_attrib(cls, **kwargs):
-        kwargs['closed'] = int(kwargs.get('closed', '0'))
-        kwargs['points'] = [
-            int_tuple(tuple_string.split(',')) for tuple_string in kwargs['points'].split()
-        ]
-        return cls(**kwargs)
-
-    def draw(self, surf, color, width, offset):
-        points = [offset + point for point in self.points]
-        return pygame.draw.lines(surf, color, self.closed, points, width)
+    def apply(self, data):
+        for animate in self.animates:
+            animate.apply(data)
+            break
 
 
-class Rect(SimpleNamespace):
+class Animate(SimpleNamespace):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._elapsed = 0
+        self._value = None
 
     @classmethod
-    def from_attrib(cls, **kwargs):
-        kwargs['x'] = int(kwargs.get('x', '0'))
-        kwargs['y'] = int(kwargs.get('y', '0'))
-        kwargs['w'] = int(kwargs.get('w', '0'))
-        kwargs['h'] = int(kwargs.get('h', '0'))
-        return cls(**kwargs)
+    def from_element(cls, element):
+        # from and to are the type of the attribute in the object they
+        # reference
+        converter = get_converter(element.tag, element.attrib['attribute'])
+        referenced = {}
+        if 'from' in element.attrib:
+            referenced['from_'] = converter(element.attrib.pop('from'))
+        if 'to' in element.attrib:
+            referenced['to'] = converter(element.attrib.pop('to'))
 
-    def draw(self, surf, color, width, offset):
-        x, y = offset + (self.x, self.y)
-        return pygame.draw.rect(surf, color, (x, y, self.w, self.h), width)
+        start = int(element.attrib.pop('start'))
+        duration = int(element.attrib.pop('dur'))
+        # TODO
+        # - maybe another <tag> to say "this is a list of animates, run them
+        #   one after another."
+        if 'repeat' in element.attrib:
+            repeat = pygamelib.repeat_type(element.attrib.pop('repeat'))
+        else:
+            repeat = None
+        timer = Timer(start, duration, repeat)
+
+        remaining = dict(convert_attributes(element))
+        return cls(tag=element.tag, timer=timer, **referenced, **remaining)
+
+    def update(self, time, elapsed):
+        self.timer.update(elapsed)
+        if not hasattr(self, 'from_'):
+            self.from_ = obj[self.attribute]
+        self._value = pygamelib.mix(self.timer.normtime(), self.from_, self.to)
+
+    def apply(self, data):
+        if self.timer.is_running():
+            data[self.attribute] = self._value
 
 
-class Polygon(SimpleNamespace):
+class Shape:
+    """
+    A collection of primitive drawings.
+    """
+
+    def __init__(self, primitives):
+        self.primitives = primitives
+
+    def __repr__(self):
+        return str(self.primitives)
 
     @classmethod
-    def from_attrib(cls, **kwargs):
-        kwargs['points'] = [
-            int_tuple(tuple_string.split(',')) for tuple_string in kwargs['points'].split()
-        ]
-        return cls(**kwargs)
+    def from_element(cls, element):
+        primitives = list(parse_primitives(element))
+        return cls(primitives)
 
-    def draw(self, surf, color, width, offset):
-        points = [offset + point for point in self.points]
-        return pygame.draw.polygon(surf, color, points, width)
+    def draw(self, surf, offset):
+        for data in self.primitives:
+            renderer = tag2renderer[data['tag']]
+            renderer(surf, data, offset)
 
 
-class typed_container:
+class Selector:
 
-    def __init__(self, container, type_):
-        self.container = container
-        self.type_ = type_
+    def __init__(self, tag_selector, class_selector):
+        self.tag_selector = tag_selector
+        self.class_selector = class_selector
 
-    def __call__(self, iterable):
-        return self.container(map(self.type_, iterable))
+    @classmethod
+    def from_string(self, string):
+        if string is None:
+            string = ''
+        tag_selector, _, class_selector = string.partition('.')
+        return Selector(tag_selector or None, class_selector or None)
 
+    def __call__(self, data):
+        if self.tag_selector is None:
+            tag_match = True
+        else:
+            tag_match = data['tag'] == self.tag_selector
+        if self.class_selector is None:
+            class_match = True
+        else:
+            class_match = self.class_selector in data.get('class', set())
+        return tag_match and class_match
+
+
+def render_circle(surf, data, offset):
+    center = offset + (data['cx'], data['cy'])
+    r = data['r']
+    color = data['color']
+    width = data['width']
+    return pygame.draw.circle(surf, color, center, r, width)
+
+def render_rect(surf, data, offset):
+    topleft = offset + (data['x'], data['y'])
+    size = (data['w'], data['h'])
+    color = data['color']
+    width = data['width']
+    return pygame.draw.rect(surf, color, (topleft, size), width)
+
+def render_lines(surf, data, offset):
+    points = [offset + point for point in data['points']]
+    closed = data['closed']
+    color = data['color']
+    width = data['width']
+    return pygame.draw.lines(surf, color, closed, points, width)
+
+def render_polygon(surf, data, offset):
+    points = [offset + point for point in data['points']]
+    color = data['color']
+    width = data['width']
+    return pygame.draw.polygon(surf, color, points, width)
+
+def render_arc(surf, data, offset):
+    x, y, w, h = data['rect']
+    topleft = offset + (x, y)
+    start_angle = data['start_angle']
+    end_angle = data['end_angle']
+    color = data['color']
+    width = data['width']
+    rect = (topleft, (w, h))
+    return pygame.draw.arc(surf, color, rect, start_angle, end_angle, width)
+
+def parse_primitives(element):
+    for child in element:
+        class_ = tag2class[child.tag]
+        kwargs = dict(convert_attributes(child))
+        kwargs.setdefault('tag', child.tag)
+        yield class_.from_attrib(**kwargs)
+
+def parse_primitives(element):
+    for child in element:
+        element_data = dict(convert_attributes(child))
+        data = primitive_data[child.tag].new_child(element_data)
+        yield data
+
+def parse_animation(element):
+    for child in element:
+        if child.tag != 'animate':
+            raise ValueError
+        yield Animate.from_element(child)
 
 def fixkey(name):
     if name == 'from':
         name = 'from_'
     return name
-
-def splitarg(string):
-    return string.replace(',', ' ').split()
-
-def shape_type(string):
-    shape, id_, color, *remaining = splitarg(string)
-    if shape == 'rect':
-        # NOTE
-        # - wrapped in tuple
-        remaining = (Rect(tuple(map(int, remaining))), )
-    elif shape == 'circle':
-        if len(remaining) == 2:
-            center, radius = remaining
-        elif len(remaining) == 3:
-            cx, cy, radius = remaining
-            center = (cx, cy)
-        center = tuple(map(int, center))
-        radius = int(radius)
-        remaining = (Circle(center, radius),)
-    else:
-        raise ValueError
-    shapefunc = getattr(pygame.draw, shape)
-    return (shapefunc, id_, color, *remaining)
-
-def animate_type(string):
-    id_, attr, *remaining = splitarg(string)
-    if attr == 'center':
-        cx1, cy1, cx2, cy2, start, end = map(int, remaining)
-        remaining = ((cx1, cy1), (cx2, cy2), start, end)
-    elif attr == 'size':
-        w1, h1, w2, h2, start, end = map(int, remaining)
-        remaining = ((w1, h1), (w2, h2), start, end)
-    elif attr == 'color':
-        color1, color2 = map(pygame.Color, remaining[:2])
-        start, end = map(int, remaining[2:])
-        remaining = (color1, color2, start, end)
-    elif attr == 'radius':
-        remaining = map(int, remaining)
-    else:
-        raise ValueError
-    return (id_, attr, *remaining)
-
-int_tuple = typed_container(tuple, int)
-
-tag2class = {
-    'circle': Circle,
-    'lines': Lines,
-    'polygon': Polygon,
-    'rect': Rect,
-}
-
-def shapes_from_xml(shapes):
-    for element in shapes:
-        class_ = tag2class[element.tag]
-        instance = class_.from_attrib(**element.attrib)
-        yield instance
-
-def save_animation_code():
-        for animation in animations:
-            id_, attr, value1, value2, time1, time2 = animation
-            if time1 <= time <= time2:
-                shapefunc, color, shape = shapes[id_]
-                mixtime = (time - time1) / (time2 - time1)
-                if isinstance(value1, (int, float)):
-                    value = pygamelib.mix(mixtime, value1, value2)
-                else:
-                    value = pygamelib.mixiters(mixtime, value1, value2)
-                if attr == 'color':
-                    shapes[id_] = (shapefunc, pygame.Color(value), shape)
-                else:
-                    setattr(shape, attr, value)
-
-def walk_elements(root, parents=None):
-    if parents is None:
-        parents = []
-    yield (root, parents)
-    for child in root:
-        yield from walk_elements(child, parents=parents + [root])
 
 def system_from_xml(xml):
     tree = ElementTree.parse(xml)
@@ -210,57 +204,9 @@ def system_from_xml(xml):
         offset = int_tuple(engine_element.find('offset').attrib.values())
     offset = pygame.Vector2(offset)
 
-    styles = []
-    animations = []
-    shapes = []
-    for shape_elements in root.findall('shapes'):
-        for shape_element in shape_elements:
-            shape_class = tag2class[shape_element.tag]
-            shape = shape_class.from_attrib(**shape_element.attrib)
-            shapes.append(shape)
-            # animate
-            for animate_element in shape_element.findall('animate'):
-                animate = Animate.from_attrib(animate_element.attrib.copy(), shape)
-                animations.append(animate)
-            # style
-            for style_element in shape_element.findall('.//style'):
-                attrib = style_element.attrib.copy()
-                color = pygame.Color(attrib.pop('color'))
-                width = int(attrib.pop('width'))
-                style = Style(obj=shape, color=color, width=width)
-                styles.append(style)
-
-    # animations referencing shapes
-    for animate_element in root.findall('.//animate[@href]'):
-        element_attrib = animate_element.attrib.copy()
-        href = element_attrib.pop('href').lstrip('#')
-        for shape in shapes:
-            if getattr(shape, 'id', None) == href:
-                break
-        else:
-            raise ValueError(f'{href} not found.')
-        animate = Animate.from_attrib(element_attrib, shape)
-        animations.append(animate)
-
-    for animation_element in root.findall('.//animation'):
-        repeat = animation_element.attrib.get('repeat', 'none')
-
-        objects = []
-        for object_element in animation_element.findall('object'):
-            href = object_element.attrib['href'].lstrip('#')
-            for shape in shapes:
-                if getattr(shape, 'id', None) == href:
-                    break
-            else:
-                raise ValueError(f'{href} not found.')
-            objects.append(shape)
-
-        for obj in objects:
-            for animate_element in animation_element.findall('animate'):
-                attrib = animate_element.attrib.copy()
-                attrib['obj'] = obj
-                animate = Animate.from_attrib(**attrib)
-                animations.append(animate)
+    shapes = list(map(Shape.from_element, root.iter('shape')))
+    styles = list(map(dict, map(convert_attributes, root.iter('style'))))
+    animations = list(map(Animation.from_element, root.iter('animation')))
 
     systems = SimpleNamespace(
         offset = offset,
@@ -271,10 +217,10 @@ def system_from_xml(xml):
     return systems
 
 def run(display_size, framerate, systems):
-    default_style = Style(color='magenta', width=1)
     clock = pygame.time.Clock()
     running = True
     time = 0
+    elapsed = 0
     screen = pygame.display.set_mode(display_size)
     while running:
         for event in pygame.event.get():
@@ -289,59 +235,149 @@ def run(display_size, framerate, systems):
         # draw
         screen.fill('black')
         for shape in systems.shapes:
-            for style in systems.styles:
-                if getattr(style, 'obj', None) == shape:
-                    break
-            else:
-                style = default_style
-            shape.draw(screen, style.color, style.width, systems.offset)
+            for data in shape.primitives:
+                for style in systems.styles:
+                    if style['select'](data):
+                        data.update({k: v for k, v in style.items() if k != 'select'})
+        for shape in systems.shapes:
+            shape.draw(screen, systems.offset)
         pygame.display.flip()
         # animate
-        for animate in systems.animations:
-            animate.update(time)
-        #
+        for animation in systems.animations:
+            animation.update(time, elapsed)
+
+        for shape in systems.shapes:
+            for data in shape.primitives:
+                for style in systems.styles:
+                    animation_id = style.get('animation')
+                    if not animation_id:
+                        continue
+                    if not style['select'](data):
+                        continue
+                    for animation in systems.animations:
+                        if animation.id == animation_id:
+                            animation.apply(data)
+
         elapsed = clock.tick(framerate)
         time += elapsed
 
 def href_id(s):
     return s.lstrip('#')
 
-anytag_re = re.compile(r'[a-z]+')
-
-class AllMatch:
-
-    def __init__(self, *regular_expressions):
-        self.regular_expressions = list(map(re.compile, regular_expressions))
-
-    def __call__(self, *values):
-        items = zip(self.regular_expressions, values)
-        return all(re_.match(value) for re_, value in items)
-
-
-anyname = '[a-z]+'
-
 def points_converter(string):
-    return tuple(int_tuple(tuple_string.split(',')) for tuple_string in string.split())
-
-attribute_converters = {
-    AllMatch(anyname, 'id'): str,
-    AllMatch(anyname, 'href'): href_id,
-    AllMatch(anyname, 'color'): pygame.Color,
-    AllMatch(anyname, 'points'): points_converter,
-    AllMatch('animate|animation', 'repeat'): str,
-    AllMatch('animate', 'attribute'): str,
-    AllMatch(anyname, anyname): int,
-}
+    return tuple(
+        int_tuple(tuple_string.split(','))
+        for tuple_string in string.split()
+    )
 
 def get_converter(tag, key):
-    for matcher, converter in attribute_converters.items():
+    """
+    Get first converter to match or none.
+    """
+    for matcher, converter in attribute_converters:
         if matcher(tag, key):
             return converter
 
-def convert_attributes(tag, attrib):
-    for key, val in attrib.items():
-        converter = get_converter(tag, key)
-        yield (key, converter(val))
+def convert_attributes(element):
+    """
+    Convert attributes to types and fix key for attribute name.
+    """
+    for key, val in element.attrib.items():
+        key = fixkey(key)
+        converter = get_converter(element.tag, key)
+        if converter:
+            yield (key, converter(val))
+
+int_tuple = pygamelib.typed_container(tuple, int)
+
+tags = [
+    'animate',
+    'animation',
+    'circle',
+    'engine',
+    'lines',
+    'polygon',
+    'rect',
+    'style',
+    'arc',
+]
+
+anyname = '[a-z]+'
+
+# TODO
+# - cleanup
+# - there are other type conversions above
+attribute_converters = [
+    (matchall(anyname, 'id'), str),
+    (matchall(anyname, 'class'), str.split),
+    (matchall(anyname, 'href'), href_id),
+    (matchall('style', 'select'), Selector.from_string),
+    (matchall('style', 'animation'), href_id),
+    (matchall(anyname, 'color'), pygame.Color),
+    (matchall(anyname, 'points'), points_converter),
+    (matchall('animate|animation', 'repeat|attribute|playback'), str),
+    (matchall('arc', 'start_angle|end_angle'), float),
+    (matchall('arc', 'rect'), pygamelib.rect_type),
+    # remaining recognized tags' attributes to int
+    (matchall('|'.join(tags), anyname), int),
+]
+
+tag2renderer = {
+    'circle': render_circle,
+    'rect': render_rect,
+    'lines': render_lines,
+    'arc': render_arc,
+}
+
+default_style = dict(color='magenta', width=1)
+
+circle_data = ChainMap(dict(
+    cx = 0,
+    cy = 0,
+    r = 0,
+    draw_top_right = None,
+    draw_top_left = None,
+    draw_bottom_left = None,
+    draw_bottom_right = None,
+    tag = 'circle',
+    **default_style,
+))
+
+rect_data = ChainMap(dict(
+    x = 0,
+    y = 0,
+    w = 0,
+    h = 0,
+    border_radius = 0,
+    border_top_left_radius = -1,
+    border_top_right_radius = -1,
+    border_bottom_left_radius = -1,
+    border_bottom_right_radius = -1,
+    tag = 'rect',
+    **default_style,
+))
+
+lines_data = ChainMap(dict(
+    points = None,
+    closed = False,
+    tag = 'lines',
+    **default_style,
+))
+
+arc_data = ChainMap(dict(
+    rect = (0, 0, 0, 0),
+    start_angle = 0,
+    end_angle = 0,
+    tag = 'arc',
+    **default_style,
+))
+
+primitive_data = {
+    'circle': circle_data,
+    'rect': rect_data,
+    'lines': lines_data,
+    'arc': arc_data
+}
 
 def main(argv=None):
     parser = pygamelib.command_line_parser()
@@ -349,17 +385,15 @@ def main(argv=None):
         'xml',
         type = argparse.FileType(),
     )
+    parser.add_argument(
+        '--dump',
+        action = 'store_true',
+    )
     args = parser.parse_args(argv)
-
-    tree = ElementTree.parse(args.xml)
-    root = tree.getroot()
-
-    for element in root.iter():
-        attrs = dict(convert_attributes(element.tag, element.attrib))
-        print((element, attrs))
-
-    return
     systems = system_from_xml(args.xml)
+    if args.dump:
+        pprint(systems)
+        return
     run(args.display_size, args.framerate, systems)
 
 if __name__ == '__main__':
