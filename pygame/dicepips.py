@@ -64,7 +64,7 @@ def iter_pip_deltas(n):
     Generate the deltas for n number pips.
     """
     if n % 2 != 0:
-        # odds yield center
+        # yield center for odd number
         yield (0, 0)
         n -= 1
     for row, col in EVEN_PIP_DELTAS[:n//2]:
@@ -72,6 +72,7 @@ def iter_pip_deltas(n):
         yield (row, col)
         yield (-row, -col)
 
+# 1-9 pip deltas
 PIP_DELTAS = {n: list(iter_pip_deltas(n)) for n in range(1,10)}
 
 def iter_rect_ends(rect):
