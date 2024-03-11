@@ -48,7 +48,7 @@ class CycleDemo(pygamelib.DemoBase):
                 self.index = (self.index + random.randint(1, 5)) % len(self.blits)
                 self.roll -= 1
                 self.timer = (self.timer + self.elapsed) % self.roll_interval
-                pygamelib.post_videoexpose()
+                self.draw()
             else:
                 self.timer += self.elapsed
 
