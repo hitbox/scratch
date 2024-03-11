@@ -2066,6 +2066,14 @@ def circle_rect(center, radius):
     x, y = center
     return (x-radius, y-radius, radius*2, radius*2)
 
+def circle_inside(rect):
+    """
+    Return required args for drawing a circle inside a rect.
+    """
+    x, y, w, h = rect
+    radius = min(w, h) // 2
+    return ((x + radius, y + radius), radius)
+
 def circle_surface(
     radius,
     color,

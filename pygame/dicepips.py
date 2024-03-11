@@ -118,12 +118,12 @@ def piprect(dice_rect, pipsize, pippos, dice_border):
     pip_rect = pygame.Rect(x, y, pip_width, pip_height)
     return pip_rect
 
-def draw_pip(surf, rect, border_width):
-    radius = min(rect.size) // 2
+def draw_pip(surf, rect, border_width, fill_color, border_color):
+    center, radius = pygamelib.circle_inside(rect)
     # fill
-    pygame.draw.circle(surf, 'azure', rect.center, radius, 0)
+    pygame.draw.circle(surf, fill_color, center, radius, 0)
     # border
-    pygame.draw.circle(surf, 'indigo', rect.center, radius, 1)
+    pygame.draw.circle(surf, border_color, center, radius, 1)
 
 def draw_die(surf, npips, border):
     rect = surf.get_rect()
@@ -133,7 +133,7 @@ def draw_die(surf, npips, border):
     )
     for pippos in PIP_DELTAS[npips]:
         pip_rect = piprect(rect, pip_size, pippos, border)
-        draw_pip(surf, pip_rect, border)
+        draw_pip(surf, pip_rect, border, 'azure', 'indigo')
 
 def run(display_size, roll_interval, dice_size):
     window = pygame.Rect((0,0), display_size)
