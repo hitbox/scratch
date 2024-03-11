@@ -2072,7 +2072,8 @@ def circle_inside(rect):
     """
     x, y, w, h = rect
     radius = min(w, h) // 2
-    return ((x + radius, y + radius), radius)
+    center = (x + radius, y + radius)
+    return (center, radius)
 
 def circle_surface(
     radius,
