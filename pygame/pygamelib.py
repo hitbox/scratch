@@ -1406,6 +1406,25 @@ class Timer:
         return (self.time - self.start) / self.duration
 
 
+class FontPrinter:
+    """
+    Callable renders like print() from pygame font.
+    """
+
+    def __init__(self, font, color, antialias=True):
+        self.font = font
+        self.color = color
+        self.antialias = antialias
+
+    def __call__(self, lines):
+        args = (lines, self.font, self.color, self.antialias)
+        images, rects = make_blitables_from_font(*args)
+        _, _, w, h = wrap(rects)
+        result = pygame.Surface((w, h), pygame.SRCALPHA)
+        result.blits(list(zip(images, rects)))
+        return result
+
+
 pascal_case_re = re.compile(r'[A-Z][a-z]+')
 
 def snake_case(name):

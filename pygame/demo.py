@@ -1399,7 +1399,7 @@ class TimerDemo(
 
     def timer_lines(self, timer):
         yield f'{timer.duration=}'
-        yield f'{timer.repeat=}'
+        yield f'{timer.end_stop=}'
         yield f'{timer.is_running()=}'
         yield f'{timer.is_stopped()=}'
         yield f'{timer.should_start()=}'
@@ -1411,6 +1411,8 @@ class TimerDemo(
         yield f'{timer.time=}'
         if timer.is_running():
             yield f'{timer.normtime()=:.6f}'
+        else:
+            yield '(not running)'
 
     def _run(self, display_size, framerate, timer, time_divisor):
         # NOTES
@@ -1418,9 +1420,11 @@ class TimerDemo(
         # - not sure about the Engine class and its way of running
         # - keep forgetting how to use it and I made it
         font = pygamelib.monospace_font(30)
+        font_printer = pygamelib.FontPrinter(font, 'linen')
         antialias = True
         color = 'linen'
         running = True
+        window = pygame.Rect((0,0), display_size)
         screen = pygame.display.set_mode(display_size)
         clock = pygame.time.Clock()
         elapsed = clock.tick(framerate)
@@ -1440,16 +1444,13 @@ class TimerDemo(
                 f'{timer_elapsed=}',
             ]
             lines.extend(self.timer_lines(timer))
-            images = [font.render(line, antialias, color) for line in lines]
-            rects = [image.get_rect() for image in images]
-            pygamelib.flow_topbottom(rects)
-            screen.blits(list(zip(images, rects)))
+            image = font_printer(lines)
+            screen.blit(image, image.get_rect(center=window.center))
             pygame.display.flip()
             # update
             elapsed = clock.tick(framerate)
             timer_elapsed = max(1, elapsed // time_divisor)
             timer.update(timer_elapsed)
-
 
 
 def filled_shape_meter(window):
