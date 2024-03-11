@@ -4,6 +4,14 @@ import pygamelib
 
 from pygamelib import pygame
 
+EVEN_PIP_DELTAS = [
+    # (col, row)
+    (-1, -1), # topleft
+    (-1, +1), # bottomleft
+    (-0, -1), # midleft
+    (-1, -0), # midtop
+]
+
 class CycleDemo(pygamelib.DemoBase):
 
     def __init__(self, blits, roll_interval):
@@ -50,13 +58,6 @@ class CycleDemo(pygamelib.DemoBase):
         self.screen.blit(image, rect)
         pygame.display.flip()
 
-
-EVEN_PIP_DELTAS = [
-    (-1, -1), # topleft
-    (-1, +1), # bottomleft
-    (-0, -1), # midleft
-    (-1, -0), # midtop
-]
 
 def iter_pip_deltas(n):
     """
