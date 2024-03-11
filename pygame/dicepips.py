@@ -169,7 +169,7 @@ def main(argv=None):
     )
     parser.add_argument(
         '--dice-size',
-        type = eval,
+        type = float,
         default = '0.1',
         help = 'Fraction of window size for dice size.',
     )
