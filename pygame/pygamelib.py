@@ -1172,16 +1172,30 @@ class CircularMeterRenderer:
 class BorderStyle(
     namedtuple(
         'BorderStyle',
-        'width color',
+        'width colorarg',
         defaults = ('magenta',)
     ),
 ):
+    # XXX
+    # - namedtuple won't let me have _color
+    # - colorarg is my compromise
 
     @classmethod
     def from_shorthand(cls, string):
-        items = zip([int, pygame.Color], string.split())
+        items = zip([int, str], string.split())
         args = (func(arg) for func, arg in items)
         return cls(*args)
+
+    @property
+    def color(self):
+        return pygame.Color(self.colorarg)
+
+    @property
+    def shorthand(self):
+        color = get_color_name(self.colorarg)
+        if isinstance(color, (pygame.Color, tuple)):
+            color = ''.join(color)
+        return f'{self.width} {color}'
 
 
 class SpriteSheet(
@@ -1610,6 +1624,10 @@ def color_name(color):
     color = pygame.Color(color)
     return UNIQUE_COLORSTHE[tuple(color)]
 
+def get_color_name(color):
+    key = tuple(pygame.Color(color))
+    return UNIQUE_COLORSTHE.get(key, color)
+
 # command line
 
 def repeat_type(s):
@@ -1643,7 +1661,13 @@ def command_line_parser(**kwargs):
     parser = argparse.ArgumentParser(**kwargs)
     add_display_size_option(parser)
     add_framerate_option(parser)
+    add_background_color_option(parser)
     return parser
+
+def add_background_color_option(parser, name='--background', **kwargs):
+    kwargs.setdefault('type', pygame.Color)
+    kwargs.setdefault('default', 'indigo')
+    parser.add_argument(name, **kwargs)
 
 def add_framerate_option(parser, name='--framerate', **kwargs):
     kwargs.setdefault('type', int)
@@ -2020,8 +2044,14 @@ def system_font(name, size, bold=False, italic=False):
     pygame.font.init()
     return pygame.font.SysFont(name, size, bold, italic)
 
+def font(name, size, bold=False, italic=False):
+    return system_font(name, size, bold, italic)
+
+def sans_serif_font(size, bold=False, italic=False):
+    return font('sans-serif', size, bold, italic)
+
 def monospace_font(size, bold=False, italic=False):
-    return system_font('monospace', size, bold, italic)
+    return font('monospace', size, bold, italic)
 
 def render_text(
     font,

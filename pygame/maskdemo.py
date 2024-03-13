@@ -9,6 +9,7 @@ from pygamelib import pygame
 def run(
     display_size,
     framerate,
+    background_color,
     spritesheet,
     animation_delay,
     flash_delay,
@@ -18,6 +19,44 @@ def run(
     screen = pygame.display.set_mode(display_size)
     window = screen.get_rect()
     clock = pygame.time.Clock()
+
+    font = pygamelib.sans_serif_font(30)
+    font_printer = pygamelib.FontPrinter(font, 'linen')
+
+    # TODO: flash
+    # - animate the flash
+    # - lerp color to flash color and back
+
+    # TODO: variables sketch
+    # - variables with gui interface
+    # - sketching out what is needed
+    # - how to update a local? bad idea? pack everything away into another
+    #   dict.
+    # - class to hold references together?
+    variables = [
+        # (name_or_object, index_into_font_lines, delta, )
+        ('flash_delay', 7, 10),
+    ]
+
+    # TODO: help image
+    # - help image maker in pygamelib?
+    # - be as serious about that as argparse because constantly forgetting how
+    #   these toys work.
+    help_image = font_printer([
+        'Demo using masks to flash and draw outline.',
+        '',
+        f'{spritesheet.image=}',
+        f'{spritesheet.width=}',
+        f'{spritesheet.height=}',
+        f'{spritesheet.scale=}',
+        '',
+        f'{animation_delay=}',
+        f'{flash_delay=}',
+        f'{flash_color=}',
+        f'{outline_style.shorthand=}',
+        '',
+        'Press Space to flash',
+    ])
 
     images = spritesheet.get_images()
     scaler = functools.partial(pygamelib.scale, spritesheet.scale)
@@ -47,7 +86,7 @@ def run(
                     pygame.event.post(pygame.event.Event(pygame.QUIT))
                 elif event.key == pygame.K_SPACE and flash_time == 0:
                     flash_time = flash_delay
-        screen.fill('indigo')
+        screen.fill(background_color)
         if countdown - elapsed < 0:
             countdown = 0
         else:
@@ -67,6 +106,8 @@ def run(
         else:
             draw_image = image
 
+        screen.blit(help_image, (0,0))
+
         positioned = draw_image.get_rect(center=window.center)
         screen.blit(draw_image, positioned)
 
@@ -85,6 +126,7 @@ def argument_parser():
         type = pygamelib.SpriteSheet.from_shorthand,
         help = pygamelib.SpriteSheet.help,
     )
+    # - per frame delays?
     parser.add_argument(
         '--animation-delay',
         type = int,
@@ -113,6 +155,7 @@ def main(argv=None):
     run(
         args.display_size,
         args.framerate,
+        args.background,
         args.spritesheet,
         args.animation_delay,
         args.flash_delay,
@@ -125,3 +168,10 @@ if __name__ == '__main__':
 
 # 2024-02-27 Tue.
 # - want to make swiping effects from image masks
+# 2024-03-13 Wed.
+# - left off to suss out animation in animate.py, itself leading to a tangent
+#   into pygamelib.Timer.
+# - this thing became "draw an outline around a image using masks".
+# - feel like pursuing the shorthand parsers more.
+# - timer from shorthand string for this? might lead to better XML in
+#   animate.py.
