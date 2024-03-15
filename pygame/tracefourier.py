@@ -1,5 +1,4 @@
 import argparse
-import itertools as it
 import math
 
 import pygamelib
@@ -63,5 +62,5 @@ if __name__ == '__main__':
     main()
 
 # 2024-02-27 Tue.
-# - https://injuly.in/blog/fourier-series/index.html
+# https://injuly.in/blog/fourier-series/index.html
 # - want to draw with fourier series
