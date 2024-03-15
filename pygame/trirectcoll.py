@@ -1,3 +1,5 @@
+import argparse
+
 def dot(v1, v2):
     return v1[0] * v2[0] + v1[1] * v2[1]
 
@@ -42,13 +44,30 @@ def triangle_rect_collision(triangle, rect):
 
     return True
 
-def main():
-    # Example usage:
-    triangle = [(0, 0), (2, 0), (1, 2)]
-    rectangle = [(1, 1), (4, 1), (4, 4), (1, 4)]
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--tri',
+        type = eval,
+        default = '[(0, 0), (2, 0), (1, 2)]',
+        help = 'Three points of a triangle.',
+    )
+    parser.add_argument(
+        '--rect',
+        type = eval,
+        default = '[(1, 1), (4, 1), (4, 4), (1, 4)]',
+        help = 'Four points of a rectangle.',
+    )
+    args = parser.parse_args(argv)
 
-    collision = triangle_rect_collision(triangle, rectangle)
-    print("Collision:", collision)
+    collision = triangle_rect_collision(args.tri, args.rect)
+    print(f'{collision=}')
 
 if __name__ == '__main__':
     main()
+
+# 2024-03-15 Fri.
+# - popping back in here
+# - looked interesting enough to keep
+# - added argparse
+# - this must have come from chatgpt
