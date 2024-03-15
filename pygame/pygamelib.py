@@ -1576,7 +1576,7 @@ def command_line_parser(**kwargs):
 
 def add_background_color_option(parser, name='--background', **kwargs):
     kwargs.setdefault('type', pygame.Color)
-    kwargs.setdefault('default', 'indigo')
+    kwargs.setdefault('default', 'black')
     parser.add_argument(name, **kwargs)
 
 def add_framerate_option(parser, name='--framerate', **kwargs):
