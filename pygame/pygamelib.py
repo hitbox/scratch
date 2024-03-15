@@ -1548,6 +1548,8 @@ def repeat_type(s):
         return math.inf
     return int(s)
 
+point_type = sizetype()
+
 def rect_type(string):
     """
     pygame Rect arguments as from command line or text file.
@@ -2656,6 +2658,9 @@ def circle_pointsf(start, stop, step, radius):
         yield (x, y)
 
 def circle_points(degrees, radius):
+    """
+    :param degrees: iterable of integer angles in degrees.
+    """
     for angle in map(math.radians, degrees):
         x = +math.cos(angle) * radius
         y = -math.sin(angle) * radius
