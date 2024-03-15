@@ -27,6 +27,31 @@ setup_inner_function="def frange(start, stop=None, step=None):
 echo inner function
 python -m timeit --setup "${setup_inner_function}" -- "${test_call}"
 
+# save anything by avoiding a check?
+setup_inner_function2="def frange(start, stop=None, step=None):
+    if stop is None:
+        stop = start
+        start = 0.0
+
+    if step is None:
+        step = 1.0
+
+    current = float(start)
+
+    if step > 0:
+        def within_range(current, stop, step):
+            return current < stop
+    else:
+        def within_range(current, stop, step):
+            return current > stop
+
+    while within_range(current, stop, step):
+        yield current
+        current += step"
+
+echo inner function 2
+python -m timeit --setup "${setup_inner_function2}" -- "${test_call}"
+
 import_operator_function="
 import operator as op
 
