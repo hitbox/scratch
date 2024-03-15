@@ -16,19 +16,10 @@ def random_rect(args):
     h = random.randint(*args.hrange)
     return (x, y, w, h)
 
-def argument_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-n',
-        type = int,
-        default = '10',
-        help = 'Number of random rects.',
-    )
-    pygamelib.add_null_separator_flag(parser)
-    pygamelib.add_dimension_separator_option(parser)
-
-    subparsers = parser.add_subparsers(help='Type of shape.')
-
+def add_circle_subparser(subparsers):
+    """
+    add random circle subcommand
+    """
     sp = subparsers.add_parser('circle')
     sp.add_argument(
         '--xrange',
@@ -47,6 +38,10 @@ def argument_parser():
     )
     sp.set_defaults(random_func=random_circle)
 
+def add_rect_subparser(subparsers):
+    """
+    add random rect subcommand
+    """
     sp = subparsers.add_parser('rect')
     sp.add_argument(
         '--xrange',
@@ -71,6 +66,22 @@ def argument_parser():
         help = 'Range of heights',
     )
     sp.set_defaults(random_func=random_rect)
+
+def add_number_option(parser, name='-n', **kwargs):
+    kwargs.setdefault('type', int)
+    kwargs.setdefault('default', 0)
+    parser.add_argument(name, **kwargs)
+
+def argument_parser():
+    parser = argparse.ArgumentParser()
+    add_number_option(parser, help='Number of random shapes. Default: %(default)s')
+    pygamelib.add_null_separator_flag(parser)
+    pygamelib.add_dimension_separator_option(parser)
+
+    subparsers = parser.add_subparsers(help='Type of shape.')
+    add_circle_subparser(subparsers)
+    add_rect_subparser(subparsers)
+
     return parser
 
 def main(argv=None):
