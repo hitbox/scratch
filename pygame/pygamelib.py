@@ -1387,6 +1387,26 @@ def range_with_end_float(start, stop, step):
     if final_cmp(start, stop):
         yield stop
 
+def frange(start, stop=None, step=None):
+    if stop is None:
+        stop = start
+        start = 0.0
+
+    if step is None:
+        step = 1.0
+
+    current = float(start)
+
+    def within_range(current, stop, step):
+        if step > 0:
+            return current < stop
+        else:
+            return current > stop
+
+    while within_range(current, stop, step):
+        yield current
+        current += step
+
 def ranges_overlap(start1, stop1, start2, stop2):
     return (
         start2 <= start1 <= stop2
