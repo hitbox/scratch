@@ -107,3 +107,7 @@ def main(argv=None):
 
 if __name__ == '__main__':
     main()
+
+# 2024-03-17 Sun.
+# - working out how to take a point outside a circle and wrap polygon around
+#   the point and the circle.
