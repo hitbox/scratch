@@ -1490,6 +1490,10 @@ def mix(time, a, b):
 def mixiters(time, iter1, iter2):
     return tuple(mix(time, a, b) for a, b in zip(iter1, iter2))
 
+def mixangle_longest(a, b, time):
+    longest_distance = math.tau - abs(a - b)
+    return (a + longest_distance * time) % math.tau
+
 lerp = mix
 
 # TODO
