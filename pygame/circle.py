@@ -57,7 +57,6 @@ def run(display_size, framerate, background):
         distance = math.dist(center, point)
         if distance >= radius:
             angles = outer_tangent_angles(center, radius, point)
-            #a1, a2 = (a % math.tau for a in angles)
             a1, a2 = angles
 
             p1 = circle_point(center, radius, a1)
