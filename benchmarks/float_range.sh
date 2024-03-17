@@ -78,5 +78,25 @@ def frange(start, stop=None, step=None):
 echo import operator
 python -m timeit --setup "${import_operator_function}" -- "${test_call}"
 
+frange3="
+def frange(start, stop=None, step=None):
+    if stop is None:
+        stop = start
+        start = 0.0
+
+    if step is None:
+        step = 1.0
+
+    while start < stop if step > 0 else start > stop:
+        yield start
+        start += step"
+
+echo frange3
+python -m timeit --setup "${frange3}" -- "${test_call}"
+
 # 2024-03-15 Fri.
 # - first one saves imports and is usually a little bit faster
+# 2024-03-16 Sat.
+# - added frange3 where the condition is packed into a single expression
+# - frange3 might have slight improvement in speed
+# - guard against zero step?
