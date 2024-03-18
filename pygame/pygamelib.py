@@ -1609,11 +1609,13 @@ def command_line_parser(**kwargs):
 def add_background_color_option(parser, name='--background', **kwargs):
     kwargs.setdefault('type', pygame.Color)
     kwargs.setdefault('default', 'black')
+    kwargs.setdefault('help', 'Background color.')
     parser.add_argument(name, **kwargs)
 
 def add_framerate_option(parser, name='--framerate', **kwargs):
     kwargs.setdefault('type', int)
     kwargs.setdefault('default', 60)
+    kwargs.setdefault('help', 'Frames per second.')
     parser.add_argument(name, **kwargs)
 
 def add_null_separator_flag(parser, **kwargs):
