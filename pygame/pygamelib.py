@@ -1174,6 +1174,12 @@ def step_for_radius(radius):
     else:
         return 8
 
+def elementwise(f, *iterables):
+    return map(f, *iterables)
+
+def angle_to(p1, p2):
+    return math.atan2(p2[1] - p1[1], p2[0] - p1[0])
+
 def circle_segment_points1(angle, offset, radii, closed=False):
     """
     :param angle:
@@ -2689,6 +2695,22 @@ def circle_points(degrees, radius):
         x = +math.cos(angle) * radius
         y = -math.sin(angle) * radius
         yield (x, y)
+
+def outer_tangent_angles(center, radius, point):
+    """
+    Generate the two angles from the center to the tangent points formed by a
+    circle and an external point.
+    """
+    d = math.dist(center, point)
+    if d < radius:
+        return
+    cx, cy = center
+    px, py = point
+    angle = angle_to(center, point)
+    alpha = math.asin(radius / d)
+    beta = math.tau / 4 - alpha
+    yield angle - beta
+    yield angle + beta
 
 def atan2_full(dy, dx):
     return math.atan2(dy, dx) % math.tau
