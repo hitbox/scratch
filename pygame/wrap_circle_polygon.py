@@ -70,9 +70,19 @@ def draw(soup):
     if len(points) > 2:
         pygame.draw.polygon(screen, 'brown', points, 4)
     # draw labels and points
+    # NOTE
+    # - two different points here
+    # - one for the actual point, drawn as a little circle
+    # - another is from unpacking the point and moving it out a little for the
+    #   label center
     for index, p in enumerate(points):
         image = font.render(f'{index}', True, 'linen')
-        screen.blit(image, p)
+        maxsize = max(image.get_size())
+        angle = pygamelib.angle_to(center, p)
+        _radius = math.dist(center, p) + maxsize
+        x = center[0] + math.cos(angle) * _radius
+        y = center[1] + math.sin(angle) * _radius
+        screen.blit(image, image.get_rect(center=(x, y)))
         pygame.draw.circle(screen, 'linen', p, 3)
     # point at cursor
     pygame.draw.circle(screen, 'yellow', point, 3)
