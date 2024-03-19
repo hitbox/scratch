@@ -22,6 +22,17 @@ class Variables:
             yield f'{key}={val}'
 
 
+def position_for_label(label_image, point, center, margin=0):
+    px, py = point
+    cx, cy = center
+    angle = math.atan2(py - cy, px - cx)
+    radius = math.dist(center, point)
+    radius += max(label_image.get_size()) / 2
+    radius += margin
+    x = cx + math.cos(angle) * radius
+    y = cy + math.sin(angle) * radius
+    return (x, y)
+
 def circle_point(center, radius, angle):
     # XXX
     # - decide between this and the same function in pygamelib
@@ -47,45 +58,25 @@ def origin_lines(center, inside):
     # vertical
     yield ((cx, top), (cx, bottom))
 
-def draw(soup):
+def points_around_circle(center, radius, point, divisions):
+    # NOTE
+    # - function exists to separate the essence of this demo
+    # - thinking about how to render these little circles with a point sometime
+    #   in the future
+    a1, a2 = tuple(outer_tangent_angles(center, radius, point))
+    points = [point]
+    tween_angles = generate_angles(a1, a2, divisions)
+    points.extend(generate_points(center, radius, tween_angles))
+    return points
+
+def draw_background_elements(soup):
     variables = soup['variables']
     printer = soup['printer']
-    font = soup['font']
-    background = soup['background']
     screen = soup['screen']
     center = soup['center']
     radius = soup['radius']
-    point = soup['point']
     window = soup['window']
     center_to_point_angle = soup['center_to_point_angle']
-    tangent_angles = soup['tangent_angles']
-    points = soup['points']
-    # clear
-    screen.fill(background)
-    # draw tangents
-    for tangent_angle, color in zip(tangent_angles, ['red', 'green']):
-        p = circle_point(center, radius, tangent_angle)
-        pygame.draw.circle(screen, color, p, 6)
-    # draw polygon
-    if len(points) > 2:
-        pygame.draw.polygon(screen, 'brown', points, 4)
-    # draw labels and points
-    # NOTE
-    # - two different points here
-    # - one for the actual point, drawn as a little circle
-    # - another is from unpacking the point and moving it out a little for the
-    #   label center
-    for index, p in enumerate(points):
-        image = font.render(f'{index}', True, 'linen')
-        maxsize = max(image.get_size())
-        angle = pygamelib.angle_to(center, p)
-        _radius = math.dist(center, p) + maxsize
-        x = center[0] + math.cos(angle) * _radius
-        y = center[1] + math.sin(angle) * _radius
-        screen.blit(image, image.get_rect(center=(x, y)))
-        pygame.draw.circle(screen, 'linen', p, 3)
-    # point at cursor
-    pygame.draw.circle(screen, 'yellow', point, 3)
     # origin axis lines
     for p1, p2 in origin_lines(center, window):
         pygame.draw.line(screen, 'grey20', p1, p2)
@@ -100,16 +91,51 @@ def draw(soup):
         image = printer(lines)
         screen.blit(image, (0,0))
 
+def draw_foreground_elements(soup):
+    font_renderer = soup['font_renderer']
+    screen = soup['screen']
+    center = soup['center']
+    point = soup['point']
+    points = soup['points']
+    # draw polygon, the pointy circle
+    if len(points) > 2:
+        pygame.draw.polygon(screen, 'brown', points, 4)
+    # draw labels
+    point_labels = tuple(map(font_renderer, map(str, range(len(points)))))
+    label_positions = tuple(
+        image.get_rect(
+            center = position_for_label(
+                image,
+                _point,
+                center,
+                margin = 10,
+            ),
+        )
+        for image, _point in zip(point_labels, points)
+    )
+    screen.blits(tuple(zip(point_labels, label_positions)))
+    # draw dots for points
+    for _point in points:
+        pygame.draw.circle(screen, 'linen', _point, 3)
+    # point at cursor
+    pygame.draw.circle(screen, 'yellow', point, 3)
+
+def draw(soup):
+    # clear
+    background = soup['background']
+    screen = soup['screen']
+    screen.fill(background)
+    draw_background_elements(soup)
+    draw_foreground_elements(soup)
+
 def run(
     display_size,
     framerate,
     background,
+    divisions,
     center = None,
     radius = None,
-    divisions = None,
 ):
-    if divisions is None:
-        divisions = 10
     short_float = '{:.2f}'.format
     variables = Variables(
         'frames_per_second',
@@ -122,6 +148,7 @@ def run(
         },
     )
     font = pygamelib.monospace_font(20)
+    font_renderer = pygamelib.FontRenderer(font, 'linen')
     printer = pygamelib.FontPrinter(font, 'linen')
     clock = pygame.time.Clock()
     running = True
@@ -147,10 +174,7 @@ def run(
         center_to_point_angle = pygamelib.angle_to(center, point)
         # create tangent angles
         if math.dist(center, point) >= radius:
-            tangent_angles = tuple(outer_tangent_angles(center, radius, point))
-            points = [point]
-            tween_angles = generate_angles(*tangent_angles, divisions)
-            points.extend(generate_points(center, radius, tween_angles))
+            points = points_around_circle(center, radius, point, divisions)
         else:
             tangent_angles = tuple()
             points = tuple()
@@ -164,26 +188,27 @@ def main(argv=None):
     parser.add_argument(
         '--center',
         type = pygamelib.point_type,
-        help = 'Center of circle.',
+        help = 'Center of circle. Default: window.center.',
     )
     parser.add_argument(
         '--radius',
         type = int,
-        help = 'Radius of circle.',
+        help = 'Radius of circle. Default: 1/12 of window.width.',
     )
     parser.add_argument(
         '--divisions',
         type = int,
-        help = 'Number of divisions between tangent points.',
+        default = 10,
+        help = 'Number of divisions between tangent points. Default: %(default)s',
     )
     args = parser.parse_args(argv)
     run(
         args.display_size,
         args.framerate,
         args.background,
+        args.divisions,
         args.center,
         args.radius,
-        args.divisions,
     )
 
 if __name__ == '__main__':

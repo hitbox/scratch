@@ -1336,6 +1336,24 @@ class Timer:
         return (self.time - self.start) / self.duration
 
 
+class FontRenderer:
+
+    def __init__(self, font, color, antialias=True, background=None):
+        self.font = font
+        self.color = color
+        self.antialias = antialias
+        self.background = background
+
+    def __call__(self, string, antialias=None, color=None, background=None):
+        if antialias is None:
+            antialias = self.antialias
+        if color is None:
+            color = self.color
+        if background is None:
+            background = self.background
+        return self.font.render(string, antialias, color, background)
+
+
 class FontPrinter:
     """
     Callable renders like print() from pygame font.
