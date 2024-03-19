@@ -3,38 +3,61 @@ import random
 
 import pygamelib
 
-def random_circle(args):
+def random_point(args):
     x = random.randint(*args.xrange)
     y = random.randint(*args.yrange)
+    return (x, y)
+
+def random_circle(args):
+    x, y = random_point(args)
     r = random.randint(*args.radiusrange)
     return (x, y, r)
 
 def random_rect(args):
-    x = random.randint(*args.xrange)
-    y = random.randint(*args.yrange)
+    x, y = random_point(args)
     w = random.randint(*args.wrange)
     h = random.randint(*args.hrange)
     return (x, y, w, h)
+
+def _add_xy_range_arguments(sp, **kwargs):
+    default = kwargs.setdefault('default', '0,100')
+    type = kwargs.setdefault('type', pygamelib.sizetype())
+    sp.add_argument(
+        '--xrange',
+        type = type,
+        default = default,
+        help = 'Range for random x values. Default: %(default)s.',
+    )
+    sp.add_argument(
+        '--yrange',
+        type = type,
+        default = default,
+        help = 'Range for random y values. Default: %(default)s.',
+    )
+
+def add_number_option(parser, name='-n', **kwargs):
+    kwargs.setdefault('type', int)
+    kwargs.setdefault('default', 1)
+    parser.add_argument(name, **kwargs)
+
+def _add_number_option(parser):
+    add_number_option(
+        parser,
+        help = 'Number of random shapes. Default: %(default)s',
+    )
 
 def add_circle_subparser(subparsers):
     """
     add random circle subcommand
     """
     sp = subparsers.add_parser('circle')
-    sp.add_argument(
-        '--xrange',
-        type = pygamelib.sizetype(),
-        default = '0,100',
-    )
-    sp.add_argument(
-        '--yrange',
-        type = pygamelib.sizetype(),
-        default = '0,100',
-    )
+    _add_number_option(sp)
+    _add_xy_range_arguments(sp)
     sp.add_argument(
         '--radiusrange',
         type = pygamelib.sizetype(),
         default = '0,100',
+        help = 'Range for random radius values. Default: %(default)s.',
     )
     sp.set_defaults(random_func=random_circle)
 
@@ -43,38 +66,26 @@ def add_rect_subparser(subparsers):
     add random rect subcommand
     """
     sp = subparsers.add_parser('rect')
-    sp.add_argument(
-        '--xrange',
-        type = pygamelib.sizetype(),
-        default = '0,100',
-    )
-    sp.add_argument(
-        '--yrange',
-        type = pygamelib.sizetype(),
-        default = '0,100',
-    )
+    _add_number_option(sp)
+    _add_xy_range_arguments(sp)
     sp.add_argument(
         '--wrange',
         type = pygamelib.sizetype(),
         default = '10,100',
-        help = 'Range of widths',
+        help = 'Range for random widths. Default: %(default)s',
     )
     sp.add_argument(
         '--hrange',
         type = pygamelib.sizetype(),
         default = '10,100',
-        help = 'Range of heights',
+        help = 'Range for random heights. Default: %(default)s',
     )
     sp.set_defaults(random_func=random_rect)
 
-def add_number_option(parser, name='-n', **kwargs):
-    kwargs.setdefault('type', int)
-    kwargs.setdefault('default', 0)
-    parser.add_argument(name, **kwargs)
-
 def argument_parser():
-    parser = argparse.ArgumentParser()
-    add_number_option(parser, help='Number of random shapes. Default: %(default)s')
+    parser = argparse.ArgumentParser(
+        description = 'Randomly generate shapes.',
+    )
     pygamelib.add_null_separator_flag(parser)
     pygamelib.add_dimension_separator_option(parser)
 
