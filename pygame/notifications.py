@@ -219,7 +219,7 @@ class NotificationDemo(
     ):
         self.screen = screen
         self.window = self.screen.get_rect()
-        self.font = pygame.font.SysFont('monospace', 20)
+        self.font = pygamelib.monospace_font(20)
         self.clock = pygame.time.Clock()
         self.frames_per_second = frames_per_second
         self.sprites = pygame.sprite.Group()
@@ -265,6 +265,8 @@ class NotificationDemo(
     def draw(self):
         self.screen.fill('black')
         self.sprites_renderer.draw(self.screen, self.sprites)
+        image = self.font.render(f'{self.clock.get_fps():.2f}', True, 'white', 'black')
+        self.screen.blit(image, (0,0))
         pygame.display.flip()
 
 
