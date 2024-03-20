@@ -12,21 +12,16 @@ import pygamelib
 
 from pygamelib import pygame
 
-from pygame.color import THECOLORS
-
-class ColorGrid(pygamelib.DemoBase):
+class ColorGrid(
+    pygamelib.DemoBase,
+    pygamelib.QuitKeydownMixin,
+    pygamelib.StopMixin,
+):
 
     def __init__(self, drawables, background_color):
         self.drawables = drawables
         self.background_color = background_color
         self.offset = pygame.Vector2()
-
-    def do_quit(self, event):
-        self.engine.stop()
-
-    def do_keydown(self, event):
-        if event.key in (pygame.K_ESCAPE, pygame.K_q):
-            pygamelib.post_quit()
 
     def do_mousemotion(self, event):
         if event.buttons[0]:
@@ -36,11 +31,13 @@ class ColorGrid(pygamelib.DemoBase):
     def do_videoexpose(self, event):
         self.draw()
 
+    def _drawables(self):
+        for image, rect in self.drawables:
+            yield (image, rect.move(*self.offset))
+
     def draw(self):
         self.screen.fill(self.background_color)
-        for image, rect in self.drawables:
-            x, y, *_ = rect
-            self.screen.blit(image, self.offset + (x, y))
+        self.screen.blits(self._drawables())
         pygame.display.flip()
 
 
@@ -55,27 +52,38 @@ class ColorCardRenderer:
     def make_result(self, size, color):
         result_image = pygame.Surface(size)
         result_image.fill(color)
-        result_rect = result_image.get_rect()
-        return (result_image, result_rect)
+        return result_image
 
-    def make_label(self, text, color, background_color, shade_amount):
-        label_size = pygame.Vector2(self.font.size(text)) + self.label_margin
-        # label image and rect
-        label_image = pygame.Surface(label_size, pygame.SRCALPHA)
-        label_image.fill(pygame.Color(color).lerp(background_color, shade_amount))
-        label_rect = label_image.get_rect()
-        return (label_image, label_rect)
+    def make_label_background(self, text, color, background_color, shade_amount):
+        label_size = pygame.Vector2(self.font.size(text))
+        label_size += self.label_margin
+        label_image = pygame.Surface(label_size)
+        # shade the color this card is displaying toward a background color so
+        # that the text is readable
+        fill_color = pygame.Color(color).lerp(background_color, shade_amount)
+        label_image.fill(fill_color)
+        return label_image
 
     def __call__(self, size, color, text, background_color, shade_amount):
-        result_image, result_rect = self.make_result(size, color)
-        label_image, label_rect = self.make_label(text, color, background_color, shade_amount)
+        result_image = self.make_result(size, color)
+        result_rect = result_image.get_rect()
+
+        label_image = self.make_label_background(
+            text,
+            color,
+            background_color,
+            shade_amount,
+        )
+        label_rect = label_image.get_rect()
+
         text_image = self.font.render(text, self.antialias, self.text_color)
+
         label_image.blit(text_image, text_image.get_rect(center=label_rect.center))
         result_image.blit(label_image, label_image.get_rect(center=result_rect.center))
         return result_image
 
 
-def _arrange(rects, ncols):
+def _arrange(rects, ncols, gap=20):
     # needed to pull the arrange_columns function apart to add gaps and resize
     # the arranged rects
     table = list(pygamelib.batched(rects, ncols))
@@ -92,8 +100,8 @@ def _arrange(rects, ncols):
         colwrap.width *= 1.10
 
     # end-to-end flow rows and columns
-    pygamelib.flow_leftright(col_wraps, 20)
-    pygamelib.flow_topbottom(row_wraps, 20)
+    pygamelib.flow_leftright(col_wraps, gap=gap)
+    pygamelib.flow_topbottom(row_wraps, gap=gap)
 
     # align rects inside rows and columns
     for rowwrap, _rects in zip(row_wraps, table, strict=True):
@@ -120,7 +128,7 @@ def run(display_size, colors, names, font_size, background_color):
 
     # XXX
     # - relying on big number to make the width of the color card image
-    color_card_renderer = ColorCardRenderer(font, 'white', (999, 10))
+    color_card_renderer = ColorCardRenderer(font, 'white', label_margin=(999, 10))
 
     def render_text(rect, color, name):
         """
@@ -132,7 +140,7 @@ def run(display_size, colors, names, font_size, background_color):
             color,
             get_text(color, name),
             background_color,
-            0.50,
+            shade_amount = 0.50,
         )
 
     images = list(map(render_text, rects, colors, names))
@@ -175,48 +183,46 @@ def auto_completion_script():
     return template.format(**context)
 
 def argument_parser():
-    parser = argparse.ArgumentParser()
-    pygamelib.add_display_size_option(
-        parser,
-        default = '1900,900',
-    )
+    parser = pygamelib.command_line_parser()
     parser.add_argument(
         '--auto-completion',
         action = 'store_true',
+        help = 'Print autocomplete script for bash.',
     )
     parser.add_argument(
         '--font-size',
         type = int,
         default = '15',
-    )
-    parser.add_argument(
-        '--background-color',
-        type = pygame.Color,
-        default = 'black',
+        help = 'Font size. Default: %(default)s.',
     )
     parser.add_argument(
         '--print',
         action = 'store_true',
+        help = 'Print the colors and exit.',
+    )
+    pygamelib.add_null_separator_flag(
+        parser,
+        help = 'Use null separator with --print.',
     )
     parser.add_argument(
         '--filter',
         type = pygamelib.eval_type('filter', 'color'),
         default = 'True', # default to all colors
-        help = 'Expression filter function.',
+        help = 'Expression filter function. Default: %(default)s.',
     )
     parser.add_argument(
         '--sort',
         type = pygamelib.eval_type('sort', 'color'),
         # NOTE:
-        # - pygame.Color do not have __lt__
-        default = 'tuple(color)', # default to (r, g, b, a) sort
-        help = 'Expression for sort key.',
+        # - pygame.Color does not have __lt__
+        default = 'tuple(color)',
+        help = 'Expression for sort key. Default: %(default)s (RGBA).',
     )
     parser.add_argument(
         '--text',
         type = pygamelib.eval_type('text', 'color'),
         default = 'str',
-        help = 'Expression for color labels.',
+        help = 'Expression for color labels. Default: %(default)s.',
     )
     return parser
 
@@ -229,10 +235,17 @@ def main(argv=None):
     colors = pygamelib.UNIQUE_THECOLORS.values()
     colors = map(pygamelib.ColorAttributes, colors)
     colors = sorted(filter(args.filter, colors), key=args.sort)
+    if not colors:
+        parser.error('No colors.')
     names = list(map(pygamelib.color_name, colors))
     if args.print:
-        pprint(names)
-    run(args.display_size, colors, names, args.font_size, args.background_color)
+        if args.null:
+            sep = '\0'
+        else:
+            sep = '\n'
+        pygamelib.print_pipe(sep.join(names), args.null)
+        return
+    run(args.display_size, colors, names, args.font_size, args.background)
 
 if __name__ == '__main__':
     main()

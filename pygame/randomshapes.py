@@ -59,6 +59,14 @@ def add_circle_subparser(subparsers):
         default = '0,100',
         help = 'Range for random radius values. Default: %(default)s.',
     )
+    pygamelib.add_null_separator_flag(
+        sp,
+        help  = 'Separate circles with null.',
+    )
+    pygamelib.add_dimension_separator_option(
+        sp,
+        help = 'Circle dimensions separator.',
+    )
     sp.set_defaults(random_func=random_circle)
 
 def add_rect_subparser(subparsers):
@@ -80,14 +88,20 @@ def add_rect_subparser(subparsers):
         default = '10,100',
         help = 'Range for random heights. Default: %(default)s',
     )
+    pygamelib.add_null_separator_flag(
+        sp,
+        help = 'Separate rects with null.',
+    )
+    pygamelib.add_dimension_separator_option(
+        sp,
+        help = 'Rect dimensions separator.',
+    )
     sp.set_defaults(random_func=random_rect)
 
 def argument_parser():
     parser = argparse.ArgumentParser(
         description = 'Randomly generate shapes.',
     )
-    pygamelib.add_null_separator_flag(parser)
-    pygamelib.add_dimension_separator_option(parser)
 
     subparsers = parser.add_subparsers(help='Type of shape.')
     add_circle_subparser(subparsers)

@@ -594,6 +594,26 @@ class ColorAttributes(pygame.Color):
     def lightness(self):
         return self.hsla[2]
 
+    @property
+    def rgba(self):
+        return (self.r, self.g, self.b, self.a)
+
+    @property
+    def rgb(self):
+        return self.rgba[:3]
+
+    @property
+    def red(self):
+        return self.r
+
+    @property
+    def green(self):
+        return self.g
+
+    @property
+    def blue(self):
+        return self.b
+
 
 class nearestrect:
 
@@ -1637,12 +1657,13 @@ def add_framerate_option(parser, name='--framerate', **kwargs):
 
 def add_null_separator_flag(parser, **kwargs):
     kwargs.setdefault('action', 'store_true')
-    kwargs.setdefault('help', 'Separate rects with null.')
+    kwargs.setdefault('dest', 'null')
+    kwargs.setdefault('help', f'Separate with null.')
     parser.add_argument('-0', **kwargs)
 
 def add_dimension_separator_option(parser, **kwargs):
     kwargs.setdefault('default', ' ')
-    kwargs.setdefault('help', 'Rect dimensions separator.')
+    kwargs.setdefault('help', 'Dimensions separator.')
     parser.add_argument('-d', '--dimsep', **kwargs)
 
 def add_point_arguments(parser, name, **kwargs):
