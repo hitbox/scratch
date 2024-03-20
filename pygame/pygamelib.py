@@ -349,8 +349,7 @@ class DemoBase:
         self.elapsed = self.clock.tick(self.framerate)
         for event in pygame.event.get():
             # handle event with topmost controller
-            for i in range(1, len(self.controllers)+1):
-                obj = self.controllers[-i]
+            for obj in self.controllers[::-1]:
                 handler = get_method_handler(obj, event)
                 if handler:
                     handler(event)
