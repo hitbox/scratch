@@ -115,7 +115,7 @@ def main(argv=None):
     """
     parser = argument_parser()
     args = parser.parse_args(argv)
-    null_separator = vars(args)['0']
+    null_separator = args.null
 
     shapes = [args.random_func(args) for _ in range(args.n)]
     string = pygamelib.format_pipe(shapes, null_separator, args.dimsep)
