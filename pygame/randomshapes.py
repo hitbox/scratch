@@ -67,6 +67,7 @@ def add_circle_subparser(subparsers):
         sp,
         help = 'Circle dimensions separator.',
     )
+    pygamelib.add_seed_option(sp)
     sp.set_defaults(random_func=random_circle)
 
 def add_rect_subparser(subparsers):
@@ -96,6 +97,7 @@ def add_rect_subparser(subparsers):
         sp,
         help = 'Rect dimensions separator.',
     )
+    pygamelib.add_seed_option(sp)
     sp.set_defaults(random_func=random_rect)
 
 def argument_parser():
@@ -103,10 +105,12 @@ def argument_parser():
         description = 'Randomly generate shapes.',
     )
 
-    subparsers = parser.add_subparsers(help='Type of shape.')
+    subparsers = parser.add_subparsers(
+        help = 'Type of shape.',
+        required = True,
+    )
     add_circle_subparser(subparsers)
     add_rect_subparser(subparsers)
-
     return parser
 
 def main(argv=None):
@@ -116,7 +120,6 @@ def main(argv=None):
     parser = argument_parser()
     args = parser.parse_args(argv)
     null_separator = args.null
-
     shapes = [args.random_func(args) for _ in range(args.n)]
     string = pygamelib.format_pipe(shapes, null_separator, args.dimsep)
     pygamelib.print_pipe(string, null_separator)

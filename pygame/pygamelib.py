@@ -1623,6 +1623,33 @@ def rect_type(string):
     """
     return pygame.Rect(*intargs(string))
 
+def knife_type(s):
+    """
+    One to four space or comma separated integer for a rect:
+    x, y, w, h.
+    """
+    # 100 -> 0, 0, 100, 100
+    # 100, 200 -> 0, 0, 100, 200
+    # 10, 20, 100 -> 10, 20, 100, 100
+    # 10, 20, 100, 200 -> 10, 20, 100, 200
+    # XXX
+    # - want to put additional help text for argument somewhere
+    values = tuple(map(int, s.replace(',', ' ').split()))
+    n = len(values)
+    x = y = 0
+    if n == 1:
+        w = h = values
+    elif n == 2:
+        w, h = values
+    elif n == 3:
+        x, y, w = values
+        h = w
+    elif n == 4:
+        x, y, w, h = values
+    else:
+        raise ValueError
+    return (x, y, w, h)
+
 def circle_type(string):
     x, y, radius = intargs(string)
     return ((x, y), radius)
@@ -1669,6 +1696,10 @@ def add_dimension_separator_option(parser, **kwargs):
 def add_point_arguments(parser, name, **kwargs):
     kwargs.setdefault('help', 'One or more point arguments.')
     parser.add_argument(name, nargs='+', type=sizetype())
+
+def add_seed_option(parser, name='--seed', **kwargs):
+    kwargs.setdefault('type', random.seed)
+    parser.add_argument(name, **kwargs)
 
 def format_pipe(iterable, null_separator, dimsep):
     """
@@ -3228,6 +3259,8 @@ CORNERLINES = dict(
 
 UNIQUE_THECOLORS = dict(best_name_colors(pygame.color.THECOLORS.items()))
 UNIQUE_COLORSTHE = {v: k for k, v in UNIQUE_THECOLORS.items()}
+
+UNIQUE_COLORSTHE_COLORFUL = {k: v for k, v in UNIQUE_COLORSTHE.items() if len(set(k)) > 2}
 
 default_methodname = EventMethodName(prefix='do_')
 

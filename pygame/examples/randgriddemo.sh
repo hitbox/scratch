@@ -40,12 +40,7 @@ done
 # 1. generate random rects as x y w h separated by null
 # 2. xargs pipe those as arguments to the grid demo
 
-python randrects.py \
-    -n "${n}" \
-    -0 \
-    --minsize "${minsize}" \
-    --maxsize "${maxsize}" \
-    | \
+python randomshapes.py rect -n "${n}" -0 | \
     xargs -0 python demo.py grid \
         --colattr "${colattr}" \
         --rowattr "${rowattr}"

@@ -1453,6 +1453,133 @@ class TimerDemo(
             timer.update(timer_elapsed)
 
 
+class OverlapDemo(
+    pygamelib.DemoCommand, # static parser methods
+    pygamelib.DemoBase, # .start, .update
+    pygamelib.StopMixin, # .do_quit
+    pygamelib.QuitKeydownMixin, # .do_keydown
+):
+    # 2024-01-04 Thu.
+
+    command_help = 'Demonstrate function return all overlaps.'
+
+    @staticmethod
+    def add_parser_arguments(parser):
+        parser.add_argument(
+            'rects',
+            nargs = '+',
+            type = pygamelib.rect_type,
+            help = 'One or more rect type arguments.',
+        )
+        parser.add_argument(
+            '--knife',
+            type = pygamelib.knife_type,
+            default = '100,400',
+            help = ' '.join([
+                'User controllable rect.',
+                pygamelib.knife_type.__doc__,
+                'Default: %(default)s',
+            ]),
+        )
+        pygamelib.add_seed_option(parser)
+
+    def main(self, args):
+        font = pygamelib.monospace_font(20)
+        printer = pygamelib.FontPrinter(font, 'white')
+
+        self.window = pygame.Rect((0,0), args.display_size)
+        self.background = pygame.Surface(self.window.size)
+        help_image = printer([
+            'Left click to set position',
+            'Space rotate',
+            'A/Z increase/decrease rects',
+            'Escape or Q to quit',
+        ])
+        self.background.blit(help_image, (0,0))
+
+        self.rects = list(map(pygame.Rect, args.rects))
+        self.knife = pygame.Rect(args.knife)
+        self.rects.append(self.knife)
+
+        population = sorted(pygamelib.UNIQUE_COLORSTHE_COLORFUL)
+        self.colors = random.sample(population, len(self.rects))
+        self._update_overlaps()
+
+        self.screen = pygame.display.set_mode(self.window.size)
+        engine = pygamelib.Engine()
+        engine.run(self)
+
+    def do_videoexpose(self, event):
+        self.draw()
+
+    def _knife_position(self, center):
+        self.knife.center = center
+        self._update_overlaps()
+        self.draw()
+
+    def _knife_flip(self):
+        center = self.knife.center
+        self.knife.size = tuple(reversed(self.knife.size))
+        self.knife.center = center
+        self._update_overlaps()
+        self.draw()
+
+    def _overlaps(self):
+        for r1, r2 in it.combinations(self.rects, 2):
+            if r1 is r2:
+                continue
+            overlap = r1.clip(r2)
+            if overlap:
+                yield (r1, r2, overlap)
+
+    def _update_overlaps(self):
+        self.overlaps = list(self._overlaps())
+
+    def do_mousebuttondown(self, event):
+        if event.button == pygame.BUTTON_LEFT:
+            self._knife_position(event.pos)
+
+    def do_mousemotion(self, event):
+        if event.buttons[0]:
+            self._knife_position(event.pos)
+
+    def do_keydown(self, event):
+        super().do_keydown(event)
+        if event.key == pygame.K_SPACE:
+            self._knife_flip()
+
+    def draw(self):
+        self.screen.blit(self.background, (0,0))
+        #pygame.draw.rect(self.screen, 'maroon', self.knife, 1)
+
+        rects_with_colors = list(zip(self.rects, self.colors))
+        for rect, color in rects_with_colors:
+            pygame.draw.rect(self.screen, color, rect, 1)
+
+        # TODO
+        # - iterate making overlaps until there are distinct overlap rects
+        # - as in, what happens for more than two overlapping rects,
+        #   overlapping the same area
+
+        for r1, r2, overlap in self.overlaps:
+            if r1 in self.rects:
+                r1_index = self.rects.index(r1)
+                r1_color = rects_with_colors[r1_index][1]
+            else:
+                # how the hell is it not in the list!
+                r1_color = 'yellow'
+
+            if r2 in self.rects:
+                r2_index = self.rects.index(r2)
+                r2_color = rects_with_colors[r2_index][1]
+            else:
+                r2_color = 'yellow'
+
+            color = pygame.Color(r1_color).lerp(r2_color, 0.5)
+            pygame.draw.rect(self.screen, color, overlap, 0)
+        pygame.display.flip()
+
+
 def filled_shape_meter(window):
     """
     Fill a shape from bottom-up as an indication of a meter.
