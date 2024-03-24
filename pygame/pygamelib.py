@@ -1897,12 +1897,33 @@ def overlaps(rects):
         if clipping:
             yield (r1, r2, clipping)
 
+def topline(rect):
+    x, y, w, h = rect
+    return ((x, y), (x + w, y))
+
+def rightline(rect):
+    x, y, w, h = rect
+    r = x + w
+    return ((r, y), (r, y + h))
+
+def bottomline(rect):
+    # NOTE
+    # - clockwise orientation
+    x, y, w, h = rect
+    b = y + h
+    return ((x + w, b), (x, b))
+
+def leftline(rect):
+    # NOTE
+    # - clockwise orientation
+    x, y, w, h = rect
+    return ((x, y + h), (x, y))
+
+_side_line_funcs = [topline, rightline, bottomline, leftline]
+
 def side_lines(rect):
-    rect = pygame.Rect(rect)
-    yield (rect.topleft, rect.topright)
-    yield (rect.topright, rect.bottomright)
-    yield (rect.bottomright, rect.bottomleft)
-    yield (rect.bottomleft, rect.topleft)
+    for func in _side_line_funcs:
+        yield func(rect)
 
 def corners(rect):
     x, y, w, h = rect
