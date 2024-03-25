@@ -2878,6 +2878,15 @@ def circle_slope_tangent(center, point):
     slope = derivative_x / derivative_y
     return slope
 
+def circle_collision(circle1, circle2):
+    center1, r1 = circle1
+    center2, r2 = circle2
+    d = math.dist(center1, center2)
+    return d < r2 + r1
+
+def rect_collision(r1, r2):
+    return pygame.Rect(r1).colliderect(r2)
+
 def graph_from_circle(center, radius, step, start_angle=0, end_angle=360):
     """
     Return a dict of points and their neighbors.

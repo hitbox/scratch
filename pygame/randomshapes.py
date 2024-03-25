@@ -3,6 +3,34 @@ import random
 
 import pygamelib
 
+class RandomCircleFromRange:
+
+    def __init__(self, xrange, yrange, radiusrange):
+        self.xrange = xrange
+        self.yrange = yrange
+        self.radiusrange = radiusrange
+
+    @staticmethod
+    def add_parser_options(parser):
+        _add_xy_range_arguments(parser)
+        parser.add_argument(
+            '--radiusrange',
+            type = pygamelib.sizetype(),
+            default = '0,100',
+            help = 'Range for random radius values. Default: %(default)s.',
+        )
+
+    @classmethod
+    def from_args(cls, args):
+        return cls(args.xrange, args.yrange, args.radiusrange)
+
+    def __call__(self):
+        x = random.randint(*self.xrange)
+        y = random.randint(*self.yrange)
+        r = random.randint(*self.radiusrange)
+        return (x, y, r)
+
+
 class RandomRectFromRanges:
 
     def __init__(self, xrange, yrange, wrange, hrange):
@@ -11,13 +39,29 @@ class RandomRectFromRanges:
         self.wrange = wrange
         self.hrange = hrange
 
+    @staticmethod
+    def add_parser_options(parser):
+        _add_xy_range_arguments(parser)
+        parser.add_argument(
+            '--wrange',
+            type = pygamelib.sizetype(),
+            default = _default_range(),
+            help = 'Range for random widths. Default: %(default)s',
+        )
+        parser.add_argument(
+            '--hrange',
+            type = pygamelib.sizetype(),
+            default = _default_range(),
+            help = 'Range for random heights. Default: %(default)s',
+        )
+
     @classmethod
     def from_args(cls, args):
         return cls(args.xrange, args.yrange, args.wrange, args.hrange)
 
     def __call__(self):
         x = random.randint(*self.xrange)
-        y = random.randint(*self.xrange)
+        y = random.randint(*self.yrange)
         w = random.randint(*self.wrange)
         h = random.randint(*self.hrange)
         return (x, y, w, h)
@@ -52,22 +96,6 @@ class RandomRectFromPoints:
         return (x1, y1, w, h)
 
 
-def random_point(args):
-    x = random.randint(*args.xrange)
-    y = random.randint(*args.yrange)
-    return (x, y)
-
-def random_circle(args):
-    x, y = random_point(args)
-    r = random.randint(*args.radiusrange)
-    return (x, y, r)
-
-def random_rect(args):
-    x, y = random_point(args)
-    w = random.randint(*args.wrange)
-    h = random.randint(*args.hrange)
-    return (x, y, w, h)
-
 def _default_range():
     half = min(pygamelib.DEFAULT_DISPLAY_SIZE) // 2
     return f'0,{half}'
@@ -93,37 +121,8 @@ def _add_xy_range_arguments(sp, **kwargs):
 def add_number_option(parser, name='-n', **kwargs):
     kwargs.setdefault('type', int)
     kwargs.setdefault('default', 1)
+    kwargs.setdefault('help', 'Number of random shapes. Default: %(default)s')
     parser.add_argument(name, **kwargs)
-
-def _add_number_option(parser):
-    add_number_option(
-        parser,
-        help = 'Number of random shapes. Default: %(default)s',
-    )
-
-def add_circle_subparser(subparsers):
-    """
-    add random circle subcommand
-    """
-    sp = subparsers.add_parser('circle')
-    _add_number_option(sp)
-    _add_xy_range_arguments(sp)
-    sp.add_argument(
-        '--radiusrange',
-        type = pygamelib.sizetype(),
-        default = '0,100',
-        help = 'Range for random radius values. Default: %(default)s.',
-    )
-    pygamelib.add_null_separator_flag(
-        sp,
-        help  = 'Separate circles with null.',
-    )
-    pygamelib.add_dimension_separator_option(
-        sp,
-        help = 'Circle dimensions separator.',
-    )
-    pygamelib.add_seed_option(sp)
-    sp.set_defaults(random_func=random_circle)
 
 def add_options_for_output(parser):
     pygamelib.add_null_separator_flag(
@@ -136,25 +135,23 @@ def add_options_for_output(parser):
     )
     pygamelib.add_seed_option(parser)
 
+def add_circle_subparser(subparsers, cmdname):
+    """
+    add random circle subcommand
+    """
+    sp = subparsers.add_parser(cmdname)
+    add_number_option(sp)
+    RandomCircleFromRange.add_parser_options(sp)
+    add_options_for_output(sp)
+    sp.set_defaults(make_generator=RandomCircleFromRange.from_args)
+
 def add_rects_from_ranges(subparsers, cmdname):
     sp = subparsers.add_parser(
         cmdname,
         help = 'Random rects from ranges for x, y, width, and height.',
     )
-    _add_number_option(sp)
-    _add_xy_range_arguments(sp)
-    sp.add_argument(
-        '--wrange',
-        type = pygamelib.sizetype(),
-        default = _default_range(),
-        help = 'Range for random widths. Default: %(default)s',
-    )
-    sp.add_argument(
-        '--hrange',
-        type = pygamelib.sizetype(),
-        default = _default_range(),
-        help = 'Range for random heights. Default: %(default)s',
-    )
+    add_number_option(sp)
+    RandomRectFromRanges.add_parser_options(sp)
     add_options_for_output(sp)
     sp.set_defaults(make_generator=RandomRectFromRanges.from_args)
 
@@ -172,7 +169,7 @@ def add_rects_from_points_subparser(subparsers, cmdname):
         type = domain_type,
         help = 'left, top, right, bottom. commas optional.',
     )
-    _add_number_option(sp)
+    add_number_option(sp)
     sp.add_argument(
         '--overlap-to-touching',
         default = False,
@@ -197,7 +194,7 @@ def argument_parser():
         help = 'Type of shape.',
         required = True,
     )
-    add_circle_subparser(subparsers)
+    add_circle_subparser(subparsers, 'circles-from-ranges')
     add_rects_from_ranges(subparsers, 'rects-from-ranges')
     add_rects_from_points_subparser(subparsers, 'rects-from-points')
     return parser
