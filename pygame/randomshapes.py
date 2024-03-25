@@ -3,6 +3,55 @@ import random
 
 import pygamelib
 
+class RandomRectFromRanges:
+
+    def __init__(self, xrange, yrange, wrange, hrange):
+        self.xrange = xrange
+        self.yrange = yrange
+        self.wrange = wrange
+        self.hrange = hrange
+
+    @classmethod
+    def from_args(cls, args):
+        return cls(args.xrange, args.yrange, args.wrange, args.hrange)
+
+    def __call__(self):
+        x = random.randint(*self.xrange)
+        y = random.randint(*self.xrange)
+        w = random.randint(*self.wrange)
+        h = random.randint(*self.hrange)
+        return (x, y, w, h)
+
+
+class RandomRectFromPoints:
+
+    def __init__(
+        self,
+        domain,
+        overlap_to_touching = False,
+    ):
+        self.domain = domain
+        # TODO: overlap_to_touching
+        self.overlap_to_touching = overlap_to_touching
+        if self.overlap_to_touching:
+            raise NotImplementedError
+
+    @classmethod
+    def from_args(cls, args):
+        return cls(args.domain, args.overlap_to_touching)
+
+    def __call__(self):
+        left, top, right, bottom = self.domain
+        while True:
+            x1, x2 = sorted(random.randint(left, right) for _ in range(2))
+            y1, y2 = sorted(random.randint(left, right) for _ in range(2))
+            w = x2 - x1
+            h = y2 - y1
+            if w > 0 and h > 0:
+                break
+        return (x1, y1, w, h)
+
+
 def random_point(args):
     x = random.randint(*args.xrange)
     y = random.randint(*args.yrange)
@@ -19,9 +68,15 @@ def random_rect(args):
     h = random.randint(*args.hrange)
     return (x, y, w, h)
 
+def _default_range():
+    half = min(pygamelib.DEFAULT_DISPLAY_SIZE) // 2
+    return f'0,{half}'
+
 def _add_xy_range_arguments(sp, **kwargs):
-    default = kwargs.setdefault('default', '0,100')
+    default = kwargs.setdefault('default', _default_range())
     type = kwargs.setdefault('type', pygamelib.sizetype())
+    # TODO
+    # - handle ranges with negative integers
     sp.add_argument(
         '--xrange',
         type = type,
@@ -70,47 +125,81 @@ def add_circle_subparser(subparsers):
     pygamelib.add_seed_option(sp)
     sp.set_defaults(random_func=random_circle)
 
-def add_rect_subparser(subparsers):
-    """
-    add random rect subcommand
-    """
-    sp = subparsers.add_parser('rect')
+def add_options_for_output(parser):
+    pygamelib.add_null_separator_flag(
+        parser,
+        help = 'Separate rects with null.',
+    )
+    pygamelib.add_dimension_separator_option(
+        parser,
+        help = 'Rect dimensions separator.',
+    )
+    pygamelib.add_seed_option(parser)
+
+def add_rects_from_ranges(subparsers, cmdname):
+    sp = subparsers.add_parser(
+        cmdname,
+        help = 'Random rects from ranges for x, y, width, and height.',
+    )
     _add_number_option(sp)
     _add_xy_range_arguments(sp)
     sp.add_argument(
         '--wrange',
         type = pygamelib.sizetype(),
-        default = '10,100',
+        default = _default_range(),
         help = 'Range for random widths. Default: %(default)s',
     )
     sp.add_argument(
         '--hrange',
         type = pygamelib.sizetype(),
-        default = '10,100',
+        default = _default_range(),
         help = 'Range for random heights. Default: %(default)s',
     )
-    pygamelib.add_null_separator_flag(
-        sp,
-        help = 'Separate rects with null.',
+    add_options_for_output(sp)
+    sp.set_defaults(make_generator=RandomRectFromRanges.from_args)
+
+def domain_type(string):
+    left, top, right, bottom = map(int, string.replace(',', ' ').split())
+    return (left, top, right, bottom)
+
+def add_rects_from_points_subparser(subparsers, cmdname):
+    sp = subparsers.add_parser(
+        cmdname,
+        help = 'Random rects from two points in a domain.',
+    )
+    sp.add_argument(
+        'domain',
+        type = domain_type,
+        help = 'left, top, right, bottom. commas optional.',
+    )
+    _add_number_option(sp)
+    sp.add_argument(
+        '--overlap-to-touching',
+        default = False,
+        help = 'Resolve random rects to touching if they overlap.',
     )
     pygamelib.add_dimension_separator_option(
         sp,
         help = 'Rect dimensions separator.',
     )
+    pygamelib.add_null_separator_flag(
+        sp,
+        help  = 'Separate rects with null.',
+    )
     pygamelib.add_seed_option(sp)
-    sp.set_defaults(random_func=random_rect)
+    sp.set_defaults(make_generator=RandomRectFromPoints.from_args)
 
 def argument_parser():
     parser = argparse.ArgumentParser(
         description = 'Randomly generate shapes.',
     )
-
     subparsers = parser.add_subparsers(
         help = 'Type of shape.',
         required = True,
     )
     add_circle_subparser(subparsers)
-    add_rect_subparser(subparsers)
+    add_rects_from_ranges(subparsers, 'rects-from-ranges')
+    add_rects_from_points_subparser(subparsers, 'rects-from-points')
     return parser
 
 def main(argv=None):
@@ -120,7 +209,11 @@ def main(argv=None):
     parser = argument_parser()
     args = parser.parse_args(argv)
     null_separator = args.null
-    shapes = [args.random_func(args) for _ in range(args.n)]
+    # TODO
+    # - make_generator for circles
+    generator = args.make_generator(args)
+    shapes = [generator() for _ in range(args.n)]
+
     string = pygamelib.format_pipe(shapes, null_separator, args.dimsep)
     pygamelib.print_pipe(string, null_separator)
 

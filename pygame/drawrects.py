@@ -211,18 +211,45 @@ class RectEditor(pygamelib.DemoBase):
             pygame.draw.rect(self.screen, 'darkred', handle, 1)
 
 
+# XXX
+# - above: way too much going on for something called drawrects
+# - below: simplified main but keeping old code just in case
+# TODO
+# - decide what to keep
+# - probably not much as this was probably supposed to stay a simple script to
+#   display rects
+
+def run(display_size, framerate, background, rects):
+    clock = pygame.time.Clock()
+    running = True
+    screen = pygame.display.set_mode(display_size)
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    pygamelib.post_quit()
+        screen.fill(background)
+        for rect in rects:
+            pygame.draw.rect(screen, 'white', rect, 1)
+        pygame.display.flip()
+        elapsed = clock.tick(framerate)
+
 def main(argv=None):
     parser = pygamelib.command_line_parser()
-    parser.add_argument('rects', type=argparse.FileType('rb'))
+    parser.add_argument('rects', type=argparse.FileType('r'))
     args = parser.parse_args(argv)
 
-    window = pygame.Rect((0,0), args.display_size)
+    rects = list(map(pygamelib.rect_type, args.rects))
+    run(args.display_size, args.framerate, args.background, rects)
+
+def main_trash():
     pygame.display.init()
     pygame.font.init()
     engine = pygamelib.Engine()
     state = RectEditor()
 
-    rects = list(map(pygame.Rect, pickle.load(args.rects)))
     state.rects = rects.copy()
     state.update_images()
 

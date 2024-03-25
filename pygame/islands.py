@@ -1,141 +1,116 @@
 import argparse
-import collections
 import itertools as it
-import pickle
+import random
+
+from collections import defaultdict
 
 import pygamelib
 
 from pygamelib import pygame
 
-class Touches(
-    pygamelib.DemoBase,
-    pygamelib.SimpleQuitMixin,
-):
-    """
-    Hover to demo touching rects.
-    """
+def contains(r1, r2):
+    return pygame.Rect(r1).contains(r2)
 
-    def __init__(self, rects, font, printer):
-        self.rects = rects
-        self.font = font
-        self.printer = printer
-        self.hovering = None
-        self.touching = list()
-        self.selected = list()
+def collides(r1, r2):
+    return pygame.Rect(r1).colliderect(r2)
 
-    def do_videoexpose(self, event):
-        self.draw()
+def graph_rects(rects, is_edge=collides):
+    graph = defaultdict(list)
+    # make all the rects appear in the graph
+    for rect in rects:
+        graph[rect]
+    for r1, r2 in it.combinations(rects, 2):
+        if is_edge(r1, r2):
+            graph[r1].append(r2)
+            graph[r2].append(r1)
+    return graph
 
-    def _find_rect(self, pos):
-        for rect in self.rects:
-            if rect.collidepoint(pos):
-                return rect
+def depth_first_search(graph, start):
+    visited = set()
+    stack = [start]
+    while stack:
+        current = stack.pop()
+        if current in visited:
+            continue
+        yield current
+        visited.add(current)
+        for neighbor in reversed(graph[current]):
+            if neighbor in visited:
+                continue
+            stack.append(neighbor)
 
-    def _update_touching(self, rect):
-        self.touching = list(
-            other for other in self.rects
-            if other is not rect
-            and pygamelib.touch_relation(rect, other)
-        )
+def random_colorfuls(n):
+    colorfuls = map(pygame.Color, pygamelib.UNIQUE_COLORSTHE_COLORFUL)
+    colorfuls = it.cycle(colorfuls)
+    colorfuls = list(it.islice(colorfuls, n))
+    colorfuls = random.sample(colorfuls, n)
+    return colorfuls
 
-    def do_mousemotion(self, event):
-        rect = self._find_rect(event.pos)
-        if rect:
-            self.hovering = rect
-            self._update_touching(rect)
-        else:
-            self.hovering = None
-            self.touching.clear()
-        self.draw()
+def run(display_size, framerate, background, rects, groups):
+    group_colors = random_colorfuls(len(groups))
+    rect_colors = {}
+    for rect in rects:
+        for index, group in enumerate(groups):
+            if rect in group:
+                rect_colors[rect] = group_colors[index]
+    clock = pygame.time.Clock()
+    running = True
+    screen = pygame.display.set_mode(display_size)
+    camera = pygame.Vector2()
+    draw = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    pygamelib.post_quit()
+            elif event.type == pygame.MOUSEMOTION and event.buttons[0]:
+                camera += event.rel
+                draw = True
+        if draw:
+            screen.fill(background)
+            for rect in rects:
+                color = rect_colors[rect]
+                _rect = pygame.Rect(rect).move(camera)
+                pygame.draw.rect(screen, color, _rect, 0)
+                pygame.draw.rect(screen, color.lerp('white', 0.5), _rect, 1)
+            pygame.display.flip()
+            draw = False
+        elapsed = clock.tick(framerate)
 
-    def _toggle_selected(self, rect):
-        if rect in self.selected:
-            self.selected.remove(rect)
-        else:
-            self.selected.append(rect)
-
-    def do_mousebuttondown(self, event):
-        rect = self._find_rect(event.pos)
-        if rect:
-            self._toggle_selected(rect)
-
-    def update(self):
-        super().update()
-        keys = pygame.key.get_pressed()
-        dx = -keys[pygame.K_LEFT] + keys[pygame.K_RIGHT]
-        dy = -keys[pygame.K_UP] + keys[pygame.K_DOWN]
-        for rect in self.selected:
-            rect.x += dx
-            rect.y += dy
-        self.draw()
-
-    def draw(self):
-        self.screen.fill('black')
-        for i, rect in enumerate(self.rects):
-            if rect in self.touching or rect is self.hovering:
-                width = 0 # fill
-            else:
-                width = 1
-            color = 'orange' if rect is self.hovering else 'darkorange4'
-            pygame.draw.rect(self.screen, color, rect, width)
-
-            if rect in self.selected:
-                pygame.draw.rect(self.screen, 'magenta', rect, 1)
-
-            side_values = pygamelib.extremities(rect)
-            attrs = ('midtop', 'midright', 'midbottom', 'midleft')
-            for value, attr in zip(side_values, attrs):
-                image = self.printer([str(value)])
-                attrvalue = getattr(pygame.Rect(rect), attr)
-                _rect = image.get_rect(**{attr: attrvalue})
-                self.screen.blit(image, _rect)
-            image = self.printer([f'{i=}'])
-            self.screen.blit(image, image.get_rect(center=center(rect)))
-        pygame.display.flip()
-
-
-def center(rect):
-    x, y, w, h = rect
-    return (x + w / 2, y + h / 2)
-
-def main(argv=None):
-    """
-    Find islands of rects. Highlight rect under cursor and other rects that
-    directly touch it.
-    """
+def argument_parser():
     parser = pygamelib.command_line_parser()
     parser.add_argument(
         'rects',
-        type = argparse.FileType('rb'),
-        help = 'Pickle file list of rects.',
+        type = argparse.FileType('r'),
+        help = 'Read rects from file including stdin.',
     )
+    pygamelib.add_seed_option(parser)
+    return parser
+
+def unique_paths(rects, graph):
+    paths = []
+    for rect in rects:
+        path = tuple(depth_first_search(graph, rect))
+        if set(path) not in map(set, paths):
+            yield path
+
+def main(argv=None):
+    parser = argument_parser()
     args = parser.parse_args(argv)
-    rects = list(map(pygame.Rect, pickle.load(args.rects)))
-    font = pygamelib.monospace_font(15)
-    printer = pygamelib.FontPrinter(font, 'white')
-    state = Touches(rects, font, printer)
-    engine = pygamelib.Engine()
-    pygame.display.set_mode(args.display_size)
-    engine.run(state)
+
+    if args.seed:
+        random.seed(args.seed)
+
+    rects = list(map(pygamelib.rect_type, args.rects))
+    graph = graph_rects(rects)
+    groups = list(unique_paths(rects, graph))
+    run(args.display_size, args.framerate, args.background, rects, groups)
 
 if __name__ == '__main__':
     main()
 
-# 2024-02-06 Tue.
-# - find rects that touch
-# - group rects into "islands" where there is a path to every other rect by way
-#   of their touching sides
-# - motivation: pygamelib.generate_contiguous is broken, it returns results for
-#   rects that are not touching
-# 2024-03-19 Tue.
-# - revisiting
-# - generate_contiguous seems to work now
-# - the rects cannot overlap or even share a border
-# - the difference between left and right, say, must be zero rather than zero,
-#   negative or greater than zero.
-# - thinking of making a border relationship generator
-#   - the right side of one rect against all the left sides of all other rects
-#   - use the tuple interface for rects instead of pygame.Rect
-# 2024-03-19 Tue. 11:58 PM
-# - load from pickle and convert to pygame.Rect
-# - allow moving selected rects with keys
+# 2024-03-25 Mon.
+# - find groups of rects where every rect has a path to every other rect
+# - render the rects and color each group

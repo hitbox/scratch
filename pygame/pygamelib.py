@@ -2,6 +2,7 @@ import abc
 import argparse
 import contextlib
 import enum
+import fileinput
 import functools
 import inspect
 import itertools as it
@@ -25,6 +26,9 @@ with contextlib.redirect_stdout(open(os.devnull, 'w')):
 # clean up namespace
 del contextlib
 del os
+
+DEFAULT_DISPLAY_SIZE = (800, 800)
+DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT = DEFAULT_DISPLAY_SIZE
 
 class TestModOffset(unittest.TestCase):
     """
@@ -1623,6 +1627,27 @@ def rect_type(string):
     """
     return pygame.Rect(*intargs(string))
 
+def rect_type(string):
+    x, y, w, h = intargs(string)
+    return (x, y, w, h)
+
+class rects_type_or_stdin:
+    # XXX
+    # - this does not work
+    # - want to take rects as stdin pipe or arguments
+
+    def __init__(self):
+        self.rects = []
+
+    def __call__(self, string):
+        if string == '-':
+            # this is roughly what argparse.FileType.__call__ does
+            for line in fileinput.input():
+                self.rects.append(rect_type(line))
+        else:
+            self.rects.append(rect_type(string))
+
+
 def knife_type(s):
     """
     One to four space or comma separated integer for a rect:
@@ -1656,7 +1681,10 @@ def circle_type(string):
 
 def add_display_size_option(parser, **kwargs):
     kwargs.setdefault('type', sizetype())
-    kwargs.setdefault('default', '800')
+    kwargs.setdefault(
+        'default',
+        f'{DEFAULT_DISPLAY_WIDTH},{DEFAULT_DISPLAY_HEIGHT}',
+    )
     kwargs.setdefault(
         'help',
         'Display size. %(default)s'
@@ -1699,6 +1727,10 @@ def add_point_arguments(parser, name, **kwargs):
 
 def add_seed_option(parser, name='--seed', **kwargs):
     kwargs.setdefault('type', random.seed)
+    parser.add_argument(name, **kwargs)
+
+def add_rects_argument(parser, name='rects', **kwargs):
+    kwargs.setdefault('type', rect_type)
     parser.add_argument(name, **kwargs)
 
 def format_pipe(iterable, null_separator, dimsep):
@@ -2488,6 +2520,15 @@ def flatten_line(line):
 
 def flatten_lines(*lines):
     return tuple(flatten_line(line) for line in lines)
+
+def rect_from_size(*args, x=0, y=0):
+    if len(args) == 1:
+        w, h = args[0]
+    elif len(args) == 2:
+        w, h = args
+    else:
+        raise ValueError('one or two positional arguments required')
+    return (x, y, w, h)
 
 def random_point(rect):
     l, t, w, h = rect
