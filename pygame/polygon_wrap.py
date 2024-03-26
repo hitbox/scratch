@@ -3,26 +3,31 @@ import itertools as it
 import math
 import random
 
+from collections import defaultdict
+
 import pygamelib
 
 from pygamelib import depth_first_search
 from pygamelib import make_graph
 from pygamelib import pygame
 
-def uncovered_points(shapes):
-    for shape in shapes:
-        for point in shape.points:
-            others = (other for other in shapes if other != shape)
-            if not any(other.contains_point(point) for other in others):
-                # we've got a corner point that is not entirely contained by
-                # another shape
-                yield point
+global RANDOMIZED_COLORS
 
-    for shape1, shape2 in it.combinations(shapes, 2):
-        for point in shape1.intersections(shape2):
-            others = (other for other in shapes if other not in (shape1, shape2))
-            if not any(other.inside_point(point) for other in others):
-                yield point
+class PointsShareLine:
+
+    def __init__(self, shapes):
+        self.shapes = shapes
+        self.lines = [line for shape in self.shapes for line in shape.lines]
+
+    def __call__(self, p1, p2):
+        # do p1 and p2 share a line?
+
+        # lines that p1 touches
+        for line in lines_for_point(self.shapes, p1):
+            # true if p2 also touches it
+            if pygamelib.point_on_axisline(p2, line):
+                return True
+
 
 def orientation(p, q, r):
     px, py = p
@@ -108,10 +113,24 @@ def tight_convex_hull(points):
         yield point
 
 def lines_for_point(shapes, point):
+    # the lines that point touches
     for shape in shapes:
         for line in shape.lines:
             if pygamelib.point_on_axisline(point, line):
                 yield line
+
+def line_midpoint_in_shape(shapes, line):
+    midpoint = pygamelib.line_midpoint(*line)
+    for shape in shapes:
+        if shape.contains_point(midpoint):
+            return True
+
+def connected_lines_for_point(shapes, point):
+    for shape in shapes:
+        for line in shape.lines:
+            if not line_midpoint_in_shape(shapes, line):
+                if pygamelib.point_on_axisline(point, line):
+                    yield line
 
 def points_on_line(points, line):
     for point in points:
@@ -125,6 +144,21 @@ def grouped_shapes(shapes):
     groups = list(pygamelib.unique_paths(graph))
     return groups
 
+def uncovered_points(shapes):
+    for shape in shapes:
+        for point in shape.points:
+            others = (other for other in shapes if other != shape)
+            if not any(other.contains_point(point) for other in others):
+                # we've got a corner point that is not entirely contained by
+                # another shape
+                yield point
+
+    for shape1, shape2 in it.combinations(shapes, 2):
+        for point in shape1.intersections(shape2):
+            others = (other for other in shapes if other not in (shape1, shape2))
+            if not any(other.inside_point(point) for other in others):
+                yield point
+
 def get_hulls(shapes):
     groups = grouped_shapes(shapes)
     for _shapes in groups:
@@ -132,22 +166,28 @@ def get_hulls(shapes):
         yield _points
 
 def render_shapes(screen, offset, shapes):
+    fillcolor = pygame.Color('grey50')
+    fillcolor.a = 50
     for shape in shapes:
-        shape.draw(screen, 'grey10', 0, offset)
-        shape.draw(screen, 'grey15', 1, offset)
+        shape.render_onto(screen, fillcolor, 0, offset)
+        shape.render_onto(screen, 'grey15', 1, offset)
 
 def find_hover_point(hulls, event_pos):
     # broken for camera
-    for _point in (point for points in hulls for point in points):
-        if math.dist(event_pos, _point) < 30:
-            return _point
+    # unwind
+    points = (point for points in hulls for point in points)
+    # filter
+    points = (point for point in points if math.dist(event_pos, point) < 30)
+    # minimum
+    return min(points, key=lambda p: math.dist(p, event_pos), default=None)
 
-def render_points(screen, offset, hulls, font):
+def render_points(screen, offset, hulls, font, label=False):
     for hull_points in hulls:
         for index, hull_point in enumerate(hull_points):
             pygame.draw.circle(screen, 'grey20', hull_point, 4)
-            image = font.render(f'{index}', True, 'linen')
-            screen.blit(image, image.get_rect(center=hull_point))
+            if label:
+                image = font.render(f'{index}', True, 'linen')
+                screen.blit(image, image.get_rect(center=hull_point))
 
 def render_connected_points(
     screen,
@@ -194,27 +234,58 @@ def render_hulls(screen, offset, hover_point, shapes, hulls):
                     hull_point,
                 )
 
-class PointsShareLine:
-
-    def __init__(self, shapes):
-        self.shapes = shapes
-
-    def __call__(self, p1, p2):
-        for line in lines_for_point(self.shapes, p1):
-            if pygamelib.point_on_axisline(p2, line):
-                return True
-        for line in lines_for_point(self.shapes, p2):
-            if pygamelib.point_on_axisline(p1, line):
-                return True
-
-
 def render_polygon_attempt1(screen, colors, unique_paths_paths):
     items = zip(unique_paths_paths, colors)
     for unique_paths, color in items:
         for unique_path in unique_paths:
             pygame.draw.polygon(screen, color, unique_path, 1)
 
-def render_connected_hover(screen, offset, hover_point, graphs_for_hulls, hulls):
+def line_to_rect(line):
+    p1, p2 = line
+    x1, y1 = p1
+    x2, y2 = p2
+    if x1 > x2:
+        x1, x2 = x2, x1
+    if y1 > y2:
+        y1, y2 = y2, y1
+    if x1 == x2:
+        # vertical
+        return pygame.Rect(x1, y1, 1, y2 - y1)
+    elif y1 == y2:
+        # horizontal
+        return pygame.Rect(x1, y1, x2 - x1, 1)
+
+def render_lines_for_hover(screen, offset, hover_point, shapes):
+    if not hover_point:
+        return
+    lines = (line for shape in shapes for line in shape.lines)
+    _colors = iter(RANDOMIZED_COLORS)
+    # TODO
+    # - filter out line segments that go through a shape--if there is any clip at all
+    # - represent line as rect of width or height == 1
+
+    for shape in shapes:
+        for line in shape.lines:
+            if pygamelib.point_on_axisline(hover_point, line):
+                line_sections = pygamelib.bisect_axis_line(line, hover_point)
+                for line_section, color in zip(line_sections, _colors):
+                    for _shape in shapes:
+                        if _shape is not shape:
+                            if line_to_rect(line_section).clip(_shape):
+                                break
+                    else:
+                        pygame.draw.line(screen, color, *line_section)
+
+def render_line_segments_for_hover(screen, offset, hover_point, line_segment_for_point):
+    if not hover_point:
+        return
+    _colors = iter(RANDOMIZED_COLORS)
+    for line, color in zip(line_segment_for_point[hover_point], _colors):
+        pygame.draw.line(screen, color, *line)
+        for point in line:
+            pygame.draw.circle(screen, color, point, 4, 0)
+
+def render_connected_points_for_hover(screen, offset, hover_point, graphs_for_hulls, hulls):
     if hover_point is None:
         return
     for hull_points, graph in zip(hulls, graphs_for_hulls):
@@ -226,15 +297,41 @@ def render_connected_hover(screen, offset, hover_point, graphs_for_hulls, hulls)
         )
         for point in connected_points[:2]:
             pygame.draw.circle(screen, 'blue', point, 8)
-    pygame.draw.circle(screen, 'red', hover_point, 4)
+    render_hover_point(screen, offset, hover_point)
+
+def render_hover_point(screen, offset, hover_point):
+    if hover_point:
+        pygame.draw.circle(screen, 'red', hover_point, 4)
 
 def run(display_size, framerate, background, shapes):
+    # hulls are lists of points that are not contained inside a shape
+    # points that are corners or intersection points
     hulls = list(get_hulls(shapes))
+
+    all_points = [point for points in hulls for point in points]
+    all_lines = list(
+        ((x1, y1), (x2, y2))
+        for (x1, y1), (x2, y2) in it.product(all_points, all_points)
+        if x1 == x2 or y1 == y2 # vertical or horizontal
+    )
+
+    line_segments = [
+        line_segment
+        for point, line in it.product(all_points, all_lines)
+        for line_segment in pygamelib.bisect_axis_line(line, point)
+        if pygamelib.point_on_axisline(point, line)
+    ]
+
+    line_segment_for_point = defaultdict(list)
+    for point in all_points:
+        for line in line_segments:
+            if pygamelib.point_on_axisline(point, line):
+                line_segment_for_point[point].append(line)
 
     graphs_for_hulls = [
         pygamelib.make_graph(
-            points,
-            PointsShareLine(shapes),
+            nodes = points,
+            is_edge = PointsShareLine(shapes),
         )
         for points in hulls
     ]
@@ -273,9 +370,59 @@ def run(display_size, framerate, background, shapes):
         screen.fill(background)
         render_shapes(screen, offset, shapes)
         render_points(screen, offset, hulls, font)
-        render_connected_hover(screen, offset, hover_point, graphs_for_hulls, hulls)
+        #render_lines_for_hover(screen, offset, hover_point, shapes)
+        render_line_segments_for_hover(screen, offset, hover_point, line_segment_for_point)
+        render_hover_point(screen, offset, hover_point)
+        #render_connected_points_for_hover(screen, offset, hover_point, graphs_for_hulls, hulls)
         #render_hulls(screen, offset, hover_point, shapes, hulls)
         #render_polygon_attempt1(screen, colors, unique_paths_paths)
+        pygame.display.flip()
+        elapsed = clock.tick(framerate)
+
+def run(display_size, framerate, background, shapes):
+    points = []
+
+    for shape in shapes:
+        for line in shape.lines:
+            for point in line:
+                if point not in points and not any(other.contains_point(point) for other in shapes if other != shape):
+                    points.append(point)
+
+    for shape1, shape2 in it.combinations(shapes, 2):
+        for shape1_line, shape2_line in it.product(shape1.lines, shape2.lines):
+            intersection = pygamelib.line_line_intersection(shape1_line, shape2_line)
+            if intersection:
+                if not any(other.contains_point(intersection) for other in shapes if other != shape1 and other != shape2):
+                    points.append(intersection)
+
+    from pygamelib import point_on_axisline
+
+    lines = []
+    for p1, p2 in it.combinations(points, 2):
+        for shape in shapes:
+            for line in shape.lines:
+                if point_on_axisline(p1, line) and point_on_axisline(p2, line):
+                    # theres and edge to travel on
+                    candidate = sorted([p1, p2])
+                    lines.append(candidate)
+
+    clock = pygame.time.Clock()
+    running = True
+    screen = pygame.display.set_mode(display_size)
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    pygamelib.post_quit()
+        screen.fill(background)
+        for point in points:
+            pygame.draw.circle(screen, 'grey50', point, 8, 0)
+        for shape in shapes:
+            shape.draw(screen, 'grey20', 1)
+        for line, color in zip(lines, RANDOMIZED_COLORS):
+            pygame.draw.line(screen, color, *line)
         pygame.display.flip()
         elapsed = clock.tick(framerate)
 
@@ -287,6 +434,10 @@ def main(argv=None):
 
     if args.seed:
         random.seed(args.seed)
+
+    global RANDOMIZED_COLORS
+    RANDOMIZED_COLORS = list(pygamelib.UNIQUE_COLORSTHE_COLORFUL)
+    random.shuffle(RANDOMIZED_COLORS)
 
     shapes = list(pygamelib.shapes_from_args(args))
     run(args.display_size, args.framerate, args.background, shapes)

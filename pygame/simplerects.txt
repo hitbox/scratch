@@ -1,0 +1,9 @@
+600 100 50 50
+
+# three overlapping
+100 100 200 200
+200 200 200 200
+300 300 200 200
+
+# portion of rect all the way through another
+50 450 700 100

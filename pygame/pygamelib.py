@@ -886,8 +886,25 @@ class Rectangle(
 
     @classmethod
     def from_arg(cls, string):
-        x, y, w, h = rect_type(string.strip())
-        return cls((x, y, w, h))
+        string = string.strip()
+        if string:
+            x, y, w, h = rect_type(string.strip())
+            return cls((x, y, w, h))
+
+    @property
+    def size(self):
+        (x, y, w, h), *_ = self
+        return (w, h)
+
+    def render_onto(self, surf, color, width, offset):
+        # XXX
+        # - janky method for rendering rects with alpha in color for adhoc use
+        #   with polygon_wrap
+        ox, oy = offset
+        (x, y, w, h), *_ = self
+        image = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.rect(image, color, (0, 0, w, h), width)
+        return surf.blit(image, (x + ox, y + oy))
 
     @property
     def ltrb(self):
@@ -943,6 +960,10 @@ class Rectangle(
         # - check also not on side/edge line?
         if point not in ((x,y), (r,y), (r,b), (x,b)):
             return pygame.Rect(rect).collidepoint(point)
+
+    def collide_point(self, point):
+        rect, *_ = self
+        return pygame.Rect(rect).collidepoint(point)
 
     def inside_point(self, point):
         px, py = point
@@ -1882,8 +1903,11 @@ def shapes_from_args(args):
         type_ = Circle.from_arg
     elif args.shape_type == 'rect':
         type_ = Rectangle.from_arg
-    for shape_string in args.shapes:
-        yield type_(shape_string)
+    for shape_string in map(str.strip, args.shapes):
+        if not shape_string.startswith('#'):
+            shape = type_(shape_string)
+            if shape:
+                yield shape
 
 def format_pipe(iterable, null_separator, dimsep):
     """
@@ -2315,6 +2339,12 @@ def render_text(
     text_rect = text_image.get_rect(**text_kw)
     result_image.blit(text_image, text_rect)
     return result_image
+
+def blit_rect(surf, rect, color):
+    x, y, w, h = rect
+    image = pygame.Surface((w, h), pygame.SRCALPHA)
+    image.fill(color)
+    return surf.blit(image, image.get_rect(topleft=(x, y)))
 
 def circle_rect(center, radius):
     """
@@ -3056,6 +3086,50 @@ def point_on_axisline(point, line):
         or
         px == x1 == x2 and y1 <= py <= y2
     )
+
+def point_inside_line(point, line):
+    px, py = point
+    (x1, y1), (x2, y2) = line
+    if x1 > x2:
+        x1, x2 = x2, x1
+    if y1 > y2:
+        y1, y2 = y2, y1
+    return (
+        py == y1 == y2 and x1 < px < x2
+        or
+        px == x1 == x2 and y1 < py < y2
+    )
+
+def axis_line_inside_another(line, other):
+    for point in line:
+        if point_inside_line(point, other):
+            return True
+
+def bisect_axis_line(line, point):
+    # caller should verify point on line
+    if point in line:
+        yield line
+    else:
+        # point is not one of the endpoints of the line
+        x, y = point
+        p1, p2 = line
+        x1, y1 = p1
+        x2, y2 = p2
+        if x1 > x2:
+            x1, x2 = x2, x1
+        if y1 > y2:
+            y1, y2 = y2, y1
+        if x1 == x2:
+            # line is vertical
+            # yield top section
+            yield ((x, y1), (x, y))
+            # yield bottom section
+            yield ((x, y), (x, y2))
+        elif y1 == y2:
+            # line is horizontal
+            # yield left section
+            yield ((x1, y), (x, y))
+            yield ((x, y), (x2, y))
 
 def graph_from_circle(center, radius, step, start_angle=0, end_angle=360):
     """
