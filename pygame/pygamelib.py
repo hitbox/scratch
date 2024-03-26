@@ -3463,15 +3463,15 @@ def cubic_ease_in_out(time):
 
 # graphs and traversal
 
-def make_graph(rects, is_edge):
+def make_graph(nodes, is_edge):
     graph = defaultdict(list)
-    # make all the rects appear in the graph
-    for rect in rects:
-        graph[rect]
-    for r1, r2 in it.combinations(rects, 2):
-        if is_edge(r1, r2):
-            graph[r1].append(r2)
-            graph[r2].append(r1)
+    # make all the nodes appear in the graph
+    for node in nodes:
+        graph[node]
+    for node1, node2 in it.combinations(nodes, 2):
+        if is_edge(node1, node2):
+            graph[node1].append(node2)
+            graph[node2].append(node1)
     return graph
 
 def depth_first_search(graph, start):
