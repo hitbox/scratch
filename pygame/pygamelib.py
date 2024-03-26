@@ -890,14 +890,28 @@ class Rectangle(
         return cls((x, y, w, h))
 
     @property
-    def points(self):
+    def ltrb(self):
         (x, y, w, h), *_ = self
         r = x + w
         b = y + h
-        yield (x, y)
-        yield (r, y)
+        return (x, y, r, b)
+
+    @property
+    def points(self):
+        l, t, r, b = self.ltrb
+        # topleft, topright, bottomright, bottomleft
+        yield (l, t)
+        yield (r, t)
         yield (r, b)
-        yield (x, b)
+        yield (l, b)
+
+    @property
+    def lines(self):
+        l, t, r, b = self.ltrb
+        yield ((l, t), (r, t))
+        yield ((r, t), (r, b))
+        yield ((r, b), (l, b))
+        yield ((l, b), (l, t))
 
     def intersections(self, other):
         self_rect, *_ = self
