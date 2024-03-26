@@ -1382,6 +1382,42 @@ class TestSnakeCaseFunction(unittest.TestCase):
         self.assertEqual(snake_case('XMLShapes'), 'shapes')
 
 
+class TestPointOnAxisLine(unittest.TestCase):
+
+    def test_horizontal_line(self):
+        line = ((0,0), (10,0))
+        self.assertTrue(point_on_axisline((0,0), line))
+        self.assertTrue(point_on_axisline((5,0), line))
+        self.assertTrue(point_on_axisline((10,0), line))
+
+        self.assertFalse(point_on_axisline((-1,0), line))
+        self.assertFalse(point_on_axisline((11,0), line))
+        self.assertFalse(point_on_axisline((5,5), line))
+
+    def test_vertical_line(self):
+        line = ((0,0), (0,10))
+        self.assertTrue(point_on_axisline((0,0), line))
+        self.assertTrue(point_on_axisline((0,5), line))
+        self.assertTrue(point_on_axisline((0,10), line))
+
+        self.assertFalse(point_on_axisline((0,-1), line))
+        self.assertFalse(point_on_axisline((0,11), line))
+        self.assertFalse(point_on_axisline((5,5), line))
+
+    def test_horizontal_line_reversed(self):
+        # when the line is two points not in normal axis order
+        line = ((10,0), (0,0))
+        self.assertTrue(point_on_axisline((0,0), line))
+        self.assertTrue(point_on_axisline((5,0), line))
+        self.assertTrue(point_on_axisline((10,0), line))
+
+    def test_vertical_line_reversed(self):
+        line = ((0,10), (0,0))
+        self.assertTrue(point_on_axisline((0,0), line))
+        self.assertTrue(point_on_axisline((0,5), line))
+        self.assertTrue(point_on_axisline((0,10), line))
+
+
 class Timer:
 
     def __init__(self, start, duration, end_stop=None):
@@ -2993,6 +3029,19 @@ def circle_collision(circle1, circle2):
 
 def rect_collision(r1, r2):
     return pygame.Rect(r1).colliderect(r2)
+
+def point_on_axisline(point, line):
+    px, py = point
+    (x1, y1), (x2, y2) = line
+    if x1 > x2:
+        x1, x2 = x2, x1
+    if y1 > y2:
+        y1, y2 = y2, y1
+    return (
+        py == y1 == y2 and x1 <= px <= x2
+        or
+        px == x1 == x2 and y1 <= py <= y2
+    )
 
 def graph_from_circle(center, radius, step, start_angle=0, end_angle=360):
     """
