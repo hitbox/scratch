@@ -232,15 +232,18 @@ def run(display_size, framerate, background, shapes):
     hulls = list(get_hulls(shapes))
 
     graphs_for_hulls = [
-        pygamelib.make_graph(points, PointsShareLine(shapes)) for points in hulls
+        pygamelib.make_graph(
+            points,
+            PointsShareLine(shapes),
+        )
+        for points in hulls
     ]
     for graph in graphs_for_hulls:
-        for key in graph:
-            connected_points = graph[key]
-            graph[key] = sorted(
-                graph[key],
-                key=lambda p: math.dist(p, key)
-            )[:2]
+        for point in graph:
+            connected_points = graph[point]
+            connected_points.sort(
+                key = lambda p: math.dist(p, point)
+            )
 
     unique_paths_paths = [
         tuple(pygamelib.unique_paths(graph)) for graph in graphs_for_hulls
@@ -270,9 +273,9 @@ def run(display_size, framerate, background, shapes):
         screen.fill(background)
         render_shapes(screen, offset, shapes)
         render_points(screen, offset, hulls, font)
-        #render_connected_hover(screen, offset, hover_point, graphs_for_hulls, hulls)
+        render_connected_hover(screen, offset, hover_point, graphs_for_hulls, hulls)
         #render_hulls(screen, offset, hover_point, shapes, hulls)
-        render_polygon_attempt1(screen, colors, unique_paths_paths)
+        #render_polygon_attempt1(screen, colors, unique_paths_paths)
         pygame.display.flip()
         elapsed = clock.tick(framerate)
 
