@@ -8,7 +8,7 @@ import pygamelib
 
 from pygamelib import pygame
 
-def graph_shapes(rects, is_edge):
+def make_graph(rects, is_edge):
     graph = defaultdict(list)
     # make all the rects appear in the graph
     for rect in rects:
@@ -144,7 +144,7 @@ def main(argv=None):
     move = funcsdict['move']
 
     shapes = list(map(type_func, args.shapes))
-    graph = graph_shapes(shapes, collides)
+    graph = make_graph(shapes, collides)
 
     groups = list(unique_paths(shapes, graph))
     run(args.display_size, args.framerate, args.background, shapes, groups, draw, move)
