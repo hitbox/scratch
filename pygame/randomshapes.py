@@ -186,7 +186,10 @@ def add_rects_from_points_subparser(subparsers, cmdname):
     pygamelib.add_seed_option(sp)
     sp.set_defaults(make_generator=RandomRectFromPoints.from_args)
 
-def argument_parser():
+def main(argv=None):
+    """
+    Generate random, zero-positioned rects.
+    """
     parser = argparse.ArgumentParser(
         description = 'Randomly generate shapes.',
     )
@@ -197,17 +200,12 @@ def argument_parser():
     add_circle_subparser(subparsers, 'circles-from-ranges')
     add_rects_from_ranges(subparsers, 'rects-from-ranges')
     add_rects_from_points_subparser(subparsers, 'rects-from-points')
-    return parser
-
-def main(argv=None):
-    """
-    Generate random, zero-positioned rects.
-    """
-    parser = argument_parser()
     args = parser.parse_args(argv)
+
+    if args.seed:
+        random.seed(args.seed)
+
     null_separator = args.null
-    # TODO
-    # - make_generator for circles
     generator = args.make_generator(args)
     shapes = [generator() for _ in range(args.n)]
 

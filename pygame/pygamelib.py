@@ -758,6 +758,14 @@ class Circle(
 ):
     draw_func = pygame.draw.circle
 
+    @classmethod
+    def from_arg(cls, string):
+        center, radius = circle_type(string)
+        return cls(center, radius)
+
+    def collides(self, other):
+        return circle_collision(self, other)
+
     def scale(self, scale):
         (x, y), radius, *rest = self
         return self.__class__((x*scale, y*scale), radius*scale, *rest)
@@ -875,6 +883,62 @@ class Rectangle(
     DrawMixin,
 ):
     draw_func = pygame.draw.rect
+
+    @classmethod
+    def from_arg(cls, string):
+        x, y, w, h = rect_type(string.strip())
+        return cls((x, y, w, h))
+
+    @property
+    def points(self):
+        (x, y, w, h), *_ = self
+        r = x + w
+        b = y + h
+        yield (x, y)
+        yield (r, y)
+        yield (r, b)
+        yield (x, b)
+
+    def intersections(self, other):
+        self_rect, *_ = self
+        other_rect, *_ = other
+        self_horizontal, self_vertical = oriented_side_lines(self_rect)
+        other_horizontal, other_vertical = oriented_side_lines(other_rect)
+
+        line_pairs = [
+            (self_horizontal, other_vertical),
+            (self_vertical, other_horizontal),
+        ]
+
+        for self_line, other_line in line_pairs:
+            for linepair in it.product(self_line, other_line):
+                point = line_line_intersection(*linepair)
+                if point:
+                    yield point
+
+    def collides(self, other):
+        return rect_collision(self, other)
+
+    def contains_point(self, point):
+        # point collides without being one of our corners
+        rect, *_ = self
+        x, y, w, h = rect
+        r = x + w
+        b = y + h
+        # TODO
+        # - check also not on side/edge line?
+        if point not in ((x,y), (r,y), (r,b), (x,b)):
+            return pygame.Rect(rect).collidepoint(point)
+
+    def inside_point(self, point):
+        px, py = point
+        rect, *_ = self
+        x, y, w, h = rect
+        r = x + w
+        b = y + h
+        if pygame.Rect(rect).collidepoint(point):
+            # could be corner or on edge
+            return px not in (x, r) and py not in (y, b)
 
     def scale(self, scale):
         rect, *borders = self
@@ -1609,6 +1673,16 @@ def get_color_name(color):
     key = tuple(pygame.Color(color))
     return UNIQUE_COLORSTHE.get(key, color)
 
+def random_colorfuls(n):
+    # XXX
+    # - maybe too much here
+    # - mainly needed to generate more colors than pygame defines
+    colorfuls = map(pygame.Color, UNIQUE_COLORSTHE_COLORFUL)
+    colorfuls = it.cycle(colorfuls)
+    colorfuls = tuple(it.islice(colorfuls, n))
+    colorfuls = random.sample(colorfuls, n)
+    return colorfuls
+
 # command line
 
 def repeat_type(s):
@@ -1732,6 +1806,34 @@ def add_seed_option(parser, name='--seed', **kwargs):
 def add_rects_argument(parser, name='rects', **kwargs):
     kwargs.setdefault('type', rect_type)
     parser.add_argument(name, **kwargs)
+
+def add_shapes_from_file_arguments(
+    parser,
+    name = 'shapes',
+    shape_choices = None,
+    **kwargs,
+):
+    """
+    Add two required arguments
+    """
+    if shape_choices is None:
+        # TODO
+        # - probably more discipline here
+        shape_choices = ['circle', 'rect']
+
+    kwargs.setdefault('type', argparse.FileType('r'))
+    kwargs.setdefault('help', 'Read shapes from file including stdin.')
+    parser.add_argument(name, **kwargs)
+
+    parser.add_argument('shape_type', choices=shape_choices)
+
+def shapes_from_args(args):
+    if args.shape_type == 'circle':
+        type_ = Circle.from_arg
+    elif args.shape_type == 'rect':
+        type_ = Rectangle.from_arg
+    for shape_string in args.shapes:
+        yield type_(shape_string)
 
 def format_pipe(iterable, null_separator, dimsep):
     """
@@ -1956,6 +2058,11 @@ _side_line_funcs = [topline, rightline, bottomline, leftline]
 def side_lines(rect):
     for func in _side_line_funcs:
         yield func(rect)
+
+def oriented_side_lines(rect):
+    top, right, bottom, left = side_lines(rect)
+    yield (top, bottom)
+    yield (left, right)
 
 def corners(rect):
     x, y, w, h = rect
@@ -3290,6 +3397,46 @@ def cubic_ease_in_out(time):
     # - unsure about these constants but I put them into desmos and they come
     #   out between 0 and 1
     return time * time * time * (time * (6 * time - 15) + 10)
+
+# graphs and traversal
+
+def make_graph(rects, is_edge):
+    graph = defaultdict(list)
+    # make all the rects appear in the graph
+    for rect in rects:
+        graph[rect]
+    for r1, r2 in it.combinations(rects, 2):
+        if is_edge(r1, r2):
+            graph[r1].append(r2)
+            graph[r2].append(r1)
+    return graph
+
+def depth_first_search(graph, start):
+    visited = set()
+    stack = [start]
+    while stack:
+        current = stack.pop()
+        if current in visited:
+            continue
+        yield current
+        visited.add(current)
+        for neighbor in reversed(graph[current]):
+            if neighbor in visited:
+                continue
+            stack.append(neighbor)
+
+def unique_paths(graph):
+    """
+    Generate unique paths between all nodes, disregarding order.
+    """
+    # graph: { node: iterable(connected_nodes), ... }
+    # need mutable that can contain sets
+    _paths = []
+    for node in graph:
+        path = tuple(depth_first_search(graph, node))
+        if set(path) not in _paths:
+            yield path
+            _paths.append(set(path))
 
 # clockwise ordered rect side attribute names mapped with their opposites
 SIDENAMES = ['top', 'right', 'bottom', 'left']
