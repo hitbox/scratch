@@ -116,6 +116,24 @@ def groups_from_shapes(shapes, clips):
     groups = resolve_connected_lines(lines)
     return groups
 
+def blit_rect(surf, color, rect):
+    # for transparency
+    x, y, w, h = rect
+    image = pygame.Surface((w,h), pygame.SRCALPHA)
+    pygame.draw.rect(image, color, (0, 0, w, h), 0)
+    return surf.blit(image, (x, y))
+
+def blit_label(surf, bgcolor, fgcolor, font, text, center):
+    # TODO
+    # - transparency not working
+    image = font.render(text, True, fgcolor, bgcolor)
+    return surf.blit(image, image.get_rect(center=center))
+
+def color_with_alpha(color, alpha):
+    color = pygame.Color(color)
+    color.a = alpha
+    return color
+
 def run(display_size, framerate, background, shapes):
 
     # rendered later
@@ -154,6 +172,9 @@ def run(display_size, framerate, background, shapes):
     colors = list(it.islice(it.cycle(colors), sum(map(len, graphs))))
     points = [point for group in graphs for line in group for point in line]
 
+    clip_color = pygame.Color('grey50')
+    clip_color.a = 255 // 5
+
     screen = pygame.display.set_mode(display_size)
     while running:
         for event in pygame.event.get():
@@ -163,31 +184,26 @@ def run(display_size, framerate, background, shapes):
                 if event.key in (pygame.K_ESCAPE, pygame.K_q):
                     pygamelib.post_quit()
         screen.fill(background)
+        # partially transparent clipping regions
         for clip in clips:
-            x, y, w, h = clip
-            image = pygame.Surface((w,h), pygame.SRCALPHA)
-            color = pygame.Color('grey50')
-            color.a = 255 // 5
-            pygame.draw.rect(image, color, (0, 0, w, h), 0)
-            screen.blit(image, (x, y))
+            blit_rect(screen, clip_color, clip)
         for point in points:
             pygame.draw.circle(screen, 'grey50', point, 8, 0)
         for shape in shapes:
             shape.draw(screen, 'grey20', 4)
-
-        # sorted by line length
-        #_lines = sorted(lines, key=lambda line: math.dist(line[0], line[1]))
         for _lines in graphs:
             for index, (line, color) in enumerate(zip(_lines, colors)):
                 pygame.draw.line(screen, color, *line)
                 if line_index_labels:
                     text = f'[{index}]'
-                    _background = pygame.Surface(font.size(text), pygame.SRCALPHA)
-                    _background.fill(pygame.Color(color).lerp('black', 0.9))
-                    image = font.render(text, True, color)
-                    _background.blit(image, (0,0))
-                    pos = pygamelib.line_midpoint(line)
-                    screen.blit(_background, _background.get_rect(center=pos))
+                    blit_label(
+                        screen,
+                        color_with_alpha(background, 75),
+                        color,
+                        font,
+                        text,
+                        pygamelib.line_midpoint(line),
+                    )
         pygame.display.flip()
         elapsed = clock.tick(framerate)
 
