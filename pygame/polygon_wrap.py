@@ -5,7 +5,6 @@ import random
 
 from collections import defaultdict
 from collections import deque
-from pprint import pprint
 
 import pygamelib
 
@@ -408,17 +407,18 @@ def resolve_connected_lines(lines):
     groups = []
 
     for line in lines:
-        if line not in visited:
-            group = []
-            queue = deque([line])
-            while queue:
-                current_line = queue.popleft()
-                group.append(current_line)
-                visited.add(current_line)
-                for neighbor in graph[current_line]:
-                    if neighbor not in visited:
-                        queue.append(neighbor)
-            groups.append(group)
+        if line in visited:
+            continue
+        group = []
+        queue = deque([line])
+        while queue:
+            current_line = queue.popleft()
+            group.append(current_line)
+            visited.add(current_line)
+            for neighbor in graph[current_line]:
+                if neighbor not in visited:
+                    queue.append(neighbor)
+        groups.append(group)
 
     return groups
 
@@ -474,10 +474,7 @@ def run(display_size, framerate, background, shapes):
         if (clip := shape1.clip(shape2))
     ]
 
-    #pprint(lines)
     # remove lines that intersect with any overlaps/clips
-    # NOTES
-    # - think we're picking up the corners and edges
     todo_remove = []
     for clip in clips:
         corners = set(pygamelib.corners(clip))
@@ -490,8 +487,6 @@ def run(display_size, framerate, background, shapes):
             elif any(shape.contains_line(line) for shape in shapes):
                 todo_remove.append(line)
 
-    print('todo_remove')
-    pprint(todo_remove)
     for remove_line in todo_remove:
         while remove_line in lines:
             lines.remove(remove_line)
@@ -500,8 +495,6 @@ def run(display_size, framerate, background, shapes):
     lines = [tuple(tuple(map(int, point)) for point in line) for line in lines]
 
     graphs = resolve_connected_lines(lines)
-    print('final')
-    pprint(list(enumerate(graphs)))
 
     font = pygamelib.monospace_font(16)
     clock = pygame.time.Clock()
