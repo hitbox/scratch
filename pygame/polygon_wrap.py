@@ -4,12 +4,16 @@ import math
 import random
 
 from collections import defaultdict
+from collections import deque
+from pprint import pprint
 
 import pygamelib
 
 from pygamelib import depth_first_search
 from pygamelib import make_graph
+from pygamelib import point_on_axisline
 from pygamelib import pygame
+from pygamelib import unique_paths
 
 global RANDOMIZED_COLORS
 
@@ -379,35 +383,152 @@ def run(display_size, framerate, background, shapes):
         pygame.display.flip()
         elapsed = clock.tick(framerate)
 
+def connected_lines(lines):
+    for line1, line2 in it.combinations(lines, 2):
+        line1_p1, line1_p2 = line1
+        line2_p1, lien2_p2 = line2
+        if line1_p1 == line2_p2:
+            # line2 --> line1
+            # line1_p1 is the end point of line2
+            yield (line2_p1, line2_p2, line1_p2)
+        if line1_p2 == line2_p1:
+            # start of line2 is the end of line1
+            # line2 --> line1
+            yield (line1_p1, line1_p2, line2_p2)
+
+def resolve_connected_lines(lines):
+    graph = {}
+    for line in lines:
+        graph[line] = []
+        for other_line in lines:
+            if line != other_line and do_intersect(line, other_line):
+                graph[line].append(other_line)
+
+    visited = set()
+    groups = []
+
+    for line in lines:
+        if line not in visited:
+            group = []
+            queue = deque([line])
+            while queue:
+                current_line = queue.popleft()
+                group.append(current_line)
+                visited.add(current_line)
+                for neighbor in graph[current_line]:
+                    if neighbor not in visited:
+                        queue.append(neighbor)
+            groups.append(group)
+
+    return groups
+
+def do_intersect(line1, line2):
+    # endpoints are connected
+    return set(line1).intersection(line2)
+
 def run(display_size, framerate, background, shapes):
     points = []
 
     for shape in shapes:
         for line in shape.lines:
             for point in line:
-                if point not in points and not any(other.contains_point(point) for other in shapes if other != shape):
+                if (
+                    point not in points
+                    and not any(
+                        other.contains_point(point)
+                        for other in shapes if other != shape
+                    )
+                ):
                     points.append(point)
 
     for shape1, shape2 in it.combinations(shapes, 2):
         for shape1_line, shape2_line in it.product(shape1.lines, shape2.lines):
             intersection = pygamelib.line_line_intersection(shape1_line, shape2_line)
             if intersection:
-                if not any(other.contains_point(intersection) for other in shapes if other != shape1 and other != shape2):
+                if (
+                    not any(
+                        other.contains_point(intersection)
+                        for other in shapes
+                        if other != shape1 and other != shape2
+                    )
+                ):
                     points.append(intersection)
-
-    from pygamelib import point_on_axisline
 
     lines = []
     for p1, p2 in it.combinations(points, 2):
+        candidate = tuple(sorted((p1, p2)))
+        points_on_line = tuple(p for p in points if point_on_axisline(p, candidate))
+        if len(points_on_line) != 2:
+            continue
         for shape in shapes:
             for line in shape.lines:
                 if point_on_axisline(p1, line) and point_on_axisline(p2, line):
-                    # theres and edge to travel on
-                    candidate = sorted([p1, p2])
+                    # p1 and p2 are on the same line so there's and edge to
+                    # travel on
                     lines.append(candidate)
 
+    # rendered later
+    clips = [
+        pygame.Rect(clip)
+        for shape1, shape2 in it.combinations(shapes, 2)
+        if (clip := shape1.clip(shape2))
+    ]
+
+    #pprint(lines)
+    # remove lines that intersect with any overlaps/clips
+    # NOTES
+    # - think we're picking up the corners and edges
+    todo_remove = []
+    for clip in clips:
+        corners = set(pygamelib.corners(clip))
+        for line in lines:
+            p1, p2 = line
+            if p1 in corners or p2 in corners:
+                continue
+            if any(pygamelib.line_rect_intersections(line, clip)):
+                todo_remove.append(line)
+            elif any(shape.contains_line(line) for shape in shapes):
+                todo_remove.append(line)
+
+    print('todo_remove')
+    pprint(todo_remove)
+    for remove_line in todo_remove:
+        while remove_line in lines:
+            lines.remove(remove_line)
+
+    # fixup for integers and tuples
+    lines = [tuple(tuple(map(int, point)) for point in line) for line in lines]
+
+    graphs = resolve_connected_lines(lines)
+    print('final')
+    pprint(list(enumerate(graphs)))
+
+    font = pygamelib.monospace_font(16)
     clock = pygame.time.Clock()
+    line_index_labels = True
     running = True
+
+    # create a list of colors in an order that alternates between the furthest
+    # away hue
+    stack = [
+        color for color in RANDOMIZED_COLORS
+        if pygame.Color(color).hsva[1:3] == (100, 100)
+    ]
+    colors = [stack.pop()]
+    while stack:
+        def color_dist(c):
+            c = pygame.Color(c)
+            last = pygame.Color(colors[-1])
+            a = c.hsva[0]
+            b = last.hsva[0]
+            return b - a
+        furthest = sorted(stack, key=color_dist)[-1]
+        index = stack.index(furthest)
+        furthest_color = stack.pop(index)
+        colors.append(furthest_color)
+
+    colors = list(it.islice(it.cycle(colors), len(lines)))
+
     screen = pygame.display.set_mode(display_size)
     while running:
         for event in pygame.event.get():
@@ -417,12 +538,31 @@ def run(display_size, framerate, background, shapes):
                 if event.key in (pygame.K_ESCAPE, pygame.K_q):
                     pygamelib.post_quit()
         screen.fill(background)
+        for clip in clips:
+            x, y, w, h = clip
+            image = pygame.Surface((w,h), pygame.SRCALPHA)
+            color = pygame.Color('grey50')
+            color.a = 255 // 5
+            pygame.draw.rect(image, color, (0, 0, w, h), 0)
+            screen.blit(image, (x, y))
         for point in points:
             pygame.draw.circle(screen, 'grey50', point, 8, 0)
         for shape in shapes:
-            shape.draw(screen, 'grey20', 1)
-        for line, color in zip(lines, RANDOMIZED_COLORS):
-            pygame.draw.line(screen, color, *line)
+            shape.draw(screen, 'grey20', 4)
+
+        # sorted by line length
+        #_lines = sorted(lines, key=lambda line: math.dist(line[0], line[1]))
+        for _lines in graphs:
+            for index, (line, color) in enumerate(zip(_lines, colors)):
+                pygame.draw.line(screen, color, *line)
+                if line_index_labels:
+                    text = f'[{index}]'
+                    _background = pygame.Surface(font.size(text), pygame.SRCALPHA)
+                    _background.fill(pygame.Color(color).lerp('black', 0.9))
+                    image = font.render(text, True, color)
+                    _background.blit(image, (0,0))
+                    pos = pygamelib.line_midpoint(line)
+                    screen.blit(_background, _background.get_rect(center=pos))
         pygame.display.flip()
         elapsed = clock.tick(framerate)
 

@@ -950,6 +950,9 @@ class Rectangle(
     def collides(self, other):
         return rect_collision(self, other)
 
+    def clip(self, other):
+        return rect_clip(self, other)
+
     def contains_point(self, point):
         # point collides without being one of our corners
         rect, *_ = self
@@ -960,6 +963,15 @@ class Rectangle(
         # - check also not on side/edge line?
         if point not in ((x,y), (r,y), (r,b), (x,b)):
             return pygame.Rect(rect).collidepoint(point)
+
+    def contains_line(self, line):
+        rect, *_ = self
+        x, y, w, h = rect
+        r = x + w
+        b = y + h
+        rect = pygame.Rect(rect)
+        mx, my = line_midpoint(line)
+        return x < mx < r and y < my < b
 
     def collide_point(self, point):
         rect, *_ = self
@@ -2696,7 +2708,18 @@ def line_line_intersection(line1, line2):
     line2p1, line2p2 = line2
     return find_intersection(line1p1, line1p2, line2p1, line2p2)
 
-def line_midpoint(p1, p2):
+def line_midpoint(line):
+    p1, p2 = line
+    x1, y1 = p1
+    x2, y2 = p2
+
+    if x1 > x2:
+        x1, x2 = x2, x1
+    if y1 > y2:
+        y1, y2 = y2, y1
+
+    return (x1 + ((x2 - x1) / 2), y1 + ((y2 - y1) / 2))
+
     p1 = pygame.Vector2(p1)
     p2 = pygame.Vector2(p2)
     return p1 + (p2 - p1) / 2
@@ -3073,6 +3096,9 @@ def circle_collision(circle1, circle2):
 
 def rect_collision(r1, r2):
     return pygame.Rect(r1).colliderect(r2)
+
+def rect_clip(r1, r2):
+    return pygame.Rect(r1).clip(r2)
 
 def point_on_axisline(point, line):
     px, py = point
