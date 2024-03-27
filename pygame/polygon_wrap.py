@@ -16,308 +16,10 @@ from pygamelib import unique_paths
 
 global RANDOMIZED_COLORS
 
-class PointsShareLine:
-
-    def __init__(self, shapes):
-        self.shapes = shapes
-        self.lines = [line for shape in self.shapes for line in shape.lines]
-
-    def __call__(self, p1, p2):
-        # do p1 and p2 share a line?
-
-        # lines that p1 touches
-        for line in lines_for_point(self.shapes, p1):
-            # true if p2 also touches it
-            if pygamelib.point_on_axisline(p2, line):
-                return True
-
-
-def orientation(p, q, r):
-    px, py = p
-    qx, qy = q
-    rx, ry = r
-    val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy)
-    if val == 0:
-        return 0 # collinear
-    elif val > 0:
-        return 1 # clockwise
-    else:
-        return 2 # anticlockwise
-
-def convex_hull(points):
-    n = len(points)
-    if n < 3:
-        return
-
-    # find the leftmost point
-    leftmost_index = min(range(n), key=lambda index: points[index][0])
-    p = leftmost_index
-    q = 0
-    while True:
-        yield points[p]
-        q = (p + 1) % n
-        for i in range(n):
-            if orientation(points[p], points[i], points[q]) == 2:
-                q = i
-        p = q
-        if p == leftmost_index:
-            break
-
-def screen_polar_angle(p, q):
-    px, py = p
-    qx, qy = q
-    return math.atan2(-qy - -py, qx - px)
-
-def tight_convex_hull(points):
-    n = len(points)
-    if n < 3:
-        return
-
-    def compare(p1, p2):
-        o = orientation(points[0], p1, p2)
-        if o == 0:
-            return (
-                (p1[0] - points[0][0]) ** 2
-                +
-                (p1[1] - points[0][1]) ** 2
-                -
-                (
-                    (p2[0] - points[0][0]) ** 2
-                    +
-                    (p2[1] - points[0][1]) ** 2
-                )
-            )
-        return -1 if o == 2 else 1
-
-    points = sorted(points, key=lambda point: (point[1], point[0]))
-
-    # remove collinear points
-    stack = [points[0]]
-    for i in range(1, n):
-        while len(stack) > 1 and orientation(stack[-2], stack[-1], points[i]) == 0:
-            stack.pop()
-        stack.append(points[i])
-
-    points = stack
-
-    if len(points) < 3:
-        for point in points:
-            yield point
-        return
-
-    # apply Graham Scan
-    hull = [points[0], points[1]]
-    for i in range(2, len(points)):
-        while len(hull) > 1 and orientation(hull[-2], hull[-1], points[i]) != 2:
-            hull.pop()
-        hull.append(points[i])
-
-    for point in hull:
-        yield point
-
-def lines_for_point(shapes, point):
-    # the lines that point touches
-    for shape in shapes:
-        for line in shape.lines:
-            if pygamelib.point_on_axisline(point, line):
-                yield line
-
-def line_midpoint_in_shape(shapes, line):
-    midpoint = pygamelib.line_midpoint(*line)
-    for shape in shapes:
-        if shape.contains_point(midpoint):
-            return True
-
-def connected_lines_for_point(shapes, point):
-    for shape in shapes:
-        for line in shape.lines:
-            if not line_midpoint_in_shape(shapes, line):
-                if pygamelib.point_on_axisline(point, line):
-                    yield line
-
 def points_on_line(points, line):
     for point in points:
         if pygamelib.point_on_axisline(point, line):
             yield point
-
-def grouped_shapes(shapes):
-    def is_edge(shape1, shape2):
-        return shape1.collides(shape2)
-    graph = pygamelib.make_graph(shapes, is_edge)
-    groups = list(pygamelib.unique_paths(graph))
-    return groups
-
-def uncovered_points(shapes):
-    for shape in shapes:
-        for point in shape.points:
-            others = (other for other in shapes if other != shape)
-            if not any(other.contains_point(point) for other in others):
-                # we've got a corner point that is not entirely contained by
-                # another shape
-                yield point
-
-    for shape1, shape2 in it.combinations(shapes, 2):
-        for point in shape1.intersections(shape2):
-            others = (other for other in shapes if other not in (shape1, shape2))
-            if not any(other.inside_point(point) for other in others):
-                yield point
-
-def get_hulls(shapes):
-    groups = grouped_shapes(shapes)
-    for _shapes in groups:
-        _points = list(tuple(map(int, point)) for point in uncovered_points(_shapes))
-        yield _points
-
-def render_shapes(screen, offset, shapes):
-    fillcolor = pygame.Color('grey50')
-    fillcolor.a = 50
-    for shape in shapes:
-        shape.render_onto(screen, fillcolor, 0, offset)
-        shape.render_onto(screen, 'grey15', 1, offset)
-
-def find_hover_point(hulls, event_pos):
-    # broken for camera
-    # unwind
-    points = (point for points in hulls for point in points)
-    # filter
-    points = (point for point in points if math.dist(event_pos, point) < 30)
-    # minimum
-    return min(points, key=lambda p: math.dist(p, event_pos), default=None)
-
-def render_points(screen, offset, hulls, font, label=False):
-    for hull_points in hulls:
-        for index, hull_point in enumerate(hull_points):
-            pygame.draw.circle(screen, 'grey20', hull_point, 4)
-            if label:
-                image = font.render(f'{index}', True, 'linen')
-                screen.blit(image, image.get_rect(center=hull_point))
-
-def render_connected_points(
-    screen,
-    offset,
-    shapes,
-    hover_point,
-    hull_points,
-    hull_point,
-):
-    connected_lines = list(lines_for_point(shapes, hover_point))
-    for connected_line in connected_lines:
-        pygame.draw.line(screen, 'blue', *connected_line)
-
-    connected_points = [
-        connected_point
-        for connected_line in connected_lines
-        for connected_point in points_on_line(hull_points, connected_line)
-        if connected_point != hover_point
-    ]
-
-    for p, q in it.combinations(connected_points, 2):
-        if orientation(p, hull_point, q) != 0:
-            for connected_point in [p, q]:
-                pygame.draw.circle(screen, 'white', connected_point, 6)
-            break
-
-def render_hulls(screen, offset, hover_point, shapes, hulls):
-    # deliberately not using offset yet
-    for hull_points in hulls:
-        for hull_point in hull_points:
-            if hull_point == hover_point:
-                color = 'red'
-            else:
-                color = 'grey20'
-            # draw hull point
-            pygame.draw.circle(screen, color, hull_point, 4)
-            if hover_point:
-                render_connected_points(
-                    screen,
-                    offset,
-                    shapes,
-                    hover_point,
-                    hull_points,
-                    hull_point,
-                )
-
-def render_polygon_attempt1(screen, colors, unique_paths_paths):
-    items = zip(unique_paths_paths, colors)
-    for unique_paths, color in items:
-        for unique_path in unique_paths:
-            pygame.draw.polygon(screen, color, unique_path, 1)
-
-def line_to_rect(line):
-    p1, p2 = line
-    x1, y1 = p1
-    x2, y2 = p2
-    if x1 > x2:
-        x1, x2 = x2, x1
-    if y1 > y2:
-        y1, y2 = y2, y1
-    if x1 == x2:
-        # vertical
-        return pygame.Rect(x1, y1, 1, y2 - y1)
-    elif y1 == y2:
-        # horizontal
-        return pygame.Rect(x1, y1, x2 - x1, 1)
-
-def render_lines_for_hover(screen, offset, hover_point, shapes):
-    if not hover_point:
-        return
-    lines = (line for shape in shapes for line in shape.lines)
-    _colors = iter(RANDOMIZED_COLORS)
-    # TODO
-    # - filter out line segments that go through a shape--if there is any clip at all
-    # - represent line as rect of width or height == 1
-
-    for shape in shapes:
-        for line in shape.lines:
-            if pygamelib.point_on_axisline(hover_point, line):
-                line_sections = pygamelib.bisect_axis_line(line, hover_point)
-                for line_section, color in zip(line_sections, _colors):
-                    for _shape in shapes:
-                        if _shape is not shape:
-                            if line_to_rect(line_section).clip(_shape):
-                                break
-                    else:
-                        pygame.draw.line(screen, color, *line_section)
-
-def render_line_segments_for_hover(screen, offset, hover_point, line_segment_for_point):
-    if not hover_point:
-        return
-    _colors = iter(RANDOMIZED_COLORS)
-    for line, color in zip(line_segment_for_point[hover_point], _colors):
-        pygame.draw.line(screen, color, *line)
-        for point in line:
-            pygame.draw.circle(screen, color, point, 4, 0)
-
-def render_connected_points_for_hover(screen, offset, hover_point, graphs_for_hulls, hulls):
-    if hover_point is None:
-        return
-    for hull_points, graph in zip(hulls, graphs_for_hulls):
-        if hover_point not in hull_points:
-            continue
-        connected_points = sorted(
-            graph[hover_point],
-            key=lambda p: math.dist(p, hover_point)
-        )
-        for point in connected_points[:2]:
-            pygame.draw.circle(screen, 'blue', point, 8)
-    render_hover_point(screen, offset, hover_point)
-
-def render_hover_point(screen, offset, hover_point):
-    if hover_point:
-        pygame.draw.circle(screen, 'red', hover_point, 4)
-
-def connected_lines(lines):
-    for line1, line2 in it.combinations(lines, 2):
-        line1_p1, line1_p2 = line1
-        line2_p1, lien2_p2 = line2
-        if line1_p1 == line2_p2:
-            # line2 --> line1
-            # line1_p1 is the end point of line2
-            yield (line2_p1, line2_p2, line1_p2)
-        if line1_p2 == line2_p1:
-            # start of line2 is the end of line1
-            # line2 --> line1
-            yield (line1_p1, line1_p2, line2_p2)
 
 def resolve_connected_lines(lines):
     graph = {}
@@ -350,7 +52,7 @@ def do_intersect(line1, line2):
     # endpoints are connected
     return set(line1).intersection(line2)
 
-def run(display_size, framerate, background, shapes):
+def groups_from_shapes(shapes, clips):
     points = []
 
     for shape in shapes:
@@ -391,13 +93,6 @@ def run(display_size, framerate, background, shapes):
                     # travel on
                     lines.append(candidate)
 
-    # rendered later
-    clips = [
-        pygame.Rect(clip)
-        for shape1, shape2 in it.combinations(shapes, 2)
-        if (clip := shape1.clip(shape2))
-    ]
-
     # remove lines that intersect with any overlaps/clips
     todo_remove = []
     for clip in clips:
@@ -418,7 +113,19 @@ def run(display_size, framerate, background, shapes):
     # fixup for integers and tuples
     lines = [tuple(tuple(map(int, point)) for point in line) for line in lines]
 
-    graphs = resolve_connected_lines(lines)
+    groups = resolve_connected_lines(lines)
+    return groups
+
+def run(display_size, framerate, background, shapes):
+
+    # rendered later
+    clips = [
+        pygame.Rect(clip)
+        for shape1, shape2 in it.combinations(shapes, 2)
+        if (clip := shape1.clip(shape2))
+    ]
+
+    graphs = groups_from_shapes(shapes, clips)
 
     font = pygamelib.monospace_font(16)
     clock = pygame.time.Clock()
@@ -444,7 +151,8 @@ def run(display_size, framerate, background, shapes):
         furthest_color = stack.pop(index)
         colors.append(furthest_color)
 
-    colors = list(it.islice(it.cycle(colors), len(lines)))
+    colors = list(it.islice(it.cycle(colors), sum(map(len, graphs))))
+    points = [point for group in graphs for line in group for point in line]
 
     screen = pygame.display.set_mode(display_size)
     while running:
