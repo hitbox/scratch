@@ -30,6 +30,63 @@ del os
 DEFAULT_DISPLAY_SIZE = (800, 800)
 DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT = DEFAULT_DISPLAY_SIZE
 
+class TestSnakeCaseFunction(unittest.TestCase):
+
+    def test_simple(self):
+        self.assertEqual(snake_case('PascalCase'), 'pascal_case')
+
+    def test_underscore_in_pascal(self):
+        # not sure what to do if underscores are in pascal case
+        with self.assertRaises(ValueError):
+            snake_case('Pascal_Case')
+
+    def test_weird(self):
+        self.assertEqual(snake_case('PC'), 'pc')
+        # leave runs of caps alone
+        self.assertEqual(snake_case('XML'), 'xml')
+
+    def test_todo_fix_loses_parts(self):
+        # FIXME
+        # - loses the XML part
+        self.assertEqual(snake_case('XMLShapes'), 'shapes')
+
+
+class TestPointOnAxisLine(unittest.TestCase):
+
+    def test_horizontal_line(self):
+        line = ((0,0), (10,0))
+        self.assertTrue(point_on_axisline((0,0), line))
+        self.assertTrue(point_on_axisline((5,0), line))
+        self.assertTrue(point_on_axisline((10,0), line))
+
+        self.assertFalse(point_on_axisline((-1,0), line))
+        self.assertFalse(point_on_axisline((11,0), line))
+        self.assertFalse(point_on_axisline((5,5), line))
+
+    def test_vertical_line(self):
+        line = ((0,0), (0,10))
+        self.assertTrue(point_on_axisline((0,0), line))
+        self.assertTrue(point_on_axisline((0,5), line))
+        self.assertTrue(point_on_axisline((0,10), line))
+
+        self.assertFalse(point_on_axisline((0,-1), line))
+        self.assertFalse(point_on_axisline((0,11), line))
+        self.assertFalse(point_on_axisline((5,5), line))
+
+    def test_horizontal_line_reversed(self):
+        # when the line is two points not in normal axis order
+        line = ((10,0), (0,0))
+        self.assertTrue(point_on_axisline((0,0), line))
+        self.assertTrue(point_on_axisline((5,0), line))
+        self.assertTrue(point_on_axisline((10,0), line))
+
+    def test_vertical_line_reversed(self):
+        line = ((0,10), (0,0))
+        self.assertTrue(point_on_axisline((0,0), line))
+        self.assertTrue(point_on_axisline((0,5), line))
+        self.assertTrue(point_on_axisline((0,10), line))
+
+
 class TestModOffset(unittest.TestCase):
     """
     Test modulo with offset.
@@ -256,6 +313,88 @@ class TestInputLine(unittest.TestCase):
         self.input_line.addchar('b')
         self.input_line.backspace()
         self.assertEqual(self.input_line.line, 'a')
+
+
+class Timer:
+
+    def __init__(self, start, duration, end_stop=None):
+        self.start = start
+        self.duration = duration
+        if end_stop is None:
+            end_stop = 1
+        self.end_stop = end_stop
+        self.end = None
+        self.time = 0
+        self.start_count = 0
+        self.end_count = 0
+
+    def is_running(self):
+        return self.end_count < self.start_count
+
+    def is_stopped(self):
+        return self.end_count == self.start_count
+
+    def should_start(self):
+        return self.end_count < self.end_stop and self.time >= self.start
+
+    def should_end(self):
+        return self.end and self.time >= self.end
+
+    def update(self, elapsed):
+        self.time += elapsed
+        if self.is_running():
+            if self.should_end():
+                self.end_count += 1
+        elif self.should_start():
+            self.start_count += 1
+            if self.end_count > 0:
+                # repeating, advance start by duration
+                self.start += self.duration
+            self.end = self.start + self.duration
+
+    def normtime(self):
+        return (self.time - self.start) / self.duration
+
+
+class FontRenderer:
+
+    def __init__(self, font, color, antialias=True, background=None):
+        self.font = font
+        self.color = color
+        self.antialias = antialias
+        self.background = background
+
+    def __call__(self, string, antialias=None, color=None, background=None):
+        if antialias is None:
+            antialias = self.antialias
+        if color is None:
+            color = self.color
+        if background is None:
+            background = self.background
+        return self.font.render(string, antialias, color, background)
+
+
+class FontPrinter:
+    """
+    Callable renders like print() from pygame font.
+    """
+
+    def __init__(self, font, color=None, antialias=True):
+        self.font = font
+        self.color = color
+        self.antialias = antialias
+
+    def __call__(self, lines, color=None):
+        """
+        Render lines from top to bottom into an image.
+        """
+        color = color or self.color
+        args = (lines, self.font, color, self.antialias)
+        images, rects = make_blitables_from_font(*args)
+        _, _, w, h = wrap(rects)
+        result = pygame.Surface((w, h), pygame.SRCALPHA)
+        result.blits(list(zip(images, rects)))
+        return result
 
 
 class sizetype:
@@ -1407,141 +1546,6 @@ def post_videoexpose():
     _post(pygame.VIDEOEXPOSE)
 
 # general purpose
-
-class TestSnakeCaseFunction(unittest.TestCase):
-
-    def test_simple(self):
-        self.assertEqual(snake_case('PascalCase'), 'pascal_case')
-
-    def test_underscore_in_pascal(self):
-        # not sure what to do if underscores are in pascal case
-        with self.assertRaises(ValueError):
-            snake_case('Pascal_Case')
-
-    def test_weird(self):
-        self.assertEqual(snake_case('PC'), 'pc')
-        # leave runs of caps alone
-        self.assertEqual(snake_case('XML'), 'xml')
-
-    def test_todo_fix_loses_parts(self):
-        # FIXME
-        # - loses the XML part
-        self.assertEqual(snake_case('XMLShapes'), 'shapes')
-
-
-class TestPointOnAxisLine(unittest.TestCase):
-
-    def test_horizontal_line(self):
-        line = ((0,0), (10,0))
-        self.assertTrue(point_on_axisline((0,0), line))
-        self.assertTrue(point_on_axisline((5,0), line))
-        self.assertTrue(point_on_axisline((10,0), line))
-
-        self.assertFalse(point_on_axisline((-1,0), line))
-        self.assertFalse(point_on_axisline((11,0), line))
-        self.assertFalse(point_on_axisline((5,5), line))
-
-    def test_vertical_line(self):
-        line = ((0,0), (0,10))
-        self.assertTrue(point_on_axisline((0,0), line))
-        self.assertTrue(point_on_axisline((0,5), line))
-        self.assertTrue(point_on_axisline((0,10), line))
-
-        self.assertFalse(point_on_axisline((0,-1), line))
-        self.assertFalse(point_on_axisline((0,11), line))
-        self.assertFalse(point_on_axisline((5,5), line))
-
-    def test_horizontal_line_reversed(self):
-        # when the line is two points not in normal axis order
-        line = ((10,0), (0,0))
-        self.assertTrue(point_on_axisline((0,0), line))
-        self.assertTrue(point_on_axisline((5,0), line))
-        self.assertTrue(point_on_axisline((10,0), line))
-
-    def test_vertical_line_reversed(self):
-        line = ((0,10), (0,0))
-        self.assertTrue(point_on_axisline((0,0), line))
-        self.assertTrue(point_on_axisline((0,5), line))
-        self.assertTrue(point_on_axisline((0,10), line))
-
-
-class Timer:
-
-    def __init__(self, start, duration, end_stop=None):
-        self.start = start
-        self.duration = duration
-        if end_stop is None:
-            end_stop = 1
-        self.end_stop = end_stop
-        self.end = None
-        self.time = 0
-        self.start_count = 0
-        self.end_count = 0
-
-    def is_running(self):
-        return self.end_count < self.start_count
-
-    def is_stopped(self):
-        return self.end_count == self.start_count
-
-    def should_start(self):
-        return self.end_count < self.end_stop and self.time >= self.start
-
-    def should_end(self):
-        return self.end and self.time >= self.end
-
-    def update(self, elapsed):
-        self.time += elapsed
-        if self.is_running():
-            if self.should_end():
-                self.end_count += 1
-        elif self.should_start():
-            self.start_count += 1
-            if self.end_count > 0:
-                # repeating, advance start by duration
-                self.start += self.duration
-            self.end = self.start + self.duration
-
-    def normtime(self):
-        return (self.time - self.start) / self.duration
-
-
-class FontRenderer:
-
-    def __init__(self, font, color, antialias=True, background=None):
-        self.font = font
-        self.color = color
-        self.antialias = antialias
-        self.background = background
-
-    def __call__(self, string, antialias=None, color=None, background=None):
-        if antialias is None:
-            antialias = self.antialias
-        if color is None:
-            color = self.color
-        if background is None:
-            background = self.background
-        return self.font.render(string, antialias, color, background)
-
-
-class FontPrinter:
-    """
-    Callable renders like print() from pygame font.
-    """
-
-    def __init__(self, font, color, antialias=True):
-        self.font = font
-        self.color = color
-        self.antialias = antialias
-
-    def __call__(self, lines):
-        args = (lines, self.font, self.color, self.antialias)
-        images, rects = make_blitables_from_font(*args)
-        _, _, w, h = wrap(rects)
-        result = pygame.Surface((w, h), pygame.SRCALPHA)
-        result.blits(list(zip(images, rects)))
-        return result
-
 
 pascal_case_re = re.compile(r'[A-Z][a-z]+')
 
@@ -2708,6 +2712,17 @@ def line_line_intersection(line1, line2):
     line2p1, line2p2 = line2
     return find_intersection(line1p1, line1p2, line2p1, line2p2)
 
+def is_axis_aligned(line):
+    p1, p2 = line
+    return p1[0] == p2[0] or p1[1] == p2[1]
+
+def slope(line):
+    (x1, y1), (x2, y2) = line
+    dx = (x2 - x1)
+    if dx == 0:
+        return
+    return (y2 - y1) / dx
+
 def line_midpoint(line):
     p1, p2 = line
     x1, y1 = p1
@@ -3108,9 +3123,9 @@ def point_on_axisline(point, line):
     if y1 > y2:
         y1, y2 = y2, y1
     return (
-        py == y1 == y2 and x1 <= px <= x2
+        (py == y1 == y2 and x1 <= px <= x2)
         or
-        px == x1 == x2 and y1 <= py <= y2
+        (px == x1 == x2 and y1 <= py <= y2)
     )
 
 def point_inside_line(point, line):
@@ -3600,6 +3615,43 @@ def unique_paths(graph):
         if set(path) not in _paths:
             yield path
             _paths.append(set(path))
+
+def _overlaps(rects):
+    for r1, r2 in it.product(rects, repeat=2):
+        if r1 != r2 and r1.colliderect(r2):
+            overlap = (r1.centerx - r2.centerx, r1.centery - r2.centery)
+            yield (r1, r2, overlap)
+
+def resolve_rect_collisions(rects, iterations):
+    # - mutates the rect objects
+    for n in it.count():
+        if n > iterations:
+            break
+        overlaps = tuple(_overlaps(rects))
+        if not overlaps:
+            break
+        for r1, r2, (dx, dy) in overlaps:
+            if abs(dx) > abs(dy):
+                if dx > 0:
+                    r1.left = r2.right
+                else:
+                    r1.right = r2.left
+            else:
+                if dy > 0:
+                    r1.bottom = r2.top
+                else:
+                    r1.top = r2.bottom
+
+
+def contains_point(rect, point):
+    # point collides without being one of our corners
+    x, y, w, h = rect
+    r = x + w
+    b = y + h
+    # TODO
+    # - check also not on side/edge line?
+    if point not in ((x,y), (r,y), (r,b), (x,b)):
+        return pygame.Rect(rect).collidepoint(point)
 
 # clockwise ordered rect side attribute names mapped with their opposites
 SIDENAMES = ['top', 'right', 'bottom', 'left']
