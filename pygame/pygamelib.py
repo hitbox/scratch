@@ -1521,6 +1521,10 @@ def circle_segment_points(angles, radii, closed=False):
 # engine
 
 def run(state):
+    # XXX
+    # - remove?
+    # - don't remember using this
+    # - really, a whole function to do this?
     engine = Engine()
     engine.run(state)
 
