@@ -30,6 +30,8 @@ del os
 DEFAULT_DISPLAY_SIZE = (800, 800)
 DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT = DEFAULT_DISPLAY_SIZE
 
+FILL = 0
+
 class TestSnakeCaseFunction(unittest.TestCase):
 
     def test_simple(self):
@@ -1422,6 +1424,56 @@ class SpriteSheet(
         return sliceimage(self.image, (width, height))
 
 
+class RectRenderer:
+    # XXX
+    # - separate "structure" from style?
+
+    def __init__(
+        self,
+        color,
+        width = 0,
+        border_radius = 0,
+        border_top_left_radius = -1,
+        border_top_right_radius = -1,
+        border_bottom_left_radius = -1,
+        border_bottom_right_radius = -1,
+    ):
+        self.color = color
+        self.width = width
+        self.border_radius = border_radius
+        self.border_top_left_radius = border_top_left_radius
+        self.border_top_right_radius = border_top_right_radius
+        self.border_bottom_left_radius = border_bottom_left_radius
+        self.border_bottom_right_radius = border_bottom_right_radius
+
+    def draw_kwargs(self):
+        return dict(
+            width = self.width,
+            border_radius = self.border_radius,
+            border_top_left_radius = self.border_top_left_radius,
+            border_top_right_radius = self.border_top_right_radius,
+            border_bottom_left_radius = self.border_bottom_left_radius,
+            border_bottom_right_radius = self.border_bottom_right_radius,
+        )
+
+    def __call__(self, surf, rect):
+        if isinstance(self.color, (list, tuple)):
+            for (p1, p2), color in zip(side_lines(rect), self.color):
+                pygame.draw.line(surf, color, p1, p2) # TODO other args
+        else:
+            return pygame.draw.rect(surf, self.color, rect, **self.draw_kwargs())
+
+
+class StackedRectRenderer:
+
+    def __init__(self, rect_renderers):
+        self.rect_renderers = rect_renderers
+
+    def __call__(self, surf, rect):
+        for renderer in self.rect_renderers:
+            renderer(surf, rect)
+
+
 def scale(factor, image):
     # - partial-able function
     size = pygame.Vector2(image.get_size()) * factor
@@ -1918,6 +1970,12 @@ def add_shapes_from_file_arguments(
 
     parser.add_argument('shape_type', choices=shape_choices)
 
+def add_number_option(parser, name='-n', **kwargs):
+    kwargs.setdefault('type', int)
+    kwargs.setdefault('default', 1)
+    kwargs.setdefault('help', 'Number of things. Default: %(default)s')
+    parser.add_argument(name, **kwargs)
+
 def shapes_from_args(args):
     if args.shape_type == 'circle':
         type_ = Circle.from_arg
@@ -1931,7 +1989,7 @@ def shapes_from_args(args):
 
 def format_pipe(iterable, null_separator, dimsep):
     """
-    :param iterable: iterable of iterables
+    :param iterable: iterable of items
     """
     # fairly purpose built for rects
     if null_separator:
@@ -2016,6 +2074,9 @@ def get_subcommand_name(demo_class):
         name = snake_case(demo_class.__name__)
     return name
 
+def stop_repeat():
+    pygame.key.set_repeat(0)
+
 # rects
 
 def is_point_name(name):
@@ -2052,10 +2113,10 @@ def opposite_items(indexable):
 def make_rect(rect=None, **kwargs):
     if rect is None:
         rect = EMPTY_RECT
-    rect = rect.copy()
+    rect = pygame.Rect(rect).copy()
     for key, val in kwargs.items():
         setattr(rect, key, val)
-    return rect
+    return tuple(rect)
 
 def from_points(x1, y1, x2, y2):
     w = x2 - x1
@@ -2082,14 +2143,10 @@ def maxsides(*rects):
     return aggsides(max, *rects)
 
 def wrap(rects):
-    tops, rights, bottoms, lefts = zip(*map(extremities, rects))
-    x = min(lefts)
-    y = min(tops)
-    right = max(rights)
-    bottom = max(bottoms)
-    width = right - x
-    height = bottom - y
-    return (x, y, width, height)
+    # NOTES
+    # - wrapping only makes sense against an iterable of rects
+    top, right, bottom, left = extremities(*rects)
+    return (top, left, right - left, bottom - top)
 
 def iter_rect_diffs(inside, outside):
     """
@@ -2296,33 +2353,85 @@ def arrange_columns(rects, ncols, colattr, rowattr):
         for rect in _rects:
             setattr(rect, colattr, getattr(column, colattr))
 
+def get_rects_flow(images, flowx=0, flowy=0):
+    """
+    :param images: indexable of images
+    :param flowx: boolean or scale amount of influence
+    As in, flowx=True mean "flow in the x direction"
+    """
+    images = iter(images)
+    rect = next(images).get_rect()
+    yield rect
+    x, y = rect.bottomright
+    for image in images:
+        rect = image.get_rect(x=flowx*x, y=flowy*y)
+        yield rect
+        x, y = rect.bottomright
+
+def flow(rects, flowx=0, flowy=0):
+    # NOTE
+    # - must be pygame.Rect or similar to modify
+    if not flowx and not flowy:
+        raise ValueError('one flow arg required')
+    rects = iter(rects)
+    x, y = next(rects).bottomright
+    for rect in rects:
+        rect.x += flowx * x
+        rect.y += flowy * y
+        # XXX
+        # - this probably makes it impossible to flow other than right and
+        #   down.
+        x, y = rect.bottomright
+
 def make_blitables_from_font(lines, font, color, antialias=True):
-    images = [font.render(line, antialias, color) for line in lines]
-    rects = [image.get_rect() for image in images]
+    images = tuple(font.render(line, antialias, color) for line in lines)
+    rects = tuple(image.get_rect() for image in images)
     flow_topbottom(rects)
     return (images, rects)
 
 def move_as_one(rects, **kwargs):
     orig = pygame.Rect(wrap(rects))
-    dest = make_rect(orig, **kwargs)
+    dest = pygame.Rect(make_rect(orig, **kwargs))
     delta = pygame.Vector2(dest.topleft) - orig.topleft
     for rect in rects:
         rect.topleft += delta
 
-def system_font(name, size, bold=False, italic=False):
+def clamp_as_one(target, rects, inside):
+    """
+    Move `rects` as one such that `target` is contained by `inside`.
+    """
+    orig = pygame.Rect(wrap(rects))
+    target_dest = pygame.Rect(target).clamp(inside)
+    delta = pygame.Vector2(target_dest.topleft) - pygame.Rect(target).topleft
+    for rect in rects:
+        rect.topleft += delta
+
+# TODO
+# - would like default font attributes
+# - how to customize though?
+# - how to access?
+# - eventually want markup/undertale styling of words and letters and whatnot
+# - have to have a font for every styling
+#   like bold, requires a new font object
+
+default_font_style = dict(
+    bold = False,
+    italic = False,
+)
+
+def system_font(name, size, **style):
     # init is very cheap and this removes a pain point
     # timeit: 10000000 loops, best of 5: 24.1 nsec per loop
     pygame.font.init()
-    return pygame.font.SysFont(name, size, bold, italic)
+    for key, val in default_font_style.items():
+        style.setdefault(key, val)
+    return pygame.font.SysFont(name, size, **style)
 
-def font(name, size, bold=False, italic=False):
-    return system_font(name, size, bold, italic)
+def sans_serif_font(size, **style):
+    return system_font('sans-serif', size, **style)
 
-def sans_serif_font(size, bold=False, italic=False):
-    return font('sans-serif', size, bold, italic)
-
-def monospace_font(size, bold=False, italic=False):
-    return font('monospace', size, bold, italic)
+def monospace_font(size, **style):
+    return system_font('monospace', size, **style)
 
 def render_text(
     font,
@@ -2359,6 +2468,10 @@ def render_text(
     text_rect = text_image.get_rect(**text_kw)
     result_image.blit(text_image, text_rect)
     return result_image
+
+def blit(surface, source, dest, area=None, special_flags=0):
+    # standalone callable for some_surface.blit(source, dest, ...)
+    return surface.blit(source, dest, area, special_flags)
 
 def blit_rect(surf, rect, color):
     x, y, w, h = rect
@@ -2852,11 +2965,15 @@ def find_empty_space(rects, inside):
         empties = list(subtract_rect_from_all(empties, rect))
     return empties
 
-def extremities(rect):
+def extremities(*rects):
     """
-    Clockwise sides of rect starting from top.
+    Clockwise scalar sides of rect(s) starting from top.
     """
-    left, top, width, height = rect
+    xs, ys, ws, hs = zip(*map(tuple, rects))
+    left = min(xs)
+    top = min(ys)
+    width = max(ws)
+    height = min(hs)
     right = left + width
     bottom = top + height
     return (top, right, bottom, left)
@@ -3664,7 +3781,7 @@ SIDES = dict(opposite_items(SIDENAMES))
 # clockwise ordered rect point attribute names mapped with their opposites
 POINTS = dict(opposite_items(tuple(point_attrs(tuple(SIDES)))))
 
-EMPTY_RECT = pygame.Rect((0,)*4)
+EMPTY_RECT = (0, 0, 0, 0)
 
 CORNERNAMES = ['topleft', 'topright', 'bottomright', 'bottomleft']
 
