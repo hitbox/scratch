@@ -1,7 +1,24 @@
 import argparse
 import random
+import string
 
 import pygamelib
+
+class GibberishWords:
+
+    def __init__(self, min_len, max_len):
+        self.min_len = min_len
+        self.max_len = max_len
+
+    @classmethod
+    def from_args(cls, args):
+        return cls(args.min_len, args.max_len)
+
+    def __call__(self):
+        n = random.randint(self.min_len, self.max_len)
+        letters = random.sample(string.ascii_lowercase, n)
+        return ''.join(letters).title()
+
 
 class RandomCircleFromRange:
 
@@ -118,12 +135,6 @@ def _add_xy_range_arguments(sp, **kwargs):
         help = 'Range for random y values. Default: %(default)s.',
     )
 
-def add_number_option(parser, name='-n', **kwargs):
-    kwargs.setdefault('type', int)
-    kwargs.setdefault('default', 1)
-    kwargs.setdefault('help', 'Number of random shapes. Default: %(default)s')
-    parser.add_argument(name, **kwargs)
-
 def add_options_for_output(parser):
     pygamelib.add_null_separator_flag(
         parser,
@@ -140,7 +151,10 @@ def add_circle_subparser(subparsers, cmdname):
     add random circle subcommand
     """
     sp = subparsers.add_parser(cmdname)
-    add_number_option(sp)
+    pygamelib.add_number_option(
+        sp,
+        help = 'Number of circles to generate. Default: %(default)s.',
+    )
     RandomCircleFromRange.add_parser_options(sp)
     add_options_for_output(sp)
     sp.set_defaults(make_generator=RandomCircleFromRange.from_args)
@@ -150,7 +164,10 @@ def add_rects_from_ranges(subparsers, cmdname):
         cmdname,
         help = 'Random rects from ranges for x, y, width, and height.',
     )
-    add_number_option(sp)
+    pygamelib.add_number_option(
+        sp,
+        help = 'Number of rects to generate. Default: %(default)s.',
+    )
     RandomRectFromRanges.add_parser_options(sp)
     add_options_for_output(sp)
     sp.set_defaults(make_generator=RandomRectFromRanges.from_args)
@@ -169,7 +186,10 @@ def add_rects_from_points_subparser(subparsers, cmdname):
         type = domain_type,
         help = 'left, top, right, bottom. commas optional.',
     )
-    add_number_option(sp)
+    pygamelib.add_number_option(
+        sp,
+        help = 'Number of rects to generate. Default: %(default)s.',
+    )
     sp.add_argument(
         '--overlap-to-touching',
         default = False,
@@ -181,10 +201,45 @@ def add_rects_from_points_subparser(subparsers, cmdname):
     )
     pygamelib.add_null_separator_flag(
         sp,
-        help  = 'Separate rects with null.',
+        help = 'Separate rects with null.',
     )
     pygamelib.add_seed_option(sp)
     sp.set_defaults(make_generator=RandomRectFromPoints.from_args)
+
+def add_gibberish_words_subparser(subparsers, cmdname):
+    sp = subparsers.add_parser(
+        cmdname,
+        help = 'Random gibberish words.',
+    )
+    pygamelib.add_number_option(
+        sp,
+        help = 'Number of words to generate. Default: %(default)s.',
+    )
+    pygamelib.add_null_separator_flag(
+        sp,
+        help = 'Separate words with null.',
+    )
+    sp.add_argument(
+        '--min_len',
+        type = int,
+        default = 1,
+        help = 'Minimum random word length. Default: %(default)s.',
+    )
+    sp.add_argument(
+        '--max_len',
+        type = int,
+        default = 8,
+        help = 'Maximum random word length. Default: %(default)s.',
+    )
+    # TODO
+    # - dimensions separator is nonsense for this subparser!
+    pygamelib.add_dimension_separator_option(
+        sp,
+        default = '',
+        help = 'Nonsense!',
+    )
+    pygamelib.add_seed_option(sp)
+    sp.set_defaults(make_generator=GibberishWords.from_args)
 
 def main(argv=None):
     """
@@ -200,6 +255,10 @@ def main(argv=None):
     add_circle_subparser(subparsers, 'circles-from-ranges')
     add_rects_from_ranges(subparsers, 'rects-from-ranges')
     add_rects_from_points_subparser(subparsers, 'rects-from-points')
+    add_gibberish_words_subparser(subparsers, 'gibberish-words')
+    # TODO
+    # - loop over all subparsers adding the options that are pretty much
+    #   required here
     args = parser.parse_args(argv)
 
     if args.seed:
@@ -207,9 +266,9 @@ def main(argv=None):
 
     null_separator = args.null
     generator = args.make_generator(args)
-    shapes = [generator() for _ in range(args.n)]
+    items = [generator() for _ in range(args.n)]
 
-    string = pygamelib.format_pipe(shapes, null_separator, args.dimsep)
+    string = pygamelib.format_pipe(items, null_separator, args.dimsep)
     pygamelib.print_pipe(string, null_separator)
 
 if __name__ == '__main__':
