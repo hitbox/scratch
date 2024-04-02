@@ -56,7 +56,7 @@ class Quaternion(namedtuple('Quaternion', 'w x y z')):
             return result
 
         theta_0 = math.acos(dot)
-        theta = theta_0 * t
+        theta = theta_0 * time
         sin_theta = math.sin(theta)
         sin_theta_0 = math.sin(theta_0)
 
@@ -64,12 +64,21 @@ class Quaternion(namedtuple('Quaternion', 'w x y z')):
         s1 = sin_theta / sin_theta_0
 
         return Quaternion(
-            s0 * q1.w + s1 * q2.w,
-            s0 * q1.x + s1 * q2.x,
-            s0 * q1.y + s1 * q2.y,
-            s0 * q1.z + s1 * q2.z
+            s0 * w1 + s1 * w2,
+            s0 * x1 + s1 * x2,
+            s0 * y1 + s1 * y2,
+            s0 * z1 + s1 * z2,
         )
 
+    def as_euler(self):
+        norm = math.sqrt(sum(q * q for q in self))
+        w, x, y, z = (q / norm for q in self)
+
+        roll = math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y))
+        pitch = math.asin(2 * (w * y - z * x))
+        yaw = math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+
+        return (roll, pitch, yaw)
 
 
 def quaternion_multiply(q1, q2):

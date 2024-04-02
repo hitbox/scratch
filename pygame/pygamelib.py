@@ -1970,10 +1970,12 @@ def add_shapes_from_file_arguments(
 
     parser.add_argument('shape_type', choices=shape_choices)
 
-def add_number_option(parser, name='-n', **kwargs):
+def add_number_option(parser, name='-n', subject=None, **kwargs):
+    if subject is None:
+        subject = 'things'
     kwargs.setdefault('type', int)
     kwargs.setdefault('default', 1)
-    kwargs.setdefault('help', 'Number of things. Default: %(default)s')
+    kwargs.setdefault('help', f'Number of {subject}. Default: %(default)s')
     parser.add_argument(name, **kwargs)
 
 def shapes_from_args(args):
@@ -2911,6 +2913,28 @@ def random_rect_from_empties(empties):
     if y2 < y1:
         y1, y2 = y2, y1
     return (x1, y1, x2 - x1, y2 - y1)
+
+def random_rect2(inside, minsize=None, maxsize=None):
+    left, top, width, height = inside
+
+    if minsize is None:
+        minsize = (1, 1)
+    minwidth, minheight = minsize
+
+    if maxsize is None:
+        maxsize = (width - minwidth, height - minheight)
+    maxwidth, maxheight = maxsize
+
+    _width = random.randint(minwidth, maxwidth)
+    _height = random.randint(minheight, maxheight)
+
+    right = (left + width) - _width
+    bottom = (top + height) - _height
+
+    x = random.randint(left, right)
+    y = random.randint(top, bottom)
+
+    return (x, y, _width, _height)
 
 def subtract_rect(space, rect_to_subtract):
     """
