@@ -2212,6 +2212,14 @@ def side_lines(rect):
     for func in _side_line_funcs:
         yield func(rect)
 
+def hlines(rect):
+    yield topline(rect)
+    yield bottomline(rect)
+
+def vlines(rect):
+    yield leftline(rect)
+    yield rightline(rect)
+
 def oriented_side_lines(rect):
     top, right, bottom, left = side_lines(rect)
     yield (top, bottom)
@@ -2822,14 +2830,61 @@ def find_intersection(p1, q1, p2, q2):
     intersection_point = (p1[0] + t * (q1[0] - p1[0]), p1[1] + t * (q1[1] - p1[1]))
     return intersection_point
 
-def line_line_intersection2(x1, y1, x2, y2, x3, y3, x4, y4):
+#def line_line_intersection2(x1, y1, x2, y2, x3, y3, x4, y4):
+def line_line_intersection2(line1, line2):
     # works!
+    return find_intersection(line1[0], line1[1], line2[0], line2[1])
     return find_intersection((x1, y1), (x2, y2), (x3, y3), (x4, y4))
 
 def line_line_intersection(line1, line2):
     line1p1, line1p2 = line1
     line2p1, line2p2 = line2
     return find_intersection(line1p1, line1p2, line2p1, line2p2)
+
+def rect_rect_intersections(rect1, rect2):
+    for line1, line2 in it.product(hlines(rect1), vlines(rect2)):
+        intersect = line_line_intersection(line1, line2)
+        if intersect:
+            yield intersect
+    for line1, line2 in it.product(vlines(rect1), hlines(rect2)):
+        intersect = line_line_intersection(line1, line2)
+        if intersect:
+            yield intersect
+
+def rect_rect_segments(rect1, rect2):
+    for func1, func2 in ((hlines, vlines), (vlines, hlines)):
+        for line1, line2 in it.product(func1(rect1), func2(rect2)):
+            intersect = line_line_intersection2(line1, line2)
+            if intersect:
+                # yield intersection point and other point outside first rect
+                outside_point = next(
+                    point for point in line2
+                    if not rect1.collidepoint(point)
+                )
+                yield (outside_point, intersect)
+            elif not any(p for p in line2 if rect1.collidepoint(p)):
+                yield line2
+
+def collidepoint_custom(rect, point):
+    """
+    Check if a point is inside a rectangle, considering both top/left and bottom/right edges.
+    
+    Parameters:
+        rect: pygame.Rect object representing the rectangle.
+        point: tuple or list containing the (x, y) coordinates of the point.
+    
+    Returns:
+        True if the point is inside the rectangle, False otherwise.
+    """
+    x, y = point
+    return rect.left < x < rect.right and rect.top < y < rect.bottom
+
+def rect_rect_segments(rect1, rect2):
+    overlap = rect1.clip(rect2)
+    for r in [overlap, rect2]:
+        for point in corners(r):
+            if not collidepoint_custom(rect1, point):
+                yield point
 
 def is_axis_aligned(line):
     p1, p2 = line

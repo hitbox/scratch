@@ -1,3 +1,6 @@
+import itertools as it
+import random
+
 import pygamelib
 
 from pygamelib import pygame
@@ -48,20 +51,34 @@ def run(display_size, framerate, background, windows):
         for window in windows:
             if window is active_window:
                 color = 'white'
+                pygame.draw.rect(screen, color, window.rect, 1)
             else:
-                color = 'grey20'
-            pygame.draw.rect(screen, color, window.rect, 1)
+                if active_window.rect.contains(window.rect):
+                    # behind active window, completely invisible
+                    continue
+                else:
+                    color = 'grey20'
+                    pygame.draw.rect(screen, color, window.rect, 1)
+            pressed = pygame.key.get_pressed()
+            dx = -pressed[pygame.K_LEFT] + pressed[pygame.K_RIGHT]
+            dy = -pressed[pygame.K_UP] + pressed[pygame.K_DOWN]
+            active_window.rect.topleft += pygame.Vector2(dx, dy)
+
             wx, wy = window.rect.topleft
             for point in window.points:
                 px, py = point
                 screen_point = window.offset + (wx + px, wy + py)
                 if window.rect.collidepoint(screen_point):
+                    if window is not active_window:
+                        if active_window.rect.collidepoint(screen_point):
+                            continue
                     pygame.draw.circle(screen, 'red', screen_point, 4)
         pygame.display.flip()
         elapsed = clock.tick(framerate)
 
 def main(argv=None):
     parser = pygamelib.command_line_parser()
+    pygamelib.add_seed_option(parser)
     pygamelib.add_number_option(
         parser,
         name = '--npoints',
@@ -73,6 +90,9 @@ def main(argv=None):
         help = 'Number of random windows. Default: %(default)s.',
     )
     args = parser.parse_args(argv)
+
+    if args.seed:
+        random.seed(args.seed)
 
     if args.nwindows > args.npoints:
         parser.error('more windows than points')
