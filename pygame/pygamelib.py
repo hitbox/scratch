@@ -1978,6 +1978,78 @@ def side_lines(rect):
     # left line
     yield ((left, bottom), (left, top))
 
+def ccw_side_lines(rect):
+    left, top, width, height = rect
+    right = left + width
+    bottom = top + height
+    # top line
+    yield ((left, top), (right, top))
+    # left line
+    yield ((left, bottom), (left, top))
+    # bottom line
+    yield ((right, bottom), (left, bottom))
+    # right line
+    yield ((right, top), (right, bottom))
+
+def side_lines_from_point(rect, point):
+    sides = list(side_lines(rect))
+    for i in range(4):
+        if point_on_line_segment(sides[i], point):
+            break
+    for i in range(i, i+4):
+        yield sides[i % 4]
+
+def ccw_corners(rect, loop=False):
+    x, y, w, h = rect
+    r = x + w
+    b = y + h
+    yield (x, y)
+    yield (x, b)
+    yield (r, b)
+    yield (r, y)
+
+def _corners_pairs(pairs, point_on_rect):
+    prx, pry = point_on_rect
+    is_last = False
+    for p1, p2 in pairs:
+        yield p1
+        x1, y1 = p1
+        x2, y2 = p2
+        if x1 > x2:
+            x1, x2 = x2, x1
+        if y1 > y2:
+            y1, y2 = y2, y1
+        if y1 == y2 == pry and x1 <= prx <= x2:
+            yield point_on_rect
+            break
+        elif x1 == x2 == prx and y1 <= pry <= y2:
+            yield point_on_rect
+            break
+    else:
+        is_last = True
+    # avoid unnecessary checks for point_on_rect
+    for p1, p2 in pairs:
+        yield p1
+    yield p2
+    if is_last:
+        yield point_on_rect
+
+def corners_with_point(rect, point_on_rect):
+    pairs = it.pairwise(corners(rect))
+    return _corners_pairs(pairs, point_on_rect)
+
+def ccw_corners_with_point(rect, point_on_rect):
+    pairs = it.pairwise(ccw_corners(rect))
+    return _corners_pairs(pairs, point_on_rect)
+
+def ccw_side_lines_from_point(rect, point):
+    ccw_sides = list(ccw_side_lines(rect))
+    for i in range(4):
+        if point_on_line_segment(ccw_sides[i], point):
+            break
+    for i in range(i, i+4):
+        yield ccw_sides[i % 4]
+
 def top(rect):
     _, top, _, _ = rect
     return top
@@ -2481,6 +2553,7 @@ def squircle_shapes(color, center, radius, width, corners):
             yield ('line', color, *line, width)
 
 def line_rect_intersections(line, rect):
+    # line to line-of-rect intersections
     for rectline in side_lines(rect):
         intersection = line_line_intersection(line, rectline)
         if intersection:
@@ -2500,6 +2573,45 @@ def line_line_intersection1(x1, y1, x2, y2, x3, y3, x4, y4):
         x = x1 + (a * (x2 - x1))
         y = y1 + (b * (y2 - y1))
         return (x, y)
+
+def nearest_point_on_segment(point, segment_start, segment_end):
+    # TODO
+    # - clean this up from chatgpt
+
+    # Calculate the direction vector of the line segment
+    segment_vector = (segment_end[0] - segment_start[0], segment_end[1] - segment_start[1])
+
+    # Vector from segment start to the given point
+    point_vector = (point[0] - segment_start[0], point[1] - segment_start[1])
+
+    # Calculate dot product
+    dot_product = point_vector[0] * segment_vector[0] + point_vector[1] * segment_vector[1]
+    segment_length_squared = segment_vector[0] * segment_vector[0] + segment_vector[1] * segment_vector[1]
+
+    # Calculate projection parameter
+    if segment_length_squared == 0:
+        projection = 0
+    else:
+        projection = dot_product / segment_length_squared
+
+    # If projection is less than 0, closest point is the segment start
+    if projection <= 0:
+        return segment_start
+
+    # If projection is greater than 1, closest point is the segment end
+    if projection >= 1:
+        return segment_end
+
+    # Closest point lies within the segment
+    closest_point = (segment_start[0] + projection * segment_vector[0], segment_start[1] + projection * segment_vector[1])
+    return closest_point
+
+def nearest_point_on_rect(point, rect):
+    points = (
+        nearest_point_on_segment(point, p1, p2)
+        for p1, p2 in side_lines(rect)
+    )
+    return min(points, key=lambda p: math.dist(point, p))
 
 def orientation(p, q, r):
     """
@@ -2582,24 +2694,144 @@ def rect_rect_segments(rect1, rect2):
 
 def collidepoint_custom(rect, point):
     """
-    Check if a point is inside a rectangle, considering both top/left and bottom/right edges.
-    
-    Parameters:
-        rect: pygame.Rect object representing the rectangle.
-        point: tuple or list containing the (x, y) coordinates of the point.
-    
-    Returns:
-        True if the point is inside the rectangle, False otherwise.
+    Test if point is inside rect. Fixes inconsistency of
+    pygame.rect.collidepoint that returns true for top and left sides.
     """
     x, y = point
     return rect.left < x < rect.right and rect.top < y < rect.bottom
 
 def rect_rect_segments(rect1, rect2):
     overlap = rect1.clip(rect2)
-    for r in [overlap, rect2]:
-        for point in corners(r):
-            if not collidepoint_custom(rect1, point):
+    for rect in [rect1, overlap]:
+        for point in corners(rect):
+            if not collidepoint_custom(rect2, point):
                 yield point
+
+def walk_outline(rect1, rect2):
+    lines1 = side_lines(rect1)
+    for line1 in lines1:
+        intersections = tuple(line_rect_intersections(line1, rect2))
+        if not any(intersections):
+            yield line1
+            continue
+
+        line1_p1, line1_p2 = line1
+        if not collidepoint_custom(rect2, line1_p1):
+            outside = line1_p1
+        else:
+            outside = line1_p2
+
+        nearest_intersection = min(intersections, key=lambda ip: math.dist(ip, outside))
+        partial_line1 = (outside, nearest_intersection)
+        yield partial_line1
+
+        # walk other rect from intersection point
+
+        # find the side-line the intersection was on
+        for line2 in ccw_side_lines_from_point(rect2, nearest_intersection):
+            intersections = tuple(line_rect_intersections(line2, rect1))
+            if not any(intersections):
+                if not any(collidepoint_custom(rect1, point) for point in line2):
+                    # line outside
+                    break
+                yield line2
+                continue
+
+            # line intersection
+            line2_p1, line2_p2 = line2
+            # point inside other rect, rect1
+            if collidepoint_custom(rect1, line2_p1):
+                inside = line2_p1
+            else:
+                inside = line2_p2
+
+            nearest_intersection = min(intersections, key=lambda ip: math.dist(ip, inside))
+            yield (inside, nearest_intersection)
+
+        break
+
+    for line1 in lines1:
+        if point_on_line_segment(line1, nearest_intersection):
+            p1, p2 = line1
+            if not collidepoint_custom(rect2, p1):
+                p = p1
+            else:
+                p = p2
+            yield (nearest_intersection, p)
+        else:
+            yield line1
+
+def walk_outline_pointwise(rect1, rect2):
+    for p1, p2 in it.pairwise(corners(rect1)):
+        line1 = (p1, p2)
+        intersections = tuple(line_rect_intersections(line1, rect2))
+        if intersections:
+            yield p1
+            ipoint = min(intersections, key=lambda p: math.dist(p1, p))
+            yield ipoint
+
+            break
+            for _line in ccw_side_lines_from_point(rect2, ipoint):
+                _p1, _p2 = _line
+                if not (rect1.collidepoint(_p1) or rect1.collidepoint(_p2)):
+                    continue
+                if point_on_line_segment(_line, ipoint):
+                    yield ipoint
+                    if rect1.collidepoint(_p1):
+                        yield _p1
+                    else:
+                        yield _p2
+                else:
+                    _intersections = tuple(line_rect_intersections(_line, rect1))
+                    if _intersections:
+                        if rect1.collidepoint(_p1):
+                            _p = _p1
+                        else:
+                            _p = _p2
+                        yield _p
+                        _ipoint = min(intersections, key=lambda p: math.dist(_p, p))
+                        yield _ipoint
+                    else:
+                        yield _p1
+                        yield _p2
+
+            # sort rect2 point ccw
+            # find ipoint between pairs
+            # starting there yield pairs until another intersection
+            # yield nearest intersection point line
+            # resume yield rect1 points
+
+            break
+        yield p1
+        yield p2
+
+def walk_outline_pointwise(rect1, rect2):
+    for p1, p2 in it.pairwise(corners(rect1)):
+        line1 = (p1, p2)
+        intersections = tuple(line_rect_intersections(line1, rect2))
+        if intersections:
+            yield p1
+            nearest = min(intersections, key=lambda p: math.dist(p1, p))
+            yield nearest
+            for _line in ccw_side_lines_from_point(rect2, nearest):
+                _p1, _p2 = _line
+                if rect2.collidepoint(_p1):
+                    yield _p1
+            break
+        else:
+            yield p1
+
+def atan2_points(p1, p2):
+    x1, y1 = p1
+    x2, y2 = p2
+    return math.atan2(y2 - y1, x2 - x1)
+
+def point_on_line_segment(line, point):
+    (x1, y1), (x2, y2) = line
+    x, y = point
+    if (y - y1) * (x2 - x1) == (y2 - y1) * (x - x1):
+        if min(x1, x2) <= x <= max(x1, x2) and min(y1, y2) <= y <= max(y1, y2):
+            return True
 
 def is_axis_aligned(line):
     p1, p2 = line
