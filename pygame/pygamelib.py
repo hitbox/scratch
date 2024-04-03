@@ -1890,8 +1890,7 @@ def iter_rect_diffs(inside, outside):
     yield from_points(outside.left, maxtop, inside.left, minbottom)
 
 def area(rect):
-    _, _, w, h = rect
-    return w * h
+    return rect[2] * rect[3]
 
 def overlaps(rects):
     for r1, r2 in it.combinations(map(pygame.Rect, rects), 2):
@@ -1921,19 +1920,28 @@ def leftline(rect):
     x, y, w, h = rect
     return ((x, y + h), (x, y))
 
-_side_line_funcs = [topline, rightline, bottomline, leftline]
-
 def side_lines(rect):
-    for func in _side_line_funcs:
-        yield func(rect)
+    x, y, w, h = rect
+    r = x + w
+    b = y + h
+    yield ((x, y), (r, y))
+    yield ((r, y), (r, b))
+    yield ((x, b), (r, b))
+    yield ((x, y), (x, b))
 
 def hlines(rect):
-    yield topline(rect)
-    yield bottomline(rect)
+    x, y, w, h = rect
+    r = x + w
+    b = y + h
+    yield ((x, y), (r, y))
+    yield ((x, b), (r, b))
 
 def vlines(rect):
-    yield leftline(rect)
-    yield rightline(rect)
+    x, y, w, h = rect
+    r = x + w
+    b = y + h
+    yield ((x, y), (x, b))
+    yield ((r, y), (r, b))
 
 def oriented_side_lines(rect):
     top, right, bottom, left = side_lines(rect)
@@ -1942,14 +1950,16 @@ def oriented_side_lines(rect):
 
 def corners(rect):
     x, y, w, h = rect
+    r = x + w
+    b = y + h
     # topleft
     yield (x, y)
     # topright
-    yield (x + w, y)
+    yield (r, y)
     # bottomright
-    yield (x + w, y + h)
+    yield (r, b)
     # bottomleft
-    yield (x, y + h)
+    yield (x, b)
 
 def sides(rect):
     """
