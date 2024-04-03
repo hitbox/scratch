@@ -10,8 +10,8 @@ def run(display_size, framerate, background, rect, ccw=False):
     running = True
     nearest = None
     corners_funcs = {
-        True: pygamelib.ccw_corners_from_point,
-        False: pygamelib.corners_from_point,
+        True: pygamelib.ccw_corners_with_point,
+        False: pygamelib.corners_with_point,
     }
     corners = corners_funcs[ccw]
     clock = pygame.time.Clock()
