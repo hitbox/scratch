@@ -7,6 +7,7 @@ from pygamelib import merge_ranges
 from pygamelib import merge_rects
 from pygamelib import modo
 from pygamelib import point_on_axisline
+from pygamelib import reflow_from
 from pygamelib import snake_case
 
 class TestSnakeCaseFunction(unittest.TestCase):
@@ -292,3 +293,21 @@ class TestInputLine(unittest.TestCase):
         self.input_line.addchar('b')
         self.input_line.backspace()
         self.assertEqual(self.input_line.line, 'a')
+
+
+class TestReflowFrom(unittest.TestCase):
+
+    def test_reflow_first(self):
+        result = list(reflow_from('abcdef', 'a'))
+        expect = list('abcdef')
+        self.assertEqual(expect, result)
+
+    def test_reflow_middle(self):
+        result = list(reflow_from('abcdef', 'c'))
+        expect = list('cdefab')
+        self.assertEqual(expect, result)
+
+    def test_reflow_last(self):
+        result = list(reflow_from('abcdef', 'f'))
+        expect = list('fabcde')
+        self.assertEqual(expect, result)

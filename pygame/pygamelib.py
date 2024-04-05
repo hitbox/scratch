@@ -2009,14 +2009,38 @@ def side_lines_from_point(rect, point):
     for i in range(i, i+4):
         yield sides[i % 4]
 
-def ccw_corners(rect, loop=False):
+def ccw_corners(rect):
     x, y, w, h = rect
     r = x + w
     b = y + h
+    # topleft
     yield (x, y)
+    # bottomleft
     yield (x, b)
+    # bottomright
     yield (r, b)
+    # topright
     yield (r, y)
+
+def find_line_for_point(rect, point):
+    px, py = point
+    for p1, p2 in it.pairwise(corners(rect)):
+        x1, y1 = p1
+        x2, y2 = p2
+        if x1 > x2:
+            x1, x2 = x2, x1
+        if y1 > y1:
+            y1, y2 = y2, y1
+        if (
+            # point lies inside horizontal line p1-p2
+            (y1 == y2 == py and x1 < px < x2)
+            or
+            # point lies inside vertical line p1-p2
+            (x1 == x2 == px and y1 < py < y2)
+        ):
+            # XXX
+            # - return normalized line or this line created in clockwise order?
+            return (p1, p2)
 
 def _corners_pairs(pairs, point_on_rect):
     prx, pry = point_on_rect
@@ -2562,12 +2586,16 @@ def squircle_shapes(color, center, radius, width, corners):
         for line in lines:
             yield ('line', color, *line, width)
 
-def line_rect_intersections(line, rect):
+def line_rect_intersections(line1, rect):
     # line to line-of-rect intersections
-    for rectline in side_lines(rect):
-        intersection = line_line_intersection(line, rectline)
+    if is_hline(line1):
+        func = vlines
+    else:
+        func = hlines
+    for line2 in func(rect):
+        intersection = line_line_intersection(line1, line2)
         if intersection:
-            yield intersection
+            yield (intersection, line2)
 
 def line_line_intersection1(x1, y1, x2, y2, x3, y3, x4, y4):
     # https://www.jeffreythompson.org/collision-detection/line-line.php
@@ -2679,14 +2707,108 @@ def line_line_intersection(line1, line2):
     return find_intersection(line1p1, line1p2, line2p1, line2p2)
 
 def rect_rect_intersections(rect1, rect2):
-    for line1, line2 in it.product(hlines(rect1), vlines(rect2)):
-        intersect = line_line_intersection(line1, line2)
-        if intersect:
-            yield intersect
-    for line1, line2 in it.product(vlines(rect1), hlines(rect2)):
-        intersect = line_line_intersection(line1, line2)
-        if intersect:
-            yield intersect
+    # TODO
+    # - demo for this function
+    for func1, func2 in [(hlines, vlines), (vlines, hlines)]:
+        for line1, line2 in it.product(func1(rect1), func2(rect2)):
+            intersect = line_line_intersection(line1, line2)
+            if intersect:
+                yield intersect
+
+def is_hline(line):
+    # y's are equal
+    return line[0][1] == line[1][1]
+
+def is_vline(line):
+    # x's are equal
+    return line[0][0] == line[1][0]
+
+def reflow_from(list_, item):
+    list_iter = iter(list_)
+    stack = []
+    for thing in list_iter:
+        if thing == item:
+            yield thing
+            break
+        else:
+            stack.append(thing)
+    for thing in list_iter:
+        yield thing
+    for thing in stack:
+        yield thing
+
+def _outline_rects_ccw(intersection_point, rect1, rect2):
+    # support function for outline_rects
+    # TODO
+    # - use reflow_from func above
+    # - jumped off here
+    rect_line = find_line_for_point(rect1, intersection_point)
+    ccw_lines = tuple(ccw_side_lines(rect1))
+    if rect_line not in ccw_lines:
+        return
+    start_index = ccw_lines.index(rect_line)
+    for offset in range(1, 5):
+        index = (start_index + offset) % 4
+        line = ccw_lines[index]
+        p1, p2 = line
+
+        intersection_pairs = tuple(line_rect_intersections(line, rect2))
+        if intersection_pairs:
+            # intersected again
+            ipoints, ilines = zip(*intersection_pairs)
+            pass
+        else:
+            yield p1
+            yield p2
+
+def outline_rects(rect1, rect2):
+    rect1 = pygame.Rect(rect1)
+    rect2 = pygame.Rect(rect2)
+    # loop rect1 points clockwise
+    points = tuple(corners(rect1))
+    for index, p1 in enumerate(points):
+        p2 = points[(index + 1) % 4]
+        line1 = (p1, p2)
+        # 1. no intersections
+        # 2. one intersection
+        # 3. two intersections
+        intersection_line_pairs = tuple(line_rect_intersections(line1, rect2))
+        if not intersection_line_pairs:
+            yield p1
+        else:
+            ipoints, ilines = zip(*intersection_line_pairs)
+            n = len(ipoints)
+            if n == 1:
+                if rect2.collidepoint(p1):
+                    yield ipoints[0]
+                    yield p2
+                    # TODO
+                    # - same as below, in else block for this point
+                else:
+                    # p1-p2 line is going into rect2
+                    yield p1
+                    yield ipoints[0]
+                    # now loop the points on rect2 from intersection, ccw,
+                    # until intersection with rect1
+
+                    # 1. find the points on rect2 that intersection lies on
+                    # 2. loop from intersection point to other points on rect2,
+                    #    counterclockwise
+                    # 3. when a pair of points on rect2 intersects rect1 again,
+                    #    yield inner point, intersection point then break
+                    # 4. resume here, from intersection point
+
+                    yield from _outline_rects_ccw(ipoints[0], rect2, rect1)
+
+            elif n == 2:
+                # XXX
+                continue
+                # line p1-p2 goes all the way through rect2
+                nearest = min(ipoints, key=lambda p: math.dist(p1, p))
+                yield p1
+                yield nearest
+            else:
+                raise NotImplementedError
 
 def rect_rect_segments(rect1, rect2):
     for func1, func2 in ((hlines, vlines), (vlines, hlines)):
