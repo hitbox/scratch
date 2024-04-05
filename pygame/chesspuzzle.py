@@ -23,7 +23,13 @@ def lichess_puzzle_format():
     return {
         'PuzzleId': str,
         'FEN': parse_fen,
-        'Moves': str.split, # UCI parse and convert to SAN
+
+        # Moves:
+        # - UCI parse and convert to SAN
+        # - believe that this is minimum 2
+        # - first is opponent's move
+        'Moves': str.split,
+
         'Rating': int,
         'RatingDeviation': int,
         'Popularity': int,
@@ -32,6 +38,9 @@ def lichess_puzzle_format():
         'GameUrl': str,
         'OpeningTags': str,
     }
+
+def get_print_formatters():
+    return dict()
 
 def generate_lichess_puzzle(rowstring):
     keys_types = lichess_puzzle_format().items()
@@ -58,8 +67,7 @@ def parse_fen(fen):
     placement, *remaining = fen.split(' ')
     data = dict(zip(optional_keys, remaining))
 
-    board = []
-    data['board'] = board
+    data['board'] = board = []
     rows = fen.split()[0].split('/')
     for row in rows:
         board_row = []
@@ -74,9 +82,11 @@ def parse_fen(fen):
 
     return data
 
-def print_board(board):
-    for row in board:
-        print(''.join(' ' if value is None else value for value in row))
+def format_board_row(row):
+    return ''.join(' ' if value is None else value for value in row)
+
+def format_board(board):
+    return '\n'.join(map(format_board_row, board))
 
 def pygame_simple_render(board):
     pass
@@ -128,7 +138,7 @@ def argument_parser():
 def cli(args):
     for line in fileinput.input():
         puzzle_data = parse_lichess_puzzle(line)
-        print_board(puzzle_data['FEN']['board'])
+        print(format_board_row(puzzle_data['FEN']['board']))
         print(f"{player_name[puzzle_data['FEN']['active']]} to play")
 
 def lichess_puzzles_from_csv(csvfile):
@@ -143,9 +153,23 @@ def print_rows_data(args):
         raise ValueError('invalid key')
         return
 
+    print_formatters = get_print_formatters()
+
     def filter_keys(data):
+
+        # NOTES
+        # - does not work to print board
+        # - need to access subkey 'board'
+
+        def format_value(key, value):
+            if key in print_formatters:
+                return print_formatters[key](value)
+            else:
+                return value
+
         display_data = {
-            key: value for key, value in puzzle_data.items()
+            key: format_value(key, value)
+            for key, value in puzzle_data.items()
             if key in args.display
         }
         return display_data
