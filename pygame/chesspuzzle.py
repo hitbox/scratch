@@ -525,21 +525,31 @@ def database_from_args(args):
     else:
         return fileinput.input()
 
+def display_expr_from_args(args, default=default_display_expression):
+    display_expr = args.display or (default() if callable(default) else default)
+    display_expr = compile(display_expr, __name__, 'eval')
+    return display_expr
+
+def filter_expr_from_args(args, default='True'):
+    expr = args.filter or (default() if callable(default) else default)
+    expr = compile(expr, __name__, 'eval')
+    return expr
+
 def parse_and_print(args):
+    """
+    Parse Lichess puzzle database and print.
+    """
     if args.list_keys:
-        for key in LichessPuzzleType.keys:
+        for key in LICHESS_PUZZLE_KEYS:
             print(key)
         return
 
-    puzzle_type = LichessPuzzleType()
-    displayer = KeyFilter(args.display)
+    display_expr = display_expr_from_args(args)
+    filter_expr = filter_expr_from_args(args)
 
-    display_expr = args.display or default_display_expression()
-    display_expr = compile(display_expr, __name__, 'eval')
-
-    filter_expr = compile(args.filter or 'True', __name__, 'eval')
     database = database_from_args(args)
-    for puzzle in map(dict, map(puzzle_type, database)):
+    database = map(parse_lichess_puzzle, database)
+    for puzzle in database:
         if not eval(filter_expr, puzzle):
             continue
         if not args.quiet:
