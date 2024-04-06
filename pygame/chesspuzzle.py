@@ -1,3 +1,4 @@
+import abc
 import argparse
 import csv
 import fileinput
@@ -8,9 +9,23 @@ import pygamelib
 
 from pygamelib import pygame
 
-player_name = {'w': 'white', 'b': 'black'}
+PLAYER_NAME = {'w': 'white', 'b': 'black'}
 
-white_pieces = {
+RANKS = string.digits[8:0:-1]
+FILES = string.ascii_lowercase[:8]
+
+SQUARES = tuple(map(''.join, it.product(FILES, RANKS)))
+
+assert len(SQUARES) == 8*8
+
+SQUARES_BY_RANK = {
+    rank: tuple(map(''.join, (zip(FILES, it.repeat(rank)))))
+    for rank in RANKS
+}
+
+assert all(len(values) == 8 for values in SQUARES_BY_RANK.values())
+
+WHITE_PIECES = {
     'K': 'King',
     'Q': 'Queen',
     'R': 'Rook',
@@ -19,9 +34,18 @@ white_pieces = {
     'P': 'Pawn',
 }
 
-black_pieces = {key.lower(): name for key, name in white_pieces.items()}
+WHITE_ROYALTY = 'KQ'
 
-fen_optional_keys = (
+BLACK_PIECES = {key.lower(): name for key, name in WHITE_PIECES.items()}
+BLACK_ROYALTY = 'kq'
+
+ROYALTY = WHITE_ROYALTY + BLACK_ROYALTY
+PIECES = dict(
+    (symbol, ('White ' if symbol.isupper() else 'Black ') + name)
+    for symbol, name in it.chain(WHITE_PIECES.items(), BLACK_PIECES.items())
+)
+
+FEN_OPTIONAL_KEYS = (
     'active',
     'castling',
     'en_passant',
@@ -29,7 +53,7 @@ fen_optional_keys = (
     'fullmove',
 )
 
-lichess_puzzle_keys = (
+LICHESS_PUZZLE_KEYS = (
     'PuzzleId',
     'FEN',
     'Moves',
@@ -184,19 +208,19 @@ def expand_fen_row(row):
 
 def parse_fen(string):
     board, *rest = string.split()
-    data = dict(zip(fen_optional_keys, rest))
+    data = dict(zip(FEN_OPTIONAL_KEYS, rest))
     board = [list(expand_fen_row(row)) for row in board.split('/')]
     data['board'] = board
     return data
 
 def parse_lichess_puzzle(values):
-    data = dict(zip(lichess_puzzle_keys, values))
+    data = dict(zip(LICHESS_PUZZLE_KEYS, values))
     data['FEN'] = parse_fen(data['FEN'])
     return data
 
 def positions(board):
     for rownum, row in enumerate(board):
-        for col, piece in zip(string.ascii_lowercase, row):
+        for col, piece in zip(RANKS, row):
             yield (f'{col}{rownum}', piece)
 
 def str_for_dash(value):
@@ -217,77 +241,174 @@ def format_board(board):
     return '\n'.join(map(format_board_row, board))
 
 def labeled_board(board):
-    yield ('  ', ) + tuple(string.ascii_lowercase[:8])
+    yield ('  ', ) + tuple(FILES)
     for inverse_rank, row in enumerate(board):
         yield (f'{8 - inverse_rank} ', ) + tuple(map(format_square, row))
 
 def labeled_board_string(board):
     return "\n".join(map("".join, labeled_board(board)))
 
+class FontRendererBase(abc.ABC):
+
+    @abc.abstractmethod
+    def __call__(self, piece):
+        pass
+
+
+class FontRenderer(FontRendererBase):
+
+    def __init__(
+        self,
+        font,
+        color,
+        size_and_position = None,
+        antialias = True,
+    ):
+        """
+        :param size_and_position:
+            two-tuple size to use instead of font.render result and an
+            attribute to align the rect on.
+        """
+        self.font = font
+        self.color = color
+        self.size_and_position = size_and_position
+        self.antialias = antialias
+
+    def __call__(self, text):
+        text_image = self.font.render(text, self.antialias, self.color)
+        if self.size_and_position:
+            size, attr = self.size_and_position
+            bg_image = pygame.Surface(size, pygame.SRCALPHA)
+            bg_rect = bg_image.get_rect()
+            kwargs = {attr: getattr(bg_rect, attr)}
+            bg_image.blit(text_image, text_image.get_rect(**kwargs))
+            text_image = bg_image
+        return text_image
+
+
+class FontPieceRenderer(FontRendererBase):
+
+    def __init__(
+        self,
+        font,
+        white_color,
+        black_color,
+        size_and_position = None,
+        antialias = True,
+    ):
+        """
+        :param size_and_position:
+            two-tuple size to use instead of font.render result and an
+            attribute to align the rect on.
+        """
+        self.font = font
+        self.white_color = white_color
+        self.black_color = black_color
+        self.size_and_position = size_and_position
+        self.antialias = antialias
+
+    def __call__(self, piece):
+        if piece.islower():
+            color = self.black_color
+        else:
+            color = self.white_color
+        text_image = self.font.render(piece, self.antialias, color)
+        if self.size_and_position:
+            size, attr = self.size_and_position
+            bg_image = pygame.Surface(size, pygame.SRCALPHA)
+            bg_rect = bg_image.get_rect()
+            kwargs = {attr: getattr(bg_rect, attr)}
+            bg_image.blit(text_image, text_image.get_rect(**kwargs))
+            text_image = bg_image
+        return text_image
+
+
+class ImageSet:
+
+    def __init__(self, pieces, ranks, files):
+        self.pieces = pieces
+        self.ranks = ranks
+        self.files = files
+
+    @classmethod
+    def from_renderer(cls, piece_renderer, label_renderer):
+        return cls(
+            pieces = {piece: piece_renderer(piece) for piece in PIECES},
+            ranks = {rank: label_renderer(rank) for rank in RANKS},
+            files = {file: label_renderer(file) for file in FILES},
+        )
+
+
+def default_piece_renderer(font):
+    piece_renderer = FontPieceRenderer(
+        font,
+        'floralwhite',
+        'grey50',
+        size_and_position = (
+            (64,)*2, 'center'
+        ),
+    )
+    return piece_renderer
+
 def pygame_simple_render(args):
     """
     Display a chess game state with pygame.
     """
-    puzzle_type = LichessPuzzleType()
     database = map(parse_lichess_puzzle, database_from_args(args))
-    for _ in range(2):
-        puzzle = next(database)
+    puzzle = next(database)
     board = puzzle['FEN']['board']
+    board_dict = {
+        f'{column}{rank}': piece
+        for rank, row in zip(RANKS, board)
+        for column, piece in zip(FILES, row)
+        if piece is not None
+    }
 
     window = pygame.Rect((0,0), args.display_size)
     clock = pygame.time.Clock()
     framerate = args.framerate
     background = args.background
     running = True
-    font = pygamelib.monospace_font(30)
-    printfont = pygamelib.FontPrinter(font, 'white')
+    piece_font = pygamelib.monospace_font(30)
+    small_font = pygamelib.monospace_font(18)
+    printfont = pygamelib.FontPrinter(small_font, 'white')
 
-    def image_for_piece(piece):
-        if piece.islower():
-            color = 'grey50'
-        else:
-            color = 'floralwhite'
-        image = pygame.Surface((48,)*2)
-        text = font.render(piece, True, color)
-        image.blit(text, text.get_rect(center=image.get_rect().center))
-        pygame.draw.rect(image, 'grey20', image.get_rect(), 1)
-        return image
-
-    all_pieces = it.chain(white_pieces, black_pieces)
-    piece_images = {piece: image_for_piece(piece) for piece in all_pieces}
-    piece_rects = {piece: image.get_rect() for piece, image in piece_images.items()}
-
-    # add empty square
-    widths, heights = zip(*map(lambda r: r.size, piece_rects.values()))
-    max_width = max(widths)
-    max_height = max(heights)
-    max_size = (max_width, max_height)
-    empty_image = pygame.Surface(max_size)
-    empty_rect = empty_image.get_rect()
-    pygame.draw.rect(empty_image, 'grey20', empty_rect, 1)
-    piece_images[None] = empty_image
-    piece_rects[None] = empty_rect
-
-    def get_blit_for_piece(piece):
-        if piece:
-            image = piece_images[piece]
-            rect = piece_rects[piece]
-        else:
-            image = empty_image
-            rect = empty_rect
-        # copy for all non-unique pieces
-        if piece not in set('KQkq'):
-            image = image.copy()
-            rect = rect.copy()
-        return (image, rect)
-
-    board_blits = tuple(
-        get_blit_for_piece(piece) for row in board for piece in row
+    piece_renderer = default_piece_renderer(piece_font)
+    label_renderer = FontRenderer(
+        piece_font,
+        'grey35',
+        size_and_position = (
+            (64,)*2, 'center'
+        ),
     )
+    images = ImageSet.from_renderer(piece_renderer, label_renderer)
 
-    board_rects = [rect for image, rect in board_blits]
-    pygamelib.arrange_columns(board_rects, 8, 'centerx', 'centery')
-    board_frame = pygame.Rect(pygamelib.wrap(board_rects))
+    square_rect = pygame.Rect(pygamelib.make_rect(size=args.square_size))
+
+    # NOTES
+    # - relies on insertion order for column arrangement
+    squares_rects = {}
+    board_rects = {None: square_rect.copy()}
+    files_rects = {file: square_rect.copy() for file in FILES}
+    board_rects.update(files_rects)
+    ranks_rects = {}
+    for rank in RANKS:
+        ranks_rects[rank] = square_rect.copy()
+        board_rects[rank] = ranks_rects[rank]
+        squares_for_rank = SQUARES_BY_RANK[rank]
+        squares_rects.update({square: square_rect.copy() for square in squares_for_rank})
+        board_rects.update(squares_rects)
+
+    pygamelib.arrange_columns(board_rects.values(), 8+1, 'centerx', 'centery')
+    pygamelib.move_as_one(board_rects.values(), center=window.center)
+    # labels and square are all in a grid now
+    # want to center the squares and align the label to them
+    delta = pygamelib.move_as_one(squares_rects.values(), center=window.center)
+
+    for file_rect in files_rects.values():
+        file_rect.topleft += delta
+    for rank_rect in ranks_rects.values():
+        rank_rect.topleft += delta
 
     screen = pygame.display.set_mode(window.size)
     while running:
@@ -298,10 +419,25 @@ def pygame_simple_render(args):
                 if event.key in (pygame.K_ESCAPE, pygame.K_q):
                     pygamelib.post_quit()
         screen.fill(background)
-        screen.blits(board_blits)
-        lines = [f'{key}={val}' for key, val in puzzle['FEN'].items() if key != 'board']
-        image = printfont(lines)
-        screen.blit(image, image.get_rect(topleft=board_frame.bottomleft))
+        for square, rect in board_rects.items():
+            if square is None:
+                continue
+            image = None
+            color = None
+            if square in images.ranks:
+                image = images.ranks[square]
+            elif square in images.files:
+                image = images.files[square]
+            elif square in board_dict:
+                color = 'grey20'
+                piece = board_dict[square]
+                image = images.pieces[piece]
+            else:
+                color = 'grey20'
+            if color:
+                pygame.draw.rect(screen, color, rect, 1)
+            if image:
+                screen.blit(image, rect)
         pygame.display.flip()
         elapsed = clock.tick(framerate)
 
@@ -361,11 +497,20 @@ def add_parse_and_print_subcommand(subparsers):
     sp.set_defaults(subfunc=parse_and_print)
 
 def add_display_pygame_subcommand(subparsers):
+    """
+    Display with pygame.
+    """
     sp = subparsers.add_parser('pygame')
     add_common_arguments(sp)
     pygamelib.add_display_size_option(sp)
     pygamelib.add_framerate_option(sp)
     pygamelib.add_background_color_option(sp)
+    sp.add_argument(
+        '--square-size',
+        type = pygamelib.sizetype(),
+        default = '48',
+        help = 'Pixel size of square. Default %(default)s.',
+    )
     sp.set_defaults(subfunc=pygame_simple_render)
 
 def default_display_expression():

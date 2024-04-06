@@ -1859,6 +1859,10 @@ def maxsides(*rects):
     """
     return aggsides(max, *rects)
 
+def with_rect(surf, **kwargs):
+    # this seems to happen a lot
+    return (surf, surf.get_rect(**kwargs))
+
 def wrap(rects):
     # NOTES
     # - wrapping only makes sense against an iterable of rects
@@ -2226,6 +2230,7 @@ def move_as_one(rects, **kwargs):
     delta = pygame.Vector2(dest.topleft) - orig.topleft
     for rect in rects:
         rect.topleft += delta
+    return delta
 
 def clamp_as_one(target, rects, inside):
     """
