@@ -110,7 +110,7 @@ class FontPrinter:
         images, rects = make_blitables_from_font(*args)
         _, _, w, h = wrap(rects)
         result = pygame.Surface((w, h), pygame.SRCALPHA)
-        result.blits(list(zip(images, rects)))
+        result.blits(zip(images, rects))
         return result
 
 
@@ -3122,6 +3122,17 @@ def find_empty_space(rects, inside):
     for rect in rects:
         empties = list(subtract_rect_from_all(empties, rect))
     return empties
+
+def wrap(rects):
+    # duplicate to fix
+    xs, ys, widths, heights = zip(*map(tuple, rects))
+    rights = (x + w for x, w in zip(xs, widths))
+    bottoms = (y + h for y, h in zip(ys, heights))
+    x = min(xs)
+    y = min(ys)
+    right = max(rights)
+    bottom = max(bottoms)
+    return (x, y, right - x, bottom - y)
 
 def extremities(*rects):
     """

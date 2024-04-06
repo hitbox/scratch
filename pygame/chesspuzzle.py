@@ -1,6 +1,8 @@
 import argparse
 import csv
 import fileinput
+import itertools as it
+import string
 
 import pygamelib
 
@@ -19,102 +21,331 @@ white_pieces = {
 
 black_pieces = {key.lower(): name for key, name in white_pieces.items()}
 
-def lichess_puzzle_format():
-    return {
-        'PuzzleId': str,
-        'FEN': parse_fen,
+fen_optional_keys = (
+    'active',
+    'castling',
+    'en_passant',
+    'halfmove_clock',
+    'fullmove',
+)
 
-        # Moves:
-        # - UCI parse and convert to SAN
-        # - believe that this is minimum 2
-        # - first is opponent's move
-        'Moves': str.split,
+lichess_puzzle_keys = (
+    'PuzzleId',
+    'FEN',
+    'Moves',
+    'Rating',
+    'RatingDeviation',
+    'Popularity',
+    'NbPlays',
+    'Themes',
+    'GameUrl',
+    'OpeningTags',
+)
 
-        'Rating': int,
-        'RatingDeviation': int,
-        'Popularity': int,
-        'NbPlays': int, # not documented, looks like int
-        'Themes': str,
-        'GameUrl': str,
-        'OpeningTags': str,
-    }
+class KeyFilter:
 
-def get_print_formatters():
-    return dict()
+    def __init__(self, keys):
+        self.keys = keys
 
-def generate_lichess_puzzle(rowstring):
-    keys_types = lichess_puzzle_format().items()
-    values = rowstring.split(',')
-    yield from typify_lichess_values(keys_types, values)
+    def __call__(self, items):
+        for key, value in items:
+            if key in self.keys:
+                yield (key, value)
 
-def typify_lichess_values(keys_types, values):
-    for (key, type_), value in zip(keys_types, values):
-        typed = type_(value)
-        yield (key, typed)
 
-def parse_lichess_puzzle(rowstring):
-    data = dict(generate_lichess_puzzle(rowstring))
-    return data
+class TypeConverter:
 
-def parse_fen(fen):
-    optional_keys = (
-        'active', # (w)hite or (b)lack
-        'castling', # TODO: string indicating castling rights
-        'en_passant', # TODO: string of some kind
-        'halfmove_clock', # a digit? what are halfmoves?
-        'fullmove', # number of black and white moves in this position
-    )
-    placement, *remaining = fen.split(' ')
-    data = dict(zip(optional_keys, remaining))
+    def __init__(self, **keys_and_types):
+        self.keys_and_types = keys_and_types
 
-    data['board'] = board = []
-    rows = fen.split()[0].split('/')
-    for row in rows:
-        board_row = []
-        for char in row:
+    def __call__(self, iterable):
+        matched = zip(self.keys_and_types.items(), iterable)
+        return tuple((key, type_(value)) for (key, type_), value in matched)
+
+
+class FENOptionalFieldsConverter(TypeConverter):
+
+    def __init__(self):
+        super().__init__(
+            # (w)hite or (b)lack
+            active = dict(w='white', b='black').__getitem__,
+            castling = str_for_dash,
+            en_passant = str_for_dash,
+            halfmove_clock = int,
+            # number of turns
+            fullmove = int,
+        )
+
+
+class FENType:
+
+    container_type = tuple
+
+    def generate_row(self, row_string):
+        for char in row_string:
             if char.isdigit():
                 for i in range(int(char)):
                     # Represents empty squares
-                    board_row.append(None)
+                    yield None
             else:
-                board_row.append(char)
-        board.append(board_row)
+                yield char
 
+    def __call__(self, fen_string):
+        board_string, *optional_strings = fen_string.split()
+        row_strings = board_string.split('/')
+        data = dict(map(FENOptionalFieldsConverter(), optional_strings))
+        board = self.container_type(
+            map(self.container_type, map(self.generate_row, row_strings))
+        )
+        data['board'] = board
+        return data
+
+
+class LichessPuzzleType(TypeConverter):
+
+    fen_type_class = FENType
+
+    keys = [
+        'PuzzleId',
+        'FEN',
+        'Moves',
+        'Rating',
+        'RatingDeviation',
+        'Popularity',
+        'NbPlays',
+        'Themes',
+        'GameUrl',
+        'OpeningTags',
+    ]
+
+    types = [
+        str,
+        None, # FEN
+        # Moves =
+        # - UCI parse and convert to SAN
+        # - believe that this is minimum 2
+        # - first is opponent's move
+        str.split,
+        int,
+        int,
+        int,
+        int, # not documented, looks like int
+        str,
+        str,
+        str,
+    ]
+
+    def __init__(self, fen_type_class=None):
+        fen_type_class = fen_type_class or self.fen_type_class
+        # NOTES
+        # - keywords match CSV by order
+        kwargs = dict(
+            (key, fen_type_class() if key == 'FEN' else type_)
+            for key, type_ in zip(self.keys, self.types)
+        )
+        super().__init__(**kwargs)
+
+    def from_csv(self, csv_file, fen_type_class=None):
+        for row in csv.reader(csv_file):
+            yield self(row)
+
+
+
+class ChessPuzzleDatabase:
+
+    def __init__(self, nextrows, keys=None):
+        self.nextrows = nextrows
+        self.rows = []
+        self.keys = keys
+
+    @classmethod
+    def from_csv(cls, csvfile, skipfirst=True):
+        reader = csv.reader(csvfile)
+        if skipfirst:
+            next(reader)
+        return cls(reader)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        row = next(self.nextrows)
+        self.rows.append(row)
+        return row
+
+
+def expand_fen_row(row):
+    for char in row:
+        if char.isdigit():
+            for _ in range(int(char)):
+                yield None
+        else:
+            yield char
+
+def parse_fen(string):
+    board, *rest = string.split()
+    data = dict(zip(fen_optional_keys, rest))
+    board = [list(expand_fen_row(row)) for row in board.split('/')]
+    data['board'] = board
     return data
 
+def parse_lichess_puzzle(values):
+    data = dict(zip(lichess_puzzle_keys, values))
+    data['FEN'] = parse_fen(data['FEN'])
+    return data
+
+def positions(board):
+    for rownum, row in enumerate(board):
+        for col, piece in zip(string.ascii_lowercase, row):
+            yield (f'{col}{rownum}', piece)
+
+def str_for_dash(value):
+    if value == '-':
+        value = None
+    return value
+
+def format_square(value):
+    if value is None:
+        return ' '
+    else:
+        return value
+
 def format_board_row(row):
-    return ''.join(' ' if value is None else value for value in row)
+    return ''.join(map(format_square, row))
 
 def format_board(board):
     return '\n'.join(map(format_board_row, board))
 
-def pygame_simple_render(board):
-    pass
+def labeled_board(board):
+    yield ('  ', ) + tuple(string.ascii_lowercase[:8])
+    for inverse_rank, row in enumerate(board):
+        yield (f'{8 - inverse_rank} ', ) + tuple(map(format_square, row))
 
-def example():
-    fen_str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
-    board = parse_fen(fen_str)
+def labeled_board_string(board):
+    return "\n".join(map("".join, labeled_board(board)))
 
-    # Printing the parsed board
-    for row in board['board']:
-        print(''.join(' ' if value is None else value for value in row))
+def pygame_simple_render(args):
+    """
+    Display a chess game state with pygame.
+    """
+    puzzle_type = LichessPuzzleType()
+    database = map(parse_lichess_puzzle, database_from_args(args))
+    for _ in range(2):
+        puzzle = next(database)
+    board = puzzle['FEN']['board']
 
-def lichess_keys_choices():
-    keys_and_types = lichess_puzzle_format()
-    keys_choices = list(keys_and_types.keys())
-    return keys_choices
+    window = pygame.Rect((0,0), args.display_size)
+    clock = pygame.time.Clock()
+    framerate = args.framerate
+    background = args.background
+    running = True
+    font = pygamelib.monospace_font(30)
+    printfont = pygamelib.FontPrinter(font, 'white')
 
-def add_parse_subcommand(subparsers):
+    def image_for_piece(piece):
+        if piece.islower():
+            color = 'grey50'
+        else:
+            color = 'floralwhite'
+        image = pygame.Surface((48,)*2)
+        text = font.render(piece, True, color)
+        image.blit(text, text.get_rect(center=image.get_rect().center))
+        pygame.draw.rect(image, 'grey20', image.get_rect(), 1)
+        return image
+
+    all_pieces = it.chain(white_pieces, black_pieces)
+    piece_images = {piece: image_for_piece(piece) for piece in all_pieces}
+    piece_rects = {piece: image.get_rect() for piece, image in piece_images.items()}
+
+    # add empty square
+    widths, heights = zip(*map(lambda r: r.size, piece_rects.values()))
+    max_width = max(widths)
+    max_height = max(heights)
+    max_size = (max_width, max_height)
+    empty_image = pygame.Surface(max_size)
+    empty_rect = empty_image.get_rect()
+    pygame.draw.rect(empty_image, 'grey20', empty_rect, 1)
+    piece_images[None] = empty_image
+    piece_rects[None] = empty_rect
+
+    def get_blit_for_piece(piece):
+        if piece:
+            image = piece_images[piece]
+            rect = piece_rects[piece]
+        else:
+            image = empty_image
+            rect = empty_rect
+        # copy for all non-unique pieces
+        if piece not in set('KQkq'):
+            image = image.copy()
+            rect = rect.copy()
+        return (image, rect)
+
+    board_blits = tuple(
+        get_blit_for_piece(piece) for row in board for piece in row
+    )
+
+    board_rects = [rect for image, rect in board_blits]
+    pygamelib.arrange_columns(board_rects, 8, 'centerx', 'centery')
+    board_frame = pygame.Rect(pygamelib.wrap(board_rects))
+
+    screen = pygame.display.set_mode(window.size)
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    pygamelib.post_quit()
+        screen.fill(background)
+        screen.blits(board_blits)
+        lines = [f'{key}={val}' for key, val in puzzle['FEN'].items() if key != 'board']
+        image = printfont(lines)
+        screen.blit(image, image.get_rect(topleft=board_frame.bottomleft))
+        pygame.display.flip()
+        elapsed = clock.tick(framerate)
+
+def argument_parser():
+    parser = argparse.ArgumentParser()
+    add_common_arguments(parser)
+
+    subparsers = parser.add_subparsers()
+    add_parse_and_print_subcommand(subparsers)
+    add_display_pygame_subcommand(subparsers)
+
+    return parser
+
+def default_subcommand():
+    return parse_and_print
+
+def add_common_arguments(parser):
+    """
+    Add arguments common to parser and all subparsers.
+    """
+    parser.add_argument(
+        '--from-csv',
+        type = argparse.FileType('r'),
+        help = 'Load puzzles from CSV.',
+    )
+
+def add_parse_and_print_subcommand(subparsers):
+    """
+    Parse command line arguments for filtering and diplaying lichess puzzles
+    data.
+    """
     sp = subparsers.add_parser('parse')
     add_common_arguments(sp)
 
-    keys_choices = lichess_keys_choices()
-    default_help = ' '.join(keys_choices)
+    default_help = ' '.join(LichessPuzzleType.keys)
+    sp.add_argument(
+        '--list-keys',
+        action = 'store_true',
+        help = 'List keys that can be displayed.',
+    )
+
     sp.add_argument(
         '--display',
-        default = keys_choices,
-        type = pygamelib.splitarg,
-        help = f'Keys to display. Default {default_help}.'
+        help = f'Expression eval-ed with puzzle data.'
     )
 
     sp.add_argument(
@@ -127,85 +358,50 @@ def add_parse_subcommand(subparsers):
         action = 'store_true',
         help = 'No output.'
     )
-    sp.set_defaults(subfunc=print_rows_data)
+    sp.set_defaults(subfunc=parse_and_print)
 
-def argument_parser():
-    parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers()
-    add_parse_subcommand(subparsers)
-    return parser
+def add_display_pygame_subcommand(subparsers):
+    sp = subparsers.add_parser('pygame')
+    add_common_arguments(sp)
+    pygamelib.add_display_size_option(sp)
+    pygamelib.add_framerate_option(sp)
+    pygamelib.add_background_color_option(sp)
+    sp.set_defaults(subfunc=pygame_simple_render)
 
-def cli(args):
-    for line in fileinput.input():
-        puzzle_data = parse_lichess_puzzle(line)
-        print(format_board_row(puzzle_data['FEN']['board']))
-        print(f"{player_name[puzzle_data['FEN']['active']]} to play")
+def default_display_expression():
+    return ','.join(LichessPuzzleType.keys)
 
-def lichess_puzzles_from_csv(csvfile):
-    keys_types = lichess_puzzle_format().items()
-    reader = csv.reader(csvfile)
-    next(reader)
-    for values in reader:
-        yield dict(typify_lichess_values(keys_types, values))
+def database_from_args(args):
+    if args.from_csv:
+        reader = csv.reader(args.from_csv)
+        # skip header
+        next(reader)
+        return reader
+    else:
+        return fileinput.input()
 
-def print_rows_data(args):
-    if not set(args.display).issubset(lichess_keys_choices()):
-        raise ValueError('invalid key')
+def parse_and_print(args):
+    if args.list_keys:
+        for key in LichessPuzzleType.keys:
+            print(key)
         return
 
-    print_formatters = get_print_formatters()
+    puzzle_type = LichessPuzzleType()
+    displayer = KeyFilter(args.display)
 
-    def filter_keys(data):
+    display_expr = args.display or default_display_expression()
+    display_expr = compile(display_expr, __name__, 'eval')
 
-        # NOTES
-        # - does not work to print board
-        # - need to access subkey 'board'
-
-        def format_value(key, value):
-            if key in print_formatters:
-                return print_formatters[key](value)
-            else:
-                return value
-
-        display_data = {
-            key: format_value(key, value)
-            for key, value in puzzle_data.items()
-            if key in args.display
-        }
-        return display_data
-
-    if args.from_csv:
-        rows = lichess_puzzles_from_csv(args.from_csv)
-    else:
-        rows = fileinput.input()
-
-    if args.filter:
-        filter_expr = compile(args.filter, __name__, 'eval')
-    else:
-        filter_expr = None
-
-    for puzzle_data in rows:
-        if filter_expr:
-            if not eval(filter_expr, puzzle_data):
-                continue
-        display_data = filter_keys(puzzle_data)
-        if args.quiet:
+    filter_expr = compile(args.filter or 'True', __name__, 'eval')
+    database = database_from_args(args)
+    for puzzle in map(dict, map(puzzle_type, database)):
+        if not eval(filter_expr, puzzle):
             continue
-        print(display_data)
-
-def default_subcommand():
-    return print_rows_data
-
-def add_common_arguments(parser):
-    parser.add_argument(
-        '--from-csv',
-        type = argparse.FileType('r'),
-        help = 'Load puzzles from CSV.',
-    )
+        if not args.quiet:
+            print(eval(display_expr, globals(), puzzle))
 
 def main(argv=None):
     parser = argument_parser()
-    add_common_arguments(parser)
     args = parser.parse_args(argv)
 
     if 'subfunc' not in args:
