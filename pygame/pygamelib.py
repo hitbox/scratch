@@ -3318,6 +3318,16 @@ def extremities(*rects):
     bottom = top + height
     return (top, right, bottom, left)
 
+def rect_from_points(points):
+    xs, ys = zip(*points)
+    x = min(xs)
+    y = min(ys)
+    r = max(xs)
+    b = max(ys)
+    w = r - x
+    h = b - y
+    return (x, y, w, h)
+
 def is_touching(rect1, rect2):
     rect1left, rect1top, rect1width, rect1width = rect1
     rect1right = rect1left + rect1width
