@@ -607,6 +607,15 @@ class Arc(
         rect = (x-ox, y-oy, w, h)
         return (color, rect, angle1, angle2, width)
 
+    def render(self, surf, color, width, offset):
+        ox, oy = offset
+        (x, y, w, h), angle1, angle2 = self
+        rect = pygame.Rect(x-ox, y-oy, w, h)
+
+        image = pygame.Surface(rect.size, pygame.SRCALPHA)
+        self.draw_func(image, color, ((0,0), rect.size), angle1, angle2, width)
+        return surf.blit(image, rect)
+
 
 class Circle(
     namedtuple('CircleBase', 'center radius'),
@@ -891,8 +900,27 @@ class HeartShape:
         self.cleft_angle = cleft_angle
 
     def __call__(self, inside):
+        return self.from_rect(inside)
+
+    @classmethod
+    def instance_from_rect(cls, cleft_angle, inside):
+        inst = cls(cleft_angle)
+        # TODO:
+        # - consume to update instance
+        # - fix decision to make a generator
+        list(inst.from_rect(inside))
+        return inst
+
+    def draw(self, surf, color, width, offset=(0,0)):
+        self.topleft_arc.draw(surf, color, width, offset)
+        self.topright_arc.draw(surf, color, width, offset)
+        self.pointy.draw(surf, color, width, offset)
+
+    def from_rect(self, inside):
         inside = pygame.Rect(inside)
-        assert inside.width == inside.height
+        self.inside = inside
+        # TODO: why must equal?
+        #assert inside.width == inside.height
         quads = map(pygame.Rect, rectquadrants(inside))
         topleft_quad, topright_quad, _, _ = quads
         # top quads need to overlap to make the arcs meet center-top
@@ -908,16 +936,19 @@ class HeartShape:
         topleft_quad.move_ip(+dx, 0)
         topright_quad.move_ip(-dx, 0)
 
-        yield Arc(
+        self.topleft_arc = Arc(
             rect = topleft_quad,
             angle1 = math.radians(self.cleft_angle),
             angle2 = math.radians(self.cleft_angle+180),
         )
-        yield Arc(
+        yield self.topleft_arc
+
+        self.topright_arc = Arc(
             rect = topright_quad,
             angle1 = math.radians(-self.cleft_angle),
             angle2 = math.radians(-self.cleft_angle+180),
         )
+        yield self.topright_arc
         # points where the heart becomes straight lines to the pointy bottom
         p1 = (
             pygame.Vector2(topleft_quad.center)
@@ -932,7 +963,94 @@ class HeartShape:
         x, y = intersection_point(p1, -slope_tangent1, p2, -slope_tangent2)
 
         # pointy bottom part
-        yield Lines(closed=False, points=[p1, (x,y), p2])
+        self.pointy = Lines(closed=False, points=[p1, (x,y), p2])
+        yield self.pointy
+
+
+class HeartShape2:
+
+    def __init__(self, cleft_angle, inside=None):
+        """
+        :param cleft_angle:
+            angle in degrees of middletop cleft in heart shape. 45 degrees is a
+            good choice.
+        """
+        self.cleft_angle = cleft_angle
+        if inside:
+            self.update(inside)
+
+    def update(self, inside):
+        self.inside = pygame.Rect(inside)
+        quads = map(pygame.Rect, rectquadrants(self.inside))
+
+        self.topleft_quad, self.topright_quad, _, _ = quads
+        # top quads need to overlap to make the arcs meet center-top
+        self.arc_radius = self.topleft_quad.width / 2
+        dx = (
+            self.topleft_quad.right
+            - (
+                self.topleft_quad.centerx
+                + math.cos(math.radians(self.cleft_angle))
+                * self.arc_radius
+            )
+        )
+        #self.topleft_quad.move_ip(+dx, 0)
+        self.topleft_quad.width += dx
+        self.topleft_quad.left = self.inside.left
+
+        self.topleft_arc = Arc(
+            rect = self.topleft_quad,
+            angle1 = math.radians(self.cleft_angle),
+            angle2 = math.radians(self.cleft_angle+180),
+        )
+
+        #self.topright_quad.move_ip(-dx, 0)
+        self.topright_quad.width += dx
+        self.topright_quad.right = self.inside.right
+
+        self.topright_arc = Arc(
+            rect = self.topright_quad,
+            angle1 = math.radians(-self.cleft_angle),
+            angle2 = math.radians(-self.cleft_angle+180),
+        )
+
+        # points where the heart becomes straight lines to the pointy bottom
+        p1 = (
+            pygame.Vector2(self.topleft_quad.center)
+            + circle_point(math.radians(self.cleft_angle+180), self.arc_radius)
+        )
+        p2 = (
+            pygame.Vector2(self.topright_quad.center)
+            + circle_point(math.radians(-self.cleft_angle), self.arc_radius)
+        )
+        slope_tangent1 = circle_slope_tangent(self.topleft_quad.center, p1)
+        slope_tangent2 = circle_slope_tangent(self.topright_quad.center, p2)
+        x, y = intersection_point(p1, -slope_tangent1, p2, -slope_tangent2)
+
+        # pointy bottom part
+        self.pointy = Lines(closed=False, points=[p1, (x,y), p2])
+
+    def draw(self, surf, color, width, offset=(0,0), debug_color=None):
+        """
+        :param debug_color:
+            enables debugging draws and sets color
+        """
+        if debug_color:
+            render_rect(surf, debug_color, self.topleft_quad, 1)
+            render_rect(surf, debug_color, self.topright_quad, 1)
+
+            real_topleft_quad, *_ = map(pygame.Rect, rectquadrants(self.inside))
+
+            p1 = real_topleft_quad.center
+            p2 = (
+                p1[0] + math.cos(self.cleft_angle) * self.arc_radius,
+                p1[1] + -math.sin(self.cleft_angle) * self.arc_radius,
+            )
+            pygame.draw.line(surf, debug_color, p1, p2, 1)
+
+        self.topleft_arc.render(surf, color, width, offset)
+        self.topright_arc.render(surf, color, width, offset)
+        self.pointy.draw(surf, color, width, offset)
 
 
 class Meter:
@@ -2315,6 +2433,12 @@ def render_text(
     text_rect = text_image.get_rect(**text_kw)
     result_image.blit(text_image, text_rect)
     return result_image
+
+def render_rect(surf, color, rect, *draw_args, **draw_kwargs):
+    # render rect onto image for alpha
+    image = pygame.Surface(rect.size, pygame.SRCALPHA)
+    pygame.draw.rect(image, color, ((0,0), rect.size), *draw_args, **draw_kwargs)
+    return surf.blit(image, rect)
 
 def blit(surface, source, dest, area=None, special_flags=0):
     # standalone callable for some_surface.blit(source, dest, ...)
