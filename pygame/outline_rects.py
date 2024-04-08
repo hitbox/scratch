@@ -1,6 +1,7 @@
 import itertools as it
 import math
 
+import polylib
 import pygamelib
 
 from pygamelib import pygame
@@ -10,9 +11,17 @@ corners_funcs = {
     False: pygamelib.corners_with_point,
 }
 
-def run(display_size, framerate, background, rects, ccw=False):
-    rects = tuple(map(pygame.Rect, rects))
-    rect1, rect2 = rects
+def rect2poly(rect):
+    return list(pygamelib.corners(rect))
+
+def run(
+    display_size,
+    framerate,
+    background,
+    rect1,
+    rect2,
+    ccw = False,
+):
     window = pygame.Rect((0,0), display_size)
     running = True
     dragging = None
@@ -41,30 +50,36 @@ def run(display_size, framerate, background, rects, ccw=False):
         screen.fill(background)
         pygame.draw.rect(screen, 'grey10', rect1, 4)
         pygame.draw.rect(screen, 'grey50', rect2, 1)
-        if rect1.colliderect(rect2):
-            points = list(pygamelib.outline_rects(*rects))
-            if points:
-                pygame.draw.polygon(screen, 'brown', points, 1)
-                for index, point in enumerate(points):
-                    pygame.draw.circle(screen, 'brown', point, 4)
-                    image = font.render(f'{index}', True, 'white')
-                    screen.blit(image, image.get_rect(center=point))
+        poly1, poly2 = map(rect2poly, [rect1, rect2])
+        clipped = polylib.clip(poly1, poly2)
+        if len(clipped) > 1:
+            pygame.draw.polygon(screen, 'grey90', clipped, 1)
         pygame.display.flip()
         elapsed = clock.tick(framerate)
 
 def main(argv=None):
     parser = pygamelib.command_line_parser()
     parser.add_argument(
-        'rects',
-        nargs = 2,
-        type = pygamelib.rect_type,
+        'rect1',
+        type = pygamelib.rect_type(with_pygame=True),
+    )
+    parser.add_argument(
+        'rect2',
+        type = pygamelib.rect_type(with_pygame=True),
     )
     parser.add_argument(
         '--ccw',
         action = 'store_true',
     )
     args = parser.parse_args(argv)
-    run(args.display_size, args.framerate, args.background, args.rects, args.ccw)
+    run(
+        args.display_size,
+        args.framerate,
+        args.background,
+        args.rect1,
+        args.rect2,
+        args.ccw
+    )
 
 if __name__ == '__main__':
     main()
