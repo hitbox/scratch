@@ -2,7 +2,7 @@ import argparse
 import itertools as it
 import json
 import math
-import operator
+import operator as op
 import random
 import string
 import unittest
@@ -415,6 +415,15 @@ class RectRenderer:
             pygame.draw.rect(surf, color, rect, width)
 
 
+class RelationDatabase:
+
+    def __init__(self):
+        self.relations = []
+
+    def add_relation(self, *relation):
+        self.relations.append(relation)
+
+
 get_top, get_right, get_bottom, get_left = map(attrgetter, SIDES)
 
 get_sides = attrgetter(*SIDES)
@@ -553,6 +562,14 @@ def make_preview_cut_line(rect, pos, cut_side):
     else:
         line = ((x, rect.top), (x, rect.bottom))
     return line
+
+def make_preview_cut_line(rect, pos, orientation):
+    x, y, w, h = rect
+    px, py = pos
+    if orientation == 'h':
+        return ((x, py), (x + w, py))
+    elif orientation == 'v':
+        return ((px, y), (px, y + h))
 
 def make_dragging(rects, pos):
     """
@@ -821,7 +838,7 @@ class Demo(pygamelib.DemoBase):
     def _update_cut_preview(self, pos):
         for rect in self.rects:
             if rect.collidepoint(pos):
-                self.tools.preview_line
+                self.tool.preview_line
                 x, y = pos
                 if self.cut_func is cut_rect_horz:
                     self.cut_preview = ((rect.left, y), (rect.right, y))
@@ -852,28 +869,106 @@ class Demo(pygamelib.DemoBase):
         self._update_cut_preview(event.pos)
 
 
-def run(screen_size):
-    window = pygame.Rect((0,)*2, screen_size)
-    engine = pygamelib.Engine()
+class Options:
 
-    rects = [window.inflate((-100,)*2)]
-    state = Demo(rects)
+    def __init__(self, indexable, init_index=0):
+        self.indexable = indexable
+        self.index = init_index
 
-    pygame.display.set_mode(screen_size)
-    engine.run(state)
+    def current(self):
+        return self.indexable[self.index]
+
+    def move(self, delta):
+        self.index = (self.index + delta) % len(self.indexable)
+
+    def next(self):
+        self.move(1)
+
+    def previous(self):
+        self.move(-1)
+
 
 def main(argv=None):
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--size',
-        default = '800',
-        type = pygamelib.sizetype(),
-        help = 'Screen size. Default: %(default)s',
-    )
+    parser = pygamelib.command_line_parser()
     args = parser.parse_args(argv)
-    run(args.size)
+
+    display_size = args.display_size
+    framerate = args.framerate
+    background = args.background
+
+    clock = pygame.time.Clock()
+    window = pygamelib.make_rect(size=display_size)
+    screen = pygame.display.set_mode(window.size)
+    font = pygamelib.monospace_font(20)
+    printer = pygamelib.FontPrinter(font, 'white')
+
+    shapes = RelationDatabase()
+    shapes.add('line')
+    # TODO
+    # - jump off here to play with prolog engine in Python
+    # - ECS and prolog really "feel" similar
+
+    cut_orientations = Options('hv')
+    rects = [window.inflate((-min(window.size)*.5,)*2)]
+    lines = [
+        make_preview_cut_line(
+            rects[-1],
+            pygame.mouse.get_pos(),
+            cut_orientations.current()
+        )
+    ]
+
+    display_vars = [
+        'cut_orientations.current',
+    ]
+
+    hovering = None
+    hovering_point = None
+
+    elapsed = 0
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    pygamelib.post_quit()
+            elif event.type == pygame.MOUSEMOTION:
+                # possible hover for cut
+                for rect in rects:
+                    if pygamelib.point_inside(rect, event.pos):
+                        hovering = rect
+                        hovering_point = event.pos
+                        break
+                else:
+                    hovering = None
+        screen.fill(background)
+        for rect in rects:
+            pygame.draw.rect(screen, 'grey20', rect, 1)
+        for line in lines:
+            pygame.draw.line(screen, 'grey20', line[0], line[1])
+        if hovering:
+            pass
+            #cut_line_preview = make_preview_cut_line(
+            #    hovering, hovering_point, cut_orientations.current()
+            #)
+            #pygame.draw.line(screen, 'red', *cut_line_preview, 1)
+        pygame.display.flip()
+        elapsed = clock.tick(framerate)
 
 if __name__ == '__main__':
     main()
 
 # https://halt.software/dead-simple-layouts/
+# 2024-04-07 Sun.
+# - link is dead or something, just a bunch of animations come up
+# TODO
+# [ ] init
+# [ ] display rect
+# [ ] preview cutting the rect at mouse position
+# [ ] horizontal or vertical
+# [ ] click to cut
+# [ ] cut rect into non-overlapping rects
+# [ ] hover border to display appropriate dragging
+# [ ] drag border to change dimensions of touching rects

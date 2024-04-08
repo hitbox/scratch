@@ -744,7 +744,7 @@ class Rectangle(
     def from_arg(cls, string):
         string = string.strip()
         if string:
-            x, y, w, h = rect_type(string.strip())
+            x, y, w, h = simple_rect_type(string.strip())
             return cls((x, y, w, h))
 
     @property
@@ -1189,6 +1189,37 @@ class StackedRectRenderer:
             renderer(surf, rect)
 
 
+class rect_type:
+
+    def __init__(self, with_pygame=False):
+        self.with_pygame = with_pygame
+
+    def __call__(self, string):
+        if self.with_pygame:
+            container = pygame.Rect
+        else:
+            container = tuple
+        x, y, w, h = intargs(string)
+        return container((x, y, w, h))
+
+
+class rects_type_or_stdin:
+    # XXX
+    # - this does not work
+    # - want to take rects as stdin pipe or arguments
+
+    def __init__(self):
+        self.rects = []
+
+    def __call__(self, string):
+        if string == '-':
+            # this is roughly what argparse.FileType.__call__ does
+            for line in fileinput.input():
+                self.rects.append(simple_rect_type(line))
+        else:
+            self.rects.append(simple_rect_type(string))
+
+
 def scale(factor, image):
     # - partial-able function
     size = pygame.Vector2(image.get_size()) * factor
@@ -1553,32 +1584,11 @@ def repeat_type(s):
 
 point_type = sizetype()
 
-def rect_type(string):
+def simple_rect_type(string):
     """
     pygame Rect arguments as from command line or text file.
     """
-    return pygame.Rect(*intargs(string))
-
-def rect_type(string):
-    x, y, w, h = intargs(string)
-    return (x, y, w, h)
-
-class rects_type_or_stdin:
-    # XXX
-    # - this does not work
-    # - want to take rects as stdin pipe or arguments
-
-    def __init__(self):
-        self.rects = []
-
-    def __call__(self, string):
-        if string == '-':
-            # this is roughly what argparse.FileType.__call__ does
-            for line in fileinput.input():
-                self.rects.append(rect_type(line))
-        else:
-            self.rects.append(rect_type(string))
-
+    return tuple(intargs(string))
 
 def knife_type(s):
     """
@@ -1662,7 +1672,7 @@ def add_seed_option(parser, name='--seed', **kwargs):
     parser.add_argument(name, **kwargs)
 
 def add_rects_argument(parser, name='rects', **kwargs):
-    kwargs.setdefault('type', rect_type)
+    kwargs.setdefault('type', simple_rect_type)
     parser.add_argument(name, **kwargs)
 
 def add_shapes_from_file_arguments(
@@ -1833,7 +1843,7 @@ def make_rect(rect=None, **kwargs):
     rect = pygame.Rect(rect).copy()
     for key, val in kwargs.items():
         setattr(rect, key, val)
-    return tuple(rect)
+    return rect
 
 def from_points(x1, y1, x2, y2):
     w = x2 - x1
@@ -1901,6 +1911,22 @@ def overlaps(rects):
         clipping = r1.clip(r2)
         if clipping:
             yield (r1, r2, clipping)
+
+def top(rect):
+    _, top, _, _ = rect
+    return top
+
+def right(rect):
+    x, _, w, _ = rect
+    return x + w
+
+def bottom(rect):
+    _, y, _, h = rect
+    return y + h
+
+def left(rect):
+    left, _, _, _ = rect
+    return left
 
 def topline(rect):
     x, y, w, h = rect
@@ -1997,13 +2023,13 @@ def ccw_side_lines(rect):
     right = left + width
     bottom = top + height
     # top line
-    yield ((left, top), (right, top))
+    yield ((right, top), (left, top))
     # left line
-    yield ((left, bottom), (left, top))
+    yield ((left, top), (left, bottom))
     # bottom line
-    yield ((right, bottom), (left, bottom))
+    yield ((left, bottom), (right, bottom))
     # right line
-    yield ((right, top), (right, bottom))
+    yield ((right, bottom), (right, top))
 
 def side_lines_from_point(rect, point):
     sides = list(side_lines(rect))
@@ -2088,23 +2114,8 @@ def ccw_side_lines_from_point(rect, point):
     for i in range(i, i+4):
         yield ccw_sides[i % 4]
 
-def top(rect):
-    _, top, _, _ = rect
-    return top
-
-def right(rect):
-    x, _, w, _ = rect
-    return x + w
-
-def bottom(rect):
-    _, y, _, h = rect
-    return y + h
-
-def left(rect):
-    left, _, _, _ = rect
-    return left
-
 def get_digits(s):
+    # TODO: move this func
     for char in s:
         if char in string.digits:
             yield char
@@ -2728,7 +2739,49 @@ def is_vline(line):
     # x's are equal
     return line[0][0] == line[1][0]
 
+def resolve_rect_collisions(rects, iterations):
+    # - mutates the rect objects
+    # TODO
+    # - resolve needs work
+    for n in it.count():
+        if n > iterations:
+            break
+        overlaps = tuple(_overlaps(rects))
+        if not overlaps:
+            break
+        for r1, r2, overlap in overlaps:
+            if not overlap:
+                continue
+            if r1 == r2:
+                r1.left -= r2.width / 2
+                r2.right += r1.width / 2
+            else:
+                dx, dy = pygame.Vector2(r2.center) - r1.center
+                if abs(dx) > abs(dy):
+                    if dx > 0:
+                        r1.left = r2.right
+                    else:
+                        r1.right = r2.left
+                else:
+                    if dy > 0:
+                        r1.bottom = r2.top
+                    else:
+                        r1.top = r2.bottom
+
+def outline_by_path(rect1, rect2):
+    for hline in hlines(rect1):
+        intersections = list(line_rect_intersections(hline, rect2))
+        if not intersections:
+            yield hline
+        else:
+            yield (hline[0], intersections[0][0])
+            yield (hline[1], intersections[-1][0])
+
 def reflow_from(list_, item):
+    """
+    Loop through list_, find item, and then from there yield it, yield the
+    remaining, and finally the item before it in list_ order.
+    """
     list_iter = iter(list_)
     stack = []
     for thing in list_iter:
@@ -2744,27 +2797,16 @@ def reflow_from(list_, item):
 
 def _outline_rects_ccw(intersection_point, rect1, rect2):
     # support function for outline_rects
-    # TODO
-    # - use reflow_from func above
-    # - jumped off here
     rect_line = find_line_for_point(rect1, intersection_point)
     ccw_lines = tuple(ccw_side_lines(rect1))
     if rect_line not in ccw_lines:
         return
-    start_index = ccw_lines.index(rect_line)
-    for offset in range(1, 5):
-        index = (start_index + offset) % 4
-        line = ccw_lines[index]
-        p1, p2 = line
-
-        intersection_pairs = tuple(line_rect_intersections(line, rect2))
-        if intersection_pairs:
-            # intersected again
-            ipoints, ilines = zip(*intersection_pairs)
-            pass
-        else:
-            yield p1
-            yield p2
+    for p1, p2 in reflow_from(ccw_lines, rect_line):
+        _intersection_points = list(line_rect_intersections((p1, p2), rect2))
+        if _intersection_points:
+            yield _intersection_points[0]
+            break
+        yield p2
 
 def outline_rects(rect1, rect2):
     rect1 = pygame.Rect(rect1)
@@ -2829,7 +2871,7 @@ def rect_rect_segments(rect1, rect2):
             elif not any(p for p in line2 if rect1.collidepoint(p)):
                 yield line2
 
-def collidepoint_custom(rect, point):
+def point_inside(rect, point):
     """
     Test if point is inside rect. Fixes inconsistency of
     pygame.rect.collidepoint that returns true for top and left sides.
@@ -2841,7 +2883,7 @@ def rect_rect_segments(rect1, rect2):
     overlap = rect1.clip(rect2)
     for rect in [rect1, overlap]:
         for point in corners(rect):
-            if not collidepoint_custom(rect2, point):
+            if not point_inside(rect2, point):
                 yield point
 
 def walk_outline(rect1, rect2):
@@ -2853,7 +2895,7 @@ def walk_outline(rect1, rect2):
             continue
 
         line1_p1, line1_p2 = line1
-        if not collidepoint_custom(rect2, line1_p1):
+        if not point_inside(rect2, line1_p1):
             outside = line1_p1
         else:
             outside = line1_p2
@@ -2868,7 +2910,7 @@ def walk_outline(rect1, rect2):
         for line2 in ccw_side_lines_from_point(rect2, nearest_intersection):
             intersections = tuple(line_rect_intersections(line2, rect1))
             if not any(intersections):
-                if not any(collidepoint_custom(rect1, point) for point in line2):
+                if not any(point_inside(rect1, point) for point in line2):
                     # line outside
                     break
                 yield line2
@@ -2877,7 +2919,7 @@ def walk_outline(rect1, rect2):
             # line intersection
             line2_p1, line2_p2 = line2
             # point inside other rect, rect1
-            if collidepoint_custom(rect1, line2_p1):
+            if point_inside(rect1, line2_p1):
                 inside = line2_p1
             else:
                 inside = line2_p2
@@ -2890,7 +2932,7 @@ def walk_outline(rect1, rect2):
     for line1 in lines1:
         if point_on_line_segment(line1, nearest_intersection):
             p1, p2 = line1
-            if not collidepoint_custom(rect2, p1):
+            if not point_inside(rect2, p1):
                 p = p1
             else:
                 p = p2
@@ -3913,30 +3955,7 @@ def unique_paths(graph):
 
 def _overlaps(rects):
     for r1, r2 in it.product(rects, repeat=2):
-        if r1 != r2 and r1.colliderect(r2):
-            overlap = (r1.centerx - r2.centerx, r1.centery - r2.centery)
-            yield (r1, r2, overlap)
-
-def resolve_rect_collisions(rects, iterations):
-    # - mutates the rect objects
-    for n in it.count():
-        if n > iterations:
-            break
-        overlaps = tuple(_overlaps(rects))
-        if not overlaps:
-            break
-        for r1, r2, (dx, dy) in overlaps:
-            if abs(dx) > abs(dy):
-                if dx > 0:
-                    r1.left = r2.right
-                else:
-                    r1.right = r2.left
-            else:
-                if dy > 0:
-                    r1.bottom = r2.top
-                else:
-                    r1.top = r2.bottom
-
+        yield (r1, r2, r1.clip(r2))
 
 def contains_point(rect, point):
     # point collides without being one of our corners
