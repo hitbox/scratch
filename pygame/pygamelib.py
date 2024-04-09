@@ -3318,6 +3318,16 @@ def extremities(*rects):
     bottom = top + height
     return (top, right, bottom, left)
 
+def size_from_points(points):
+    xs, ys = zip(*points)
+    x = min(xs)
+    y = min(ys)
+    r = max(xs)
+    b = max(ys)
+    w = r - x
+    h = b - y
+    return (w, h)
+
 def rect_from_points(points):
     xs, ys = zip(*points)
     x = min(xs)
