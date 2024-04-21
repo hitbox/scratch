@@ -1,3 +1,5 @@
+import itertools as it
+
 import pygamelib
 
 from pygamelib import pygame
@@ -11,7 +13,7 @@ class CubicSpline:
         self.a, self.b, self.c, self.d = self._calculate_coefficients()
 
     def _calculate_coefficients(self):
-        h = [self.x[i + 1] - self.x[i] for i in range(self.n - 1)]
+        h = [b - a for a, b in it.pairwise(self.x)]
 
         def _alpha(i):
             return (
@@ -21,7 +23,7 @@ class CubicSpline:
                 * (self.y[i] - self.y[i - 1])
             )
 
-        alpha = [_alpha(i) for i in range(1, self.n - 1)]
+        alpha = list(map(_alpha, range(1, self.n - 1)))
 
         l = [1] * self.n
         mu = [0] * self.n
@@ -59,7 +61,12 @@ class CubicSpline:
     def evaluate(self, xi):
         i = self._find_segment(xi)
         dx = xi - self.x[i]
-        return self.a[i] + self.b[i] * dx + self.c[i] * dx**2 + self.d[i] * dx**3
+        return (
+            self.a[i]
+            + self.b[i] * dx
+            + self.c[i] * dx ** 2
+            + self.d[i] * dx ** 3
+        )
 
 
 def main(argv=None):
