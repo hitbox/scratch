@@ -1,0 +1,7 @@
+flask
+flask-assets
+flask-htmlmin
+flask-login
+flask-sqlalchemy
+sqlalchemy
+wtforms
