@@ -10,6 +10,10 @@ alignments = it.cycle(['topleft', 'topright', 'bottomright', 'bottomleft'])
 phi = (1 + math.sqrt(5)) / 2
 
 def golden_rect(inside):
+    """
+    Continuously generate golden ratio rects inside the `inside` rect. After
+    yielding, the golden rect becomes the new `inside`.
+    """
     while True:
         minside = min(inside.size)
         maxside = max(inside.size)
@@ -70,6 +74,8 @@ def main(argv=None):
 
     elapsed = 0
     running = True
+    font = pygamelib.monospace_font(20)
+    font_printer = pygamelib.FontPrinter(font, 'azure')
     clock = pygame.time.Clock()
     screen = pygame.display.set_mode(window.size)
     while running:
@@ -95,6 +101,11 @@ def main(argv=None):
                     golden = next(scale_rects_as_points([golden], window.center, delta))
 
         screen.fill(background)
+        image = font_printer([
+            'Escape or Q to quit',
+            'Other key to generate new gold rect',
+        ])
+        screen.blit(image, (0,0))
         for _rect in saved:
             pygame.draw.rect(screen, 'grey20', _rect, 1)
         pygame.draw.rect(screen, 'gold', golden, 1)
