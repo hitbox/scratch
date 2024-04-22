@@ -25,19 +25,33 @@ def main(argv=None):
     parser.add_argument(
         'rect',
         type = pygamelib.rect_type(with_pygame=True),
+        help = 'Rect to draw arc inside of.',
     )
     parser.add_argument(
         'angle1',
         type = int,
+        help = 'Start angle of arc in integer degrees.',
     )
     parser.add_argument(
         'angle2',
         type = int,
+        help = 'End angle of arc in integer degrees.',
     )
     parser.add_argument(
         '--npoints',
         default = 30,
         type = int,
+        help = 'Number of points to draw polygon.',
+    )
+    parser.add_argument(
+        '--draw-rect',
+        action = 'store_true',
+        help = "Draw the arc's containing rect.",
+    )
+    parser.add_argument(
+        '--color',
+        default = 'brown',
+        help = 'Color of arc polygon line.',
     )
     args = parser.parse_args(argv)
 
@@ -48,6 +62,7 @@ def main(argv=None):
     angle1 = math.radians(args.angle1)
     angle2 = math.radians(args.angle2)
     npoints = args.npoints
+    arc_color = pygame.Color(args.color)
 
     polygon = list(ellipse_points(rect.center, rect.size, npoints, angle1, angle2))
 
@@ -64,11 +79,11 @@ def main(argv=None):
                 if event.key in (pygame.K_ESCAPE, pygame.K_q):
                     pygamelib.post_quit()
         screen.fill(background)
-        pygame.draw.rect(screen, 'grey20', rect, 1)
-        pygame.draw.line(screen, 'grey20', rect.midtop, rect.midbottom, 1)
-        pygame.draw.line(screen, 'grey20', rect.midleft, rect.midright, 1)
-        #pygame.draw.arc(screen, 'white', rect, math.radians(angle1), math.radians(angle2), 1)
-        pygame.draw.lines(screen, 'brown', False, polygon, 1)
+        if args.draw_rect:
+            pygame.draw.rect(screen, 'grey20', rect, 1)
+            pygame.draw.line(screen, 'grey20', rect.midtop, rect.midbottom, 1)
+            pygame.draw.line(screen, 'grey20', rect.midleft, rect.midright, 1)
+        pygame.draw.lines(screen, arc_color, False, polygon, 1)
 
         pygame.display.flip()
         elapsed = clock.tick(framerate)
