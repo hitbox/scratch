@@ -105,7 +105,7 @@ def main(argv=None):
     parser.add_argument(
         'delay_denom',
         type = int,
-        help = 'frames / delay_denom',
+        help = 'frames / delay_denom for the trailing, inner circle',
     )
     parser.add_argument(
         'color',
@@ -127,4 +127,6 @@ if __name__ == '__main__':
 # 2024-04-08 Mon.
 # - Exploding circle thing like here:
 # https://css-tricks.com/wp-content/uploads/2016/06/web_heart_animation.png
+#   where one circle "explodes" and, later, another inner circle "explodes"
+#   giving a shockwave impression
 # - Thinking about Flask style decorators for hooks into the main loop.
