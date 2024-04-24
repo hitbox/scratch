@@ -7,6 +7,7 @@ import re
 
 from collections import defaultdict
 from pprint import pprint
+from types import SimpleNamespace
 
 TAXI = 'TAXI'
 
@@ -15,13 +16,13 @@ class Jaccuse:
     def __init__(
         self,
         time_to_solve,
-        entities,
+        database,
         accuse_limit,
         liars_range,
         zophie_range,
     ):
         self._time_to_solve = time_to_solve
-        self._entities = entities
+        self._database = database
         self.accuse_limit = accuse_limit
         self.liars_range = liars_range
         self.zophie_range = zophie_range
@@ -33,11 +34,11 @@ class Jaccuse:
         """
         self.time_to_solve = self._time_to_solve
 
-        self.truth = {key: list_.copy() for key, list_ in self._entities.items()}
+        self.truth = {key: list_.copy() for key, list_ in self._database.items()}
         for list_ in self.truth.values():
             random.shuffle(list_)
 
-        # insertion order should keep in alignment
+        # insertion order should keep alignment
         self.lies = {key: list_.copy() for key, list_ in self.truth.items()}
         for truth, lies in zip(self.truth.values(), self.lies.values()):
             different_shuffle(truth, lies)
@@ -92,34 +93,28 @@ class Jaccuse:
         self.current_location = TAXI
         self.accused = []
 
-    @classmethod
-    def from_config(cls, cp):
-        """
-        Jaccuse instance from config.
-        """
-        jaccuse_config = cp['jaccuse']
-        time_to_solve = jaccuse_config.getint('time_to_solve_seconds')
-        accuse_limit = jaccuse_config.getint('accuse_limit')
-        liars_range = inttuple(jaccuse_config['liars_range'])
-        zophie_range = inttuple(jaccuse_config['zophie_range'])
 
-        entities = {
-            key: list(cp[f'jaccuse.{key}'].values())
-            for key in jaccuse_config['entities'].split()
-        }
-
-        # all lists are same length
-        assert len(set(map(len, entities.values()))) == 1
-
-        instance = cls(
-            time_to_solve = time_to_solve,
-            entities = entities,
-            accuse_limit = accuse_limit,
-            liars_range = liars_range,
-            zophie_range = zophie_range,
-        )
-        return instance
-
+def config_data(cp):
+    jaccuse_config = cp['jaccuse']
+    time_to_solve = jaccuse_config.getint('time_to_solve_seconds')
+    accuse_limit = jaccuse_config.getint('accuse_limit')
+    minliars, maxliars = inttuple(jaccuse_config['liars_range'])
+    zophie_range = inttuple(jaccuse_config['zophie_range'])
+    database = {
+        key: list(cp[f'jaccuse.{key}'].values())
+        for key in jaccuse_config['database'].split()
+    }
+    # all lists are same length
+    assert len(set(map(len, database.values()))) == 1
+    data = dict(
+        time_to_solve = time_to_solve,
+        database = database,
+        accuse_limit = accuse_limit,
+        minliars = minliars,
+        maxliars = maxliars,
+        zophie_range = zophie_range,
+    )
+    return data
 
 def different_shuffle(original, x):
     """
@@ -135,6 +130,65 @@ def predicatize(person, item, place):
 
 def inttuple(string):
     return tuple(map(int, string.split(',')))
+
+
+def command_line_menu(prompt, items):
+    indexes = range(len(items))
+    while True:
+        for index, item in enumerate(items):
+            print(f'({index}) {item}')
+        try:
+            selected = int(input(prompt))
+        except ValueError:
+            print('Invalid input')
+        else:
+            if selected in indexes:
+                return selected
+            else:
+                print('Invalid index')
+
+def command_line_main(state):
+    db = state.database
+    # TODO
+    # - start time and enforce
+    # - enfore accusations limit
+    state.current_location = TAXI
+    while True:
+        print(f'You are at {state.current_location}')
+        if state.current_location == TAXI:
+            # hub transport
+            items = []
+            for place in db.places:
+                item_parts = [place]
+                suspect = next(
+                    _suspect for _suspect, _place in db.suspects_places
+                    if _place == place
+                )
+                if suspect in db.known_suspects:
+                    their_item = next(
+                        item for _suspect, item in db.suspects_items if _suspect == suspect
+                    )
+                    item_parts.append(f'{suspect} with {their_item}')
+                items.append(' : '.join(item_parts))
+            items.append('QUIT')
+            index = command_line_menu('Select place ', items)
+            if items[index] == 'QUIT':
+                break
+            else:
+                state.current_location = items[index]
+        elif state.current_location in db.places:
+            current_suspect = next(
+                suspect for suspect, place in db.suspects_places
+                if place == state.current_location
+            )
+            current_item = next(
+                item for suspect, item in db.suspects_items
+                if suspect == current_suspect
+            )
+            print(f'{current_suspect} is at {state.current_location} with {current_item}.')
+            db.known_suspects.add(current_suspect)
+            input(f'Back to {TAXI} ')
+            state.current_location = TAXI
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
@@ -154,7 +208,34 @@ def main(argv=None):
     cp = configparser.ConfigParser()
     cp.read(args.config)
 
-    jaccuse = Jaccuse.from_config(cp)
+    config = config_data(cp)
+    state = SimpleNamespace(**{
+        key: SimpleNamespace(**val) if isinstance(val, dict) else val
+        for key, val in config.items()
+    })
+    db = state.database
+    # random where suspects are (truth)
+    db.suspects_places = set(zip(
+        random.sample(db.suspects, len(db.suspects)),
+        random.sample(db.places, len(db.places)),
+    ))
+    # random what item suspect has (truth)
+    db.suspects_items = set(zip(
+        random.sample(db.suspects, len(db.suspects)),
+        random.sample(db.items, len(db.items)),
+    ))
+    # liars and lies
+    # some random number of liars
+    num_liars = random.randint(state.minliars, state.maxliars)
+    db.liars = set(random.sample(db.suspects, num_liars))
+    # anti-truths about where suspects are and what items they have
+    db.lies = set(it.product(db.suspects, db.places)).difference(db.suspects_places)
+    db.lies.update(set(it.product(db.suspects, db.items)).difference(db.suspects_items))
+    #
+    db.known_suspects = set()
+
+    #jaccuse = Jaccuse.from_config(cp)
+    command_line_main(state)
 
 if __name__ == '__main__':
     main()
