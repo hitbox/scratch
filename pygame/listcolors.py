@@ -12,7 +12,7 @@ import pygamelib
 
 from pygamelib import pygame
 
-class ColorGrid(
+class ColorGridDemo(
     pygamelib.DemoBase,
     pygamelib.QuitKeydownMixin,
     pygamelib.StopMixin,
@@ -145,7 +145,7 @@ def run(display_size, colors, names, font_size, background_color):
 
     images = list(map(render_text, rects, colors, names))
     drawables = list(zip(images, rects))
-    demo = ColorGrid(drawables, background_color)
+    demo = ColorGridDemo(drawables, background_color)
     demo.offset = pygamelib.centered_offset(rects, display_size)
 
     engine = pygamelib.Engine()
@@ -249,3 +249,7 @@ def main(argv=None):
 
 if __name__ == '__main__':
     main()
+
+# 2024-04-23 Tue.
+# - Waterfall layout
+#   https://webkit.org/blog/15269/help-us-invent-masonry-layouts-for-css-grid-level-3/
