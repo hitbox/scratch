@@ -130,3 +130,6 @@ if __name__ == '__main__':
 #   where one circle "explodes" and, later, another inner circle "explodes"
 #   giving a shockwave impression
 # - Thinking about Flask style decorators for hooks into the main loop.
+# 2024-03-25 Tue.
+# - Something that looks interesting (long):
+# https://www.andreinc.net/2024/04/24/from-the-circle-to-epicycles
