@@ -156,73 +156,6 @@ class Jaccuse:
         self.accused = []
 
 
-class StringWidget:
-
-    def __call__(self, field, **kwargs):
-        return str(field)
-
-
-class Field:
-
-    def __set_name__(self, owner, name):
-        self.name = name
-
-    def __get__(self, instance, owner):
-        if instance is None:
-            return self
-
-    def render(self, **kwargs):
-        return self.widget(self, **kwargs)
-
-
-class SelectField(Field):
-
-    widget = StringWidget()
-
-
-class CommandField(Field):
-
-    widget = StringWidget()
-
-
-class Form:
-
-    @classmethod
-    def _unbound_fields(cls):
-        for name in dir(cls):
-            attr = getattr(cls, name)
-            if isinstance(attr, Field):
-                yield (name, attr)
-
-    @classmethod
-    def from_data(cls, data):
-        form = cls()
-        form._fields = []
-        fields = dict(cls._unbound_fields())
-        for key, val in data.items():
-            if key in fields:
-                field = fields[key]
-                setattr(form, key, field)
-                form._fields.append(field)
-                del fields[key]
-        for name, field in fields.items():
-            setattr(form, name, field)
-            form._fields.append(field)
-        return form
-
-    def __iter__(self):
-        yield from self._fields
-
-
-class TaxiForm(Form):
-    """
-    WIP: Form for selecting place to go or...
-    """
-
-    places = SelectField()
-    quit_ = CommandField()
-
-
 def config_data(cp):
     jaccuse_config = cp['jaccuse']
     time_to_solve = jaccuse_config.getint('time_to_solve_seconds')
@@ -350,10 +283,6 @@ def main(argv=None):
     game = SimpleNamespace(**dict(config_data(cp)))
     db = database_from_config(cp)
     db.randomize_from_settings(game)
-
-    taxi_form = TaxiForm.from_data(dict(db.tables()))
-    for field in taxi_form:
-        print(field)
 
 if __name__ == '__main__':
     main()
