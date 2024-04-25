@@ -11,6 +11,68 @@ from types import SimpleNamespace
 
 TAXI = 'TAXI'
 
+class Database:
+
+    def __init__(self, suspects, items, places):
+        self.suspects = suspects
+        self.items = items
+        self.places = places
+        self.suspects_places = set()
+        self.suspects_items = set()
+        self.known_suspects = set()
+        self.culprit = None
+
+    def tables(self):
+        yield ('suspects', self.suspects)
+        yield ('items', self.items)
+        yield ('places', self.places)
+        yield ('suspects_places', self.suspects_places)
+        yield ('suspects_items', self.suspects_items)
+        yield ('known_suspects', self.known_suspects)
+        yield ('culprit', self.culprit)
+
+    def reset(self):
+        self.suspects_places.clear()
+        self.suspects_items.clear()
+        self.known_suspects.clear()
+
+    def random_suspects_places(self):
+        return zip(newshuffle(self.suspects), newshuffle(self.places))
+
+    def random_suspects_items(self):
+        return zip(newshuffle(self.suspects), newshuffle(self.items))
+
+    def randomize(self, num_liars, num_zophie):
+        """
+        :param num_liars: number of liars to generate.
+        :param num_zophie: numer of suspects to give clues about Zophie.
+        """
+        self.suspects_places.update(self.random_suspects_places())
+        self.suspects_items.update(self.random_suspects_items())
+        self.culprit = random.choice(list(self.suspects))
+
+    def randomize_from_settings(self, settings):
+        num_liars = random.randint(settings.minliars, settings.maxliars)
+        num_zophie = random.randint(settings.minzophie, settings.maxzophie)
+        self.randomize(num_liars, num_zophie)
+
+    def suspect_place(self, suspect):
+        """
+        Where a suspect is.
+        """
+        for _suspect, place in self.suspects_places:
+            if _suspect == suspect:
+                return place
+
+    def suspect_item(self, suspect):
+        """
+        Item that suspect has.
+        """
+        for _suspect, item in self.suspects_items:
+            if _suspect == suspect:
+                return item
+
+
 class Jaccuse:
 
     def __init__(
@@ -94,27 +156,97 @@ class Jaccuse:
         self.accused = []
 
 
+class StringWidget:
+
+    def __call__(self, field, **kwargs):
+        return str(field)
+
+
+class Field:
+
+    def __set_name__(self, owner, name):
+        self.name = name
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+
+    def render(self, **kwargs):
+        return self.widget(self, **kwargs)
+
+
+class SelectField(Field):
+
+    widget = StringWidget()
+
+
+class CommandField(Field):
+
+    widget = StringWidget()
+
+
+class Form:
+
+    @classmethod
+    def _unbound_fields(cls):
+        for name in dir(cls):
+            attr = getattr(cls, name)
+            if isinstance(attr, Field):
+                yield (name, attr)
+
+    @classmethod
+    def from_data(cls, data):
+        form = cls()
+        form._fields = []
+        fields = dict(cls._unbound_fields())
+        for key, val in data.items():
+            if key in fields:
+                field = fields[key]
+                setattr(form, key, field)
+                form._fields.append(field)
+                del fields[key]
+        for name, field in fields.items():
+            setattr(form, name, field)
+            form._fields.append(field)
+        return form
+
+    def __iter__(self):
+        yield from self._fields
+
+
+class TaxiForm(Form):
+    """
+    WIP: Form for selecting place to go or...
+    """
+
+    places = SelectField()
+    quit_ = CommandField()
+
+
 def config_data(cp):
     jaccuse_config = cp['jaccuse']
     time_to_solve = jaccuse_config.getint('time_to_solve_seconds')
     accuse_limit = jaccuse_config.getint('accuse_limit')
     minliars, maxliars = inttuple(jaccuse_config['liars_range'])
-    zophie_range = inttuple(jaccuse_config['zophie_range'])
-    database = {
-        key: list(cp[f'jaccuse.{key}'].values())
-        for key in jaccuse_config['database'].split()
-    }
-    # all lists are same length
-    assert len(set(map(len, database.values()))) == 1
-    data = dict(
-        time_to_solve = time_to_solve,
-        database = database,
-        accuse_limit = accuse_limit,
-        minliars = minliars,
-        maxliars = maxliars,
-        zophie_range = zophie_range,
-    )
-    return data
+    minzophie, maxzophie = inttuple(jaccuse_config['zophie_range'])
+    yield ('time_to_solve', time_to_solve)
+    yield ('accuse_limit', accuse_limit)
+    yield ('minliars', minliars)
+    yield ('maxliars', maxliars)
+    yield ('minzophie', minzophie)
+    yield ('maxzophie', maxzophie)
+
+def tables_from_config(cp):
+    for tablename in cp['jaccuse']['tables'].split():
+        section = cp[f'jaccuse.{tablename}']
+        rows = section.values()
+        yield (tablename, rows)
+
+def database_from_config(cp):
+    tables = defaultdict(set)
+    for tablename, rows in tables_from_config(cp):
+        tables[tablename].update(rows)
+    return Database(**tables)
 
 def different_shuffle(original, x):
     """
@@ -131,6 +263,9 @@ def predicatize(person, item, place):
 def inttuple(string):
     return tuple(map(int, string.split(',')))
 
+def newshuffle(iterable):
+    list_ = list(iterable)
+    return random.sample(list_, len(list_))
 
 def command_line_menu(prompt, items):
     indexes = range(len(items))
@@ -190,7 +325,7 @@ def command_line_main(state):
             input(f'Back to {TAXI} ')
             state.current_location = TAXI
 
-def main(argv=None):
+def argument_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         'config',
@@ -200,6 +335,10 @@ def main(argv=None):
         '--seed',
         type = int,
     )
+    return parser
+
+def main(argv=None):
+    parser = argument_parser()
     args = parser.parse_args(argv)
 
     if args.seed:
@@ -208,34 +347,13 @@ def main(argv=None):
     cp = configparser.ConfigParser()
     cp.read(args.config)
 
-    config = config_data(cp)
-    state = SimpleNamespace(**{
-        key: SimpleNamespace(**val) if isinstance(val, dict) else val
-        for key, val in config.items()
-    })
-    db = state.database
-    # random where suspects are (truth)
-    db.suspects_places = set(zip(
-        random.sample(db.suspects, len(db.suspects)),
-        random.sample(db.places, len(db.places)),
-    ))
-    # random what item suspect has (truth)
-    db.suspects_items = set(zip(
-        random.sample(db.suspects, len(db.suspects)),
-        random.sample(db.items, len(db.items)),
-    ))
-    # liars and lies
-    # some random number of liars
-    num_liars = random.randint(state.minliars, state.maxliars)
-    db.liars = set(random.sample(db.suspects, num_liars))
-    # anti-truths about where suspects are and what items they have
-    db.lies = set(it.product(db.suspects, db.places)).difference(db.suspects_places)
-    db.lies.update(set(it.product(db.suspects, db.items)).difference(db.suspects_items))
-    #
-    db.known_suspects = set()
+    game = SimpleNamespace(**dict(config_data(cp)))
+    db = database_from_config(cp)
+    db.randomize_from_settings(game)
 
-    #jaccuse = Jaccuse.from_config(cp)
-    command_line_main(state)
+    taxi_form = TaxiForm.from_data(dict(db.tables()))
+    for field in taxi_form:
+        print(field)
 
 if __name__ == '__main__':
     main()
