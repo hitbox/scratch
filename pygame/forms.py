@@ -113,6 +113,25 @@ class SelectField(Field):
         if value:
             self.data = self.coerce(value)
 
+    def iter_choices(self):
+        if not self.choices:
+            return []
+
+        choices = self.choices
+        if isinstance(self.choices, dict):
+            choices = list(choices.values())
+
+        if not isinstance(choices[0], (list, tuple)):
+            choices = zip(choices, choices)
+
+        for value, label, *other in choices:
+            selected = self.coerce(value) == self.data
+            if other:
+                render_kw = other[0]
+            else:
+                render_kw = {}
+            yield (value, label, selected, render_kw)
+
 
 class Form:
 
@@ -151,8 +170,33 @@ class Form:
 
 def read_form(form):
     for field in form:
-        formdata = input(f'{field.label} ({field.default}): ')
+        prompt = f'{field.label}'
+        if field.default:
+            prompt += ' ({field.default})'
+        prompt += '> '
+        formdata = input(prompt)
         yield (field.name, formdata)
+
+def render_select_indexed(field, start=1, multiple=False):
+    strings = []
+    choices = enumerate(field.iter_choices(), start=start)
+    for index, item in choices:
+        value, label, selected, render_kw = item
+        string = f'{index}.'
+        if multiple:
+            string += ' [{"X" if selected else " "}]'
+        string += f' {label}'
+        strings.append(string)
+    return strings
+
+def render_form(form):
+    strings = []
+    for field in form:
+        if isinstance(field, (IntegerField, StringField)):
+            strings.append(field.label)
+        elif isinstance(field, SelectField):
+            strings.extend(render_select_indexed(field))
+    return '\n'.join(strings)
 
 def test_form():
     fields = dict(

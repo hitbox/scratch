@@ -9,6 +9,8 @@ from collections import defaultdict
 from pprint import pprint
 from types import SimpleNamespace
 
+import forms
+
 TAXI = 'TAXI'
 
 class Database:
@@ -51,7 +53,7 @@ class Database:
         self.suspects_items.update(self.random_suspects_items())
         self.culprit = random.choice(list(self.suspects))
 
-    def randomize_from_settings(self, settings):
+    def randomize_from_obj(self, settings):
         num_liars = random.randint(settings.minliars, settings.maxliars)
         num_zophie = random.randint(settings.minzophie, settings.maxzophie)
         self.randomize(num_liars, num_zophie)
@@ -129,7 +131,29 @@ def main(argv=None):
 
     game = SimpleNamespace(**dict(config_data(cp)))
     db = database_from_config(cp)
-    db.randomize_from_settings(game)
+    db.randomize_from_obj(game)
+
+    indexed_places = list(enumerate(sorted(db.places), start=1))
+    while True:
+        taxi_form = forms.Form(
+            dict(
+                place = forms.SelectField(
+                    name = 'place',
+                    label = 'Goto',
+                    choices = dict(indexed_places),
+                ),
+            ),
+        )
+        # this would be something like the response step in html
+        # render the form to screen
+        # collect input
+        print(forms.render_form(taxi_form))
+        # now like another request from browser submitting the form
+        # need to process and validate input/data
+        # if valid use it, if not report errors and loop for input again
+        formdata = SimpleNamespace(**dict(forms.read_form(taxi_form)))
+        print(formdata)
+        break
 
 if __name__ == '__main__':
     main()
