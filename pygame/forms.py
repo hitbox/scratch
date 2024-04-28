@@ -81,7 +81,6 @@ class IntegerField(Field):
 
     def process_formdata(self, value):
         # TODO: valuelist
-        # TODO: just have a coerce attribute for all fields?
         if value:
             self.data = int(value)
 
@@ -99,8 +98,6 @@ class SelectField(Field):
         if choices is not None:
             if not isinstance(choices, dict):
                 choices = list(choices)
-        else:
-            choices = None
         self.choices = choices
 
     def process_data(self, value):
