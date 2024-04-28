@@ -10,29 +10,6 @@ from collections import defaultdict
 from pprint import pprint
 from types import SimpleNamespace
 
-class StringWidget:
-
-    def __call__(self, field, **kwargs):
-        return str(field)
-
-
-class SelectWidget:
-
-    def __call__(self, field, **kwargs):
-        for choice in field.choices:
-            print(choice)
-
-
-class Input:
-
-    def __init__(self, prompt, input_=input):
-        self.prompt = prompt
-        self.input_ = input_
-
-    def __call__(self):
-        return self.input_(self.prompt)
-
-
 unset_value = object()
 
 class Field:
