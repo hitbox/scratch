@@ -4,7 +4,40 @@ import pygamelib
 
 from pygamelib import pygame
 
+class NumberPointsArc:
+
+    def __init__(self, autoname):
+        self.autoname = autoname
+
+    def __call__(self, argument_string):
+        if argument_string == self.autoname:
+            return self.autoname
+        else:
+            return int(argument_string)
+
+
+def integrand(a, b, theta):
+    return math.sqrt(
+        a**2 * math.sin(theta)**2
+        + b**2 * math.cos(theta)**2
+    )
+
+def arc_length_ellipse(a, b, theta1, theta2, n):
+    h = (theta2 - theta1) / n
+    sum_integral = 0.5 * (integrand(a, b, theta1) + integrand(a, b, theta2))
+    for i in range(1, n):
+        sum_integral += integrand(a, b, theta1 + i * h)
+    return sum_integral * h
+
+def smooth_points_number(arc_length, solve_for=100):
+    # find n points that results in arc_length/n ~= 50
+    return arc_length / solve_for
+
 def ellipse_points(center, size, npoints, angle1=None, angle2=None):
+    """
+    Generate points around a center for an ellipse of width and height, size;
+    from angle1 to angle2.
+    """
     if angle1 is None:
         angle1 = 0
     if angle2 is None:
@@ -20,7 +53,7 @@ def ellipse_points(center, size, npoints, angle1=None, angle2=None):
         y = cy + ry * -math.sin(angle)
         yield (x, y)
 
-def main(argv=None):
+def argument_parser():
     parser = pygamelib.command_line_parser()
     parser.add_argument(
         'rect',
@@ -39,9 +72,9 @@ def main(argv=None):
     )
     parser.add_argument(
         '--npoints',
-        default = 30,
-        type = int,
-        help = 'Number of points to draw polygon.',
+        default = 'smooth',
+        type = NumberPointsArc('smooth'),
+        help = 'Number of points to draw polygon. Default: %(default)s.',
     )
     parser.add_argument(
         '--draw-rect',
@@ -53,6 +86,10 @@ def main(argv=None):
         default = 'brown',
         help = 'Color of arc polygon line.',
     )
+    return parser
+
+def main(argv=None):
+    parser = argument_parser()
     args = parser.parse_args(argv)
 
     display_size = args.display_size
@@ -61,7 +98,14 @@ def main(argv=None):
     rect = args.rect
     angle1 = math.radians(args.angle1)
     angle2 = math.radians(args.angle2)
-    npoints = args.npoints
+
+    if args.npoints == 'smooth':
+        a, b = sorted(rect.size, reverse=True)
+        arc_length = arc_length_ellipse(a, b, angle1, angle2, n=1)
+        npoints = int(smooth_points_number(arc_length))
+    else:
+        npoints = args.npoints
+
     arc_color = pygame.Color(args.color)
 
     polygon = list(ellipse_points(rect.center, rect.size, npoints, angle1, angle2))
