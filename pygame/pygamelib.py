@@ -2453,7 +2453,7 @@ def blit_rect(surf, rect, color):
 
 def circle_rect(center, radius):
     """
-    Wrap a circle in a rect
+    Return a rect that wraps a circle.
     """
     x, y = center
     return (x-radius, y-radius, radius*2, radius*2)
