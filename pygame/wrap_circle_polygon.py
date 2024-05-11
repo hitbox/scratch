@@ -1,9 +1,21 @@
 import math
+import operator as op
 
 import pygamelib
 
 from pygamelib import outer_tangent_angles
 from pygamelib import pygame
+
+class DivisionType:
+
+    def __init__(self, autoname):
+        self.autoname = autoname
+
+    def __call__(self, argstr):
+        if argstr != self.autoname:
+            argstr = int(argstr)
+        return argstr
+
 
 class Variables:
 
@@ -22,6 +34,22 @@ class Variables:
             yield f'{key}={val}'
 
 
+class Circle:
+
+    def __init__(self, center, radius):
+        self.center = center
+        self.radius = radius
+
+
+class PolygonCircle:
+    """
+    Approximate a circle with a polygon.
+    """
+
+    def __init__(self, circle):
+        self.circle = circle
+
+
 def position_for_label(label_image, point, center, margin=0):
     px, py = point
     cx, cy = center
@@ -33,22 +61,15 @@ def position_for_label(label_image, point, center, margin=0):
     y = cy + math.sin(angle) * radius
     return (x, y)
 
-def circle_point(center, radius, angle):
-    # XXX
-    # - decide between this and the same function in pygamelib
-    # - plus or minus the sin/y part
-    cx, cy = center
-    x = cx + math.cos(angle) * radius
-    y = cy + math.sin(angle) * radius
-    return (x, y)
-
 def generate_angles(a1, a2, n):
     for i in range(n+1):
         yield pygamelib.mixangle_longest(a2, a1, i / n)
 
 def generate_points(center, radius, angles):
+    cx, cy = center
     for angle in angles:
-        yield circle_point(center, radius, angle)
+        x, y = pygamelib.circle_point(angle, radius)
+        yield (cx + x, cy + y)
 
 def origin_lines(center, inside):
     cx, cy = center
@@ -83,7 +104,13 @@ def draw_background_elements(soup):
     # the circle
     pygame.draw.circle(screen, 'grey20', center, radius, 1)
     # debugging: calculated line from center toward cursor
-    calculated_point_on_circle = circle_point(center, radius, center_to_point_angle)
+    calculated_point_on_circle = tuple(
+        map(
+            op.add,
+            pygamelib.circle_point(center_to_point_angle, radius),
+            center
+        )
+    )
     pygame.draw.line(screen, 'darkslateblue', center, calculated_point_on_circle)
     # print variables
     lines = tuple(variables.from_dict(soup))
@@ -128,6 +155,17 @@ def draw(soup):
     draw_background_elements(soup)
     draw_foreground_elements(soup)
 
+def smooth_n(radius, smoothness=20):
+    """
+    Return an n number of points to divide a circle to produce a smooth
+    polygon.
+    """
+    # https://chatgpt.com/c/c7bcb687-cd00-4eab-80a1-d579b6fa7da0
+    # smaller smoothness integer is smoother, more points
+    circumference = math.tau * radius
+    divisions = int(circumference / smoothness)
+    return max(divisions, 3)
+
 def run(
     display_size,
     framerate,
@@ -135,6 +173,7 @@ def run(
     divisions,
     center = None,
     radius = None,
+    smoothness_factor = 20,
 ):
     short_float = '{:.2f}'.format
     variables = Variables(
@@ -169,12 +208,24 @@ def run(
                     pygame.event.post(pygame.event.Event(pygame.QUIT))
             elif event.type == pygame.MOUSEMOTION:
                 point = event.pos
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == pygame.BUTTON_WHEELUP:
+                    radius += 1
+                elif event.button == pygame.BUTTON_WHEELDOWN:
+                    radius -= 1
         # update
         frames_per_second = clock.get_fps()
         center_to_point_angle = pygamelib.angle_to(center, point)
         # create tangent angles
         if math.dist(center, point) >= radius:
-            points = points_around_circle(center, radius, point, divisions)
+            if divisions == 'smooth':
+                a1, a2 = outer_tangent_angles(center, radius, point)
+                n = pygamelib.arc_length_longest(radius, a1, a2)
+                n = int(n / smoothness_factor)
+                n = max(n, 3)
+            else:
+                n = 3
+            points = points_around_circle(center, radius, point, n)
         else:
             tangent_angles = tuple()
             points = tuple()
@@ -197,8 +248,8 @@ def main(argv=None):
     )
     parser.add_argument(
         '--divisions',
-        type = int,
-        default = 10,
+        type = DivisionType('smooth'),
+        default = 'smooth',
         help = 'Number of divisions between tangent points. Default: %(default)s',
     )
     args = parser.parse_args(argv)

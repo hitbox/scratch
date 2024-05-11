@@ -1625,14 +1625,15 @@ def mix(time, a, b):
     """
     return a * (1 - time) + b * time
 
+lerp = mix
+
 def mixiters(time, iter1, iter2):
     return tuple(mix(time, a, b) for a, b in zip(iter1, iter2))
 
 def mixangle_longest(a, b, time):
+    # lerp between angles, the longest way around
     longest_distance = math.tau - abs(a - b)
     return (a + longest_distance * time) % math.tau
-
-lerp = mix
 
 # TODO
 # - lerp a string? sounds kinda neat.
@@ -3512,19 +3513,38 @@ def line_segments_polygons(lines):
             line1p2,
         ]
 
+def corner_angle(p1, p2, p3):
+    x1, y1 = p1
+    x2, y2 = p2
+    x3, y3 = p3
+    AB = (x2 - x1, y2 - y1)
+    BC = (x3 - x2, y3 - y2)
+    dot_product = AB[0] * BC[0] + AB[1] * BC[1]
+    magnitude_AB = math.sqrt(AB[0]**2 + AB[1]**2)
+    magnitude_BC = math.sqrt(BC[0]**2 + BC[1]**2)
+    cos_theta = dot_product / (magnitude_AB * magnitude_BC)
+    angle = math.acos(cos_theta)
+    return angle
+
+def corner_angle(p1, p2, p3):
+    # https://stackoverflow.com/a/31334882/2680592
+    x1, y1 = p1
+    x2, y2 = p2
+    x3, y3 = p3
+    return math.atan2(y3 - y1, x3 - x1) - math.atan2(y2 - y1, x2 - x1)
+
+def arc_length(radius, a, b):
+    return radius * abs(b - a)
+
+def arc_length_longest(radius, a, b):
+    longest_distance = math.tau - abs(a - b)
+    return radius * longest_distance
+
 def circle_point(angle, radius):
     """
     Screen-space point on a circle.
     """
-    return (+math.cos(angle) * radius, -math.sin(angle) * radius)
-
-def circle_pointsf(start, stop, step, radius):
-    # would guess there is much more error using floatrange
-    # because adds compound errors instead of calculating radians each time
-    for angle in floatrange(start, stop, step):
-        x = +math.cos(angle) * radius
-        y = -math.sin(angle) * radius
-        yield (x, y)
+    return (math.cos(angle) * radius, math.sin(angle) * radius)
 
 def circle_points(degrees, radius):
     """
