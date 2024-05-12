@@ -1,27 +1,16 @@
 import argparse
-import contextlib
 import itertools as it
-import json
-import math
-import operator
-import os
-import random
-import string
 import unittest
 
 from abc import ABC
 from abc import abstractmethod
-from collections import deque
-from functools import partial
 from operator import attrgetter
-from types import SimpleNamespace
 
-with contextlib.redirect_stdout(open(os.devnull, 'w')):
-    import pygame
+import pygamelib
+
+from pygamelib import pygame
 
 SWITCH = pygame.event.custom_type()
-
-getx = attrgetter('x')
 
 class TestBounce(unittest.TestCase):
 
@@ -38,30 +27,6 @@ class Tab:
     def __init__(self, rect, image):
         self.rect = rect
         self.image = image
-
-
-class TabStyle:
-
-    def __init__(self, rect, image, color, fill_slot):
-        self.rect = rect
-        self.image = image
-        self.color = color
-        self.fill_slot = fill_slot
-
-    @classmethod
-    def drawargs(cls, tab, slot, hovering, dragging):
-        fill_slot = None
-        if tab is hovering or tab is dragging:
-            rect = tab.rect
-            if tab is hovering:
-                color = 'blue'
-            elif tab is dragging:
-                color = 'green'
-                fill_slot = None
-        else:
-            color = 'red'
-            rect = get_rect(tab.rect, center=slot.center)
-        return cls(rect, tab.image, color, )
 
 
 class Container:
@@ -91,13 +56,6 @@ class Container:
             tab.rect.center = slot.center
 
 
-class BaseState(ABC):
-
-    @abstractmethod
-    def handle(self, event):
-        pass
-
-
 class DispatchEventMixin:
 
     def handle(self, event):
@@ -105,27 +63,25 @@ class DispatchEventMixin:
         Dispatch to event handler by naming convention.
         """
         name = pygame.event.event_name(event.type)
-        handler = getattr(self, f'on_{name.lower()}', None)
+        handler = getattr(self, f'do_{name.lower()}', None)
         if handler:
             handler(event)
 
 
-class TabBarState(DispatchEventMixin, BaseState):
-    "Tab Bar"
+class TabBarState(pygamelib.DemoBase):
+    """
+    Tab Bar
+    """
     # [ ] rects inside a container rect
     # [ ] smaller rects are draggable
     # [ ] rects reorder themselves against dragging rect
     # [ ] rects move in an animated fashion
 
-    def __init__(self, output=None):
-        self.output = output
-        self.frame_number = 0
+    def __init__(self):
         self.screen = pygame.display.get_surface()
         self.frame = self.screen.get_rect()
         self.clock = pygame.time.Clock()
         self.fps = 60
-        self.tick_accumulator = 0
-        self.gui_font = pygame.font.SysFont('Arial', 32)
         self.tab_font = pygame.font.SysFont('Arial', 20)
 
         ntabs = 5
@@ -147,14 +103,18 @@ class TabBarState(DispatchEventMixin, BaseState):
         self.hovering = None
         self.dragging = None
 
-    def on_quit(self, event):
-        switch(None)
+    def update(self):
+        super().update()
+        self.draw()
 
-    def on_keydown(self, event):
+    def do_quit(self, event):
+        self.engine.stop()
+
+    def do_keydown(self, event):
         if event.key in (pygame.K_ESCAPE, pygame.K_q):
             pygame.event.post(pygame.event.Event(pygame.QUIT))
 
-    def on_mousemotion(self, event):
+    def do_mousemotion(self, event):
         if self.dragging:
             self.dragging.rect.move_ip((event.rel[0], 0))
         else:
@@ -165,12 +125,12 @@ class TabBarState(DispatchEventMixin, BaseState):
             else:
                 self.hovering = None
 
-    def on_mousebuttondown(self, event):
+    def do_mousebuttondown(self, event):
         if self.hovering:
             self.dragging = self.hovering
             self.hovering = None
 
-    def on_mousebuttonup(self, event):
+    def do_mousebuttonup(self, event):
         if self.dragging:
             self.tabbar.commit_sorted()
         self.dragging = None
@@ -192,11 +152,6 @@ class TabBarState(DispatchEventMixin, BaseState):
             pygame.draw.rect(self.screen, 'ghostwhite', rect, 1)
 
         pygame.display.flip()
-        if self.output:
-            self.clock.tick(self.fps)
-            filename = self.output.format(self.frame_number)
-            pygame.image.save(self.screen, filename)
-            self.frame_number += 1
 
 
 def get_rect(*rect_arg_or_nothing, **rectattrs):
@@ -238,8 +193,6 @@ def bounce(iterable):
             yield stack.pop()
 
 def assign_slots_ip(rects, slots, attr='topleft'):
-    """
-    """
     getrectattr = attrgetter(attr)
     for rect, slot in zip(rects, slots):
         setattr(rect, attr, getrectattr(slot))
@@ -268,64 +221,16 @@ def make_tabbar(container_rect, tab_width, tab_margin, sortattr=None):
     container = Container(container_rect, tabs, slots, sortattr=sortattr)
     return container
 
-def switch(state, **data):
-    event = pygame.event.Event(SWITCH, state=state, **data)
-    pygame.event.post(event)
-
-def run(state):
-    next_ = state
-    running = True
-    while running:
-        if next_ is not None:
-            # state.leave(...)?
-            # next_.enter(...)?
-            state = next_
-            next_ = None
-            calls = [
-                getattr(state, attr)
-                for attr in ['update', 'draw']
-                if hasattr(state, attr)
-            ]
-        for event in pygame.event.get():
-            if event.type != SWITCH:
-                state.handle(event)
-            else:
-                # states indicate that they want the engine to stop by
-                # switching to None state.
-                if event.state is None:
-                    running = False
-                else:
-                    next_ = event.state
-        for call in calls:
-            call()
-
-def sizetype(string):
-    "Parse string into a tuple of integers."
-    size = tuple(map(int, string.replace(',', ' ').split()))
-    if len(size) == 1:
-        size += size
-    return size
-
-def cli():
-    "Tab bar"
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--size',
-        default = '800,800',
-        type = sizetype,
-        help = 'Screen size. Default: %(default)s',
-    )
-    parser.add_argument(
-        '--output',
-        help = 'Format string for frame output. ex: path/to/frames{:05d}.bmp',
-    )
-    args = parser.parse_args()
+def main(argv=None):
+    parser = pygamelib.command_line_parser()
+    args = parser.parse_args(argv)
 
     pygame.font.init()
-    pygame.display.set_mode(args.size)
+    pygame.display.set_mode(args.display_size)
 
-    state = TabBarState(output=args.output)
-    run(state)
+    state = TabBarState()
+    engine = pygamelib.Engine()
+    engine.run(state)
 
 if __name__ == '__main__':
-    cli()
+    main()
