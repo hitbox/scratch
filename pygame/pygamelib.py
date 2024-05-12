@@ -986,7 +986,7 @@ class HeartShape2:
         self.topleft_quad, self.topright_quad, _, _ = quads
         # top quads need to overlap to make the arcs meet center-top
         self.arc_radius = self.topleft_quad.width / 2
-        dx = (
+        width_delta = (
             self.topleft_quad.right
             - (
                 self.topleft_quad.centerx
@@ -994,8 +994,7 @@ class HeartShape2:
                 * self.arc_radius
             )
         )
-        #self.topleft_quad.move_ip(+dx, 0)
-        self.topleft_quad.width += dx
+        self.topleft_quad.width += width_delta
         self.topleft_quad.left = self.inside.left
 
         self.topleft_arc = Arc(
@@ -1004,8 +1003,7 @@ class HeartShape2:
             angle2 = math.radians(self.cleft_angle+180),
         )
 
-        #self.topright_quad.move_ip(-dx, 0)
-        self.topright_quad.width += dx
+        self.topright_quad.width += width_delta
         self.topright_quad.right = self.inside.right
 
         self.topright_arc = Arc(
@@ -1017,18 +1015,24 @@ class HeartShape2:
         # points where the heart becomes straight lines to the pointy bottom
         p1 = (
             pygame.Vector2(self.topleft_quad.center)
-            + circle_point(math.radians(self.cleft_angle+180), self.arc_radius)
+            + circle_point(
+                -math.radians(self.cleft_angle+180),
+                self.arc_radius
+            )
         )
         p2 = (
             pygame.Vector2(self.topright_quad.center)
-            + circle_point(math.radians(-self.cleft_angle), self.arc_radius)
+            + circle_point(
+                -math.radians(-self.cleft_angle),
+                self.arc_radius
+            )
         )
         slope_tangent1 = circle_slope_tangent(self.topleft_quad.center, p1)
         slope_tangent2 = circle_slope_tangent(self.topright_quad.center, p2)
-        x, y = intersection_point(p1, -slope_tangent1, p2, -slope_tangent2)
+        bottom_point = intersection_point(p1, -slope_tangent1, p2, -slope_tangent2)
 
         # pointy bottom part
-        self.pointy = Lines(closed=False, points=[p1, (x,y), p2])
+        self.pointy = Lines(closed=False, points=[p1, bottom_point, p2])
 
     def draw(self, surf, color, width, offset=(0,0), debug_color=None):
         """
