@@ -1,15 +1,12 @@
 import argparse
-import contextlib
 import itertools as it
 import operator as op
-import os
 
 from collections import deque
 from itertools import pairwise
 from operator import itemgetter
 
-with contextlib.redirect_stdout(open(os.devnull, 'w')):
-    import pygame
+from pygamelib import pygame
 
 from pygame import Rect
 from pygame import Vector2
@@ -205,10 +202,6 @@ def clamp(x, a, b):
     elif x > b:
         return b
     return x
-
-def clamp_vector_ip(v, rect):
-    v.x = clamp(v.x, rect.left, rect.right)
-    v.y = clamp(v.y, rect.top, rect.bottom)
 
 def modulo_vector_ip(v, rect):
     v.x %= rect.width

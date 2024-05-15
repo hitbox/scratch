@@ -2114,6 +2114,8 @@ def corners(rect):
     # bottomleft
     yield (x, b)
 
+points = corners
+
 def sides(rect):
     """
     Scalar values of the sides of a rect in anticlockwise order from the top.
