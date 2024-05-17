@@ -1,4 +1,5 @@
 import argparse
+import configparser
 import itertools as it
 import math
 import operator as op
@@ -185,6 +186,10 @@ def auto_completion_script():
 def argument_parser():
     parser = pygamelib.command_line_parser()
     parser.add_argument(
+        '--config',
+        help = 'Configure program INI configuration.',
+    )
+    parser.add_argument(
         '--auto-completion',
         action = 'store_true',
         help = 'Print autocomplete script for bash.',
@@ -226,12 +231,33 @@ def argument_parser():
     )
     return parser
 
+def item_as_arg(item):
+    key, val = item
+    if not key.startswith('--'):
+        key = '--' + key
+    yield key
+    yield val
+
+def section_as_args(section):
+    for item in section.items():
+        for key_or_value in item_as_arg(item):
+            yield key_or_value
+
 def main(argv=None):
     parser = argument_parser()
+
     args = parser.parse_args(argv)
     if args.auto_completion:
         print(auto_completion_script())
         return
+
+    if args.config:
+        cp = configparser.ConfigParser()
+        cp.read(args.config)
+        secargs = list(section_as_args(cp['listcolors']))
+        args_from_config = parser.parse_args(secargs)
+        raise NotImplementedError
+
     colors = pygamelib.UNIQUE_THECOLORS.values()
     colors = map(pygamelib.ColorAttributes, colors)
     colors = sorted(filter(args.filter, colors), key=args.sort)
