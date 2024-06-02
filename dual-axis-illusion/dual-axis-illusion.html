@@ -1,0 +1,31 @@
+<!doctype html>
+<!--
+Dual Axis Rotation Illusion
+© Frank Force 2019
+
+GitHub Corner is Copyright (c) 2016 Tim Holman - http://tholman.com
+
+https://github.com/KilledByAPixel/Dual-Axis-Illusion/blob/master/index.html
+-->
+<html>
+    <head>
+        <title>Dual Axis Rotation Illusion - By Frank Force</title>
+    </head>
+    <body>
+        <center>
+            <h3>Dual Axis Rotation Illusion - By Frank Force</h3>
+            <a href='http://illusionoftheyear.com/2019/12/dual-axis-illusion' target='_blank'>Best Illusion of The Year - First Place Winner</a>
+            <p>Spin Axis</p>
+            <input type=radio name=radio_spinAxis value='' id='ambiguous' checked><label for='ambiguous'>Ambiguous</label>
+            <input type=radio name=radio_spinAxis value='vertical' id='vertical'><label for='vertical'>Vertical</label>
+            <input type=radio name=radio_spinAxis value='horizontal' id='horizontal'><label for='horizontal'>Horizontal</label>
+            <p>Spin Direction </p>
+            <input type=radio name=radio_spinDirection value=1 id='positive' checked><label for='positive'>Positive</label>
+            <input type=radio name=radio_spinDirection value=-1 id='negative'><label for='negative'>Negative</label>
+            <label for='checkbox_circleOverlaps'>Circle Overlaps</label>
+            <input type=checkbox id=checkbox_circleOverlaps>
+            <canvas id=c width=1280 height=720 style=width:min(80%,900px)></canvas>
+        </center>
+        <script src="dual-axis-illusion.js"></script>
+    </body>
+</html>
