@@ -377,15 +377,38 @@ def moore(iterations, length):
     points_generator = PointGenerator(symbols, cursor_mapping, cursor)
     return points_generator
 
+def simple_star(iterations, length):
+    # https://susam.net/fd-100.html
+    # simple star shape
+    generator = LSystem(
+        axiom = 'A',
+        rules = {
+            'A': 'FRA',
+        },
+    )
+    sequence = generator(iterations)
+    cursor_mapping = CursorMapping({
+        'F': 'forward_one',
+        'R': 'right',
+        'A': None,
+    })
+    cursor = Cursor(turn_angle=144, length=length)
+    symbols = iter(sequence)
+    points_generator = PointGenerator(symbols, cursor_mapping, cursor)
+    return points_generator
+
+CURVES = {
+    'snowflake': snowflake,
+    'gosper': gosper,
+    'moore': moore,
+    'simple_star': simple_star,
+}
+
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         'curve',
-        choices = [
-            'snowflake',
-            'gosper',
-            'moore',
-        ],
+        choices = list(CURVES),
     )
     parser.add_argument('iterations', type=int, default=0)
     parser.add_argument('--line', type=int, default=1)
