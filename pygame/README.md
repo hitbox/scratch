@@ -1,5 +1,13 @@
 # Pygame Examples
 
+## pygamelib.py
+
+Ongoing effort to pack away things I keep making while writing pygame toys.
+
+## blademode.py
+
+Metal Gear Rising blade mode toy.
+
 ## inventory.py
 
 Resident Evil 4 like inventory.
