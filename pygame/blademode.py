@@ -454,7 +454,6 @@ def blade_mode(display_size):
 
     elapsed = 0
     slicing = Slicing()
-    slice_successes = []
     success_manager = SuccessManager()
     running = True
     while running:
