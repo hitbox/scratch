@@ -32,6 +32,26 @@ DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT = DEFAULT_DISPLAY_SIZE
 
 FILL = 0
 
+class TestItemized(unittest.TestCase):
+    """
+    Test wrapping version of nwise.
+    """
+
+    def test_itemized(self):
+        expected = [(1,2,3), (2,3,4), (3,4,5), (4,5,1), (5,1,2)]
+
+        result = []
+        i = 0
+        for thing in itemized(range(5), 3):
+            print(thing)
+            result.append(thing)
+            i += 1
+            if i > 9:
+                break
+        #result = list(itemized(range(5), 3))
+        self.assertEqual(expected, result)
+
+
 class Timer:
 
     def __init__(self, start, duration, end_stop=None):
@@ -1554,7 +1574,11 @@ def expand_shorthand(value):
     return (top, right, bottom, left)
 
 def nwise(iterable, n=2, fill=None):
-    "Take from iterable in `n`-wise tuples."
+    """
+    Take from iterable in `n`-wise tuples.
+    """
+    # TODO
+    # - add wrapping? (1, 2, 3) -> (1, 2), (2, 3), (3, 1). use the fill value?
     iterables = it.tee(iterable, n)
     # advance iterables for offsets
     for offset, iterable in enumerate(iterables):
@@ -1562,6 +1586,46 @@ def nwise(iterable, n=2, fill=None):
         for _ in zip(range(offset), iterable):
             pass
     return it.zip_longest(*iterables, fillvalue=fill)
+
+def advance(iterator, n=1):
+    # use while to let StopIteration raise
+    i = 0
+    while i < n:
+        next(iterator)
+        i += 1
+    return iterator
+
+def itemized(iterable, n=2):
+    # NOTES
+    # - is it worth all this, to be compatible with generators and the like?
+    # - whereas a list is easy
+
+    # three-wise
+    # (1,2,3,4,5)
+    #   -> (1,2,3), (2,3,4), (3,4,5), (4,5,1), (5,1,2)
+    # no need for all this machinery if wrapping won't occur
+    assert n > 1
+
+    iterables = it.tee(iterable, n)
+
+    # TODO
+    # need to replace index < n with repeat
+
+    for offset, iterable in enumerate(iterables):
+        for _ in range(offset):
+            next(iterable)
+
+    def wrapped_iterable(i, iterator):
+        print(i, iterator, n)
+        if i < n:
+            # repeat forever for wrapping
+            return it.repeat(iterator)
+        else:
+            # advance by index
+            return advance(iterator, i)
+
+    iterables = map(wrapped_iterable, it.count(), it.tee(iterable, n))
+    return zip(*iterables)
 
 def sorted_groupby(iterable, key=None, reverse=False):
     """
