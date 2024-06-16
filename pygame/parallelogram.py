@@ -81,3 +81,7 @@ def main(argv=None):
 
 if __name__ == '__main__':
     main()
+
+# 2024-06-16 Sun.
+# parallelogram inside quadrilateral's midpoints
+# https://www.mathsisfun.com/geometry/parallelogram-in-quadrilateral.html
