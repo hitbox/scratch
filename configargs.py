@@ -18,7 +18,7 @@ class TestConfigArgs(unittest.TestCase):
         cp = configparser.ConfigParser()
         cp.read_dict({
             '__test__': {
-                'dry': 'yes',
+                'dry': '',
             },
         })
 
@@ -47,4 +47,26 @@ def configargs(argument_parser, config_section):
     # - probably extend argparse to accept yes, no, etc. for booleans
     # - probably call .getboolean somehow
     secargs = list(section_as_arguments(config_section))
+    print(secargs)
+    breakpoint()
     return argument_parser.parse_args(secargs)
+
+# NOTES
+# - always have argparse parser
+# - almost always requires one argument to a config file
+# - want to pick up argparse arguments from the config file
+# - want config file to be the defaults
+# - want to override them with command line arguments
+# - problem with argparse is very complex and intended to parse list of strings
+#   from argv
+# - thinking about a generic library the takes strings and turns them into
+#   Python objects and validates them
+#   - a general purpose wtforms
+#   - very often have strings from some stream and want to validate and convert
+#   - automatically produce an argparse parser
+#   - automatically produce a configparser parser that imposes validation and
+#     and conversion like argparse
+#   - automatically produce wtforms forms that could take similar from things
+#     like what the web frameworks produce
+#   - automatically produce sqlalchemy mapped classes and/or tables
+#   - automatically marshmallow
