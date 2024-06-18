@@ -4,6 +4,13 @@ import pygamelib
 
 from pygamelib import pygame
 
+def corner_angles(points):
+    n = len(points)
+    for i, p1 in enumerate(points):
+        p2 = points[(i+1) % n]
+        p3 = points[(i+2) % n]
+        yield (p2, pygamelib.corner_angle(p1, p2, p3))
+
 def main(argv=None):
     parser = pygamelib.command_line_parser()
     args = parser.parse_args(argv)
@@ -26,6 +33,8 @@ def main(argv=None):
     dragging = None
 
     moved = False
+    pygame.font.init()
+    font = pygame.font.SysFont('monospace', 24)
     screen = pygame.display.set_mode(window.size)
     running = True
     while running:
@@ -70,6 +79,7 @@ def main(argv=None):
 
         screen.fill('black')
         pygame.draw.lines(screen, 'gold', True, control_points)
+
         for point in control_points:
             if point is hovering:
                 width = 0
@@ -77,6 +87,20 @@ def main(argv=None):
                 width = 1
             pygame.draw.circle(screen, 'brown', point, control_point_radius, width)
         pygame.draw.lines(screen, 'purple', True, midpoints)
+
+        # corner angles labels
+        for corner_point, angle in corner_angles(control_points):
+            degrees = math.degrees(angle)
+            image = font.render(f'{degrees:.0f}', True, 'azure')
+            screen.blit(image, image.get_rect(center=corner_point))
+
+        # lines angles labels
+        for i, p1 in enumerate(map(pygame.Vector2, midpoints)):
+            p2 = pygame.Vector2(midpoints[(i+1) % len(midpoints)])
+            angle = p1.angle_to(p2)
+            image = font.render(f'{angle:.2f}', True, 'azure')
+            screen.blit(image, image.get_rect(center=pygamelib.midpoint(p1, p2)))
+
         pygame.display.flip()
 
 if __name__ == '__main__':
