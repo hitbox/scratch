@@ -19,7 +19,11 @@ class Pen:
 
     def move(self, length):
         radians = math.radians(self.angle)
-        direction = pygame.Vector2(math.cos(radians), -math.sin(radians)) * length
+        direction = pygame.Vector2(
+            math.cos(radians),
+            -math.sin(radians)
+        )
+        direction *= length
         self.position += direction
 
     def turn(self, angle):
@@ -32,31 +36,8 @@ class Pen:
         self.turn(90)
 
 
-def corner_lines(rect, side_portion):
-    x, y, w, h = rect
-    r = x + w
-    b = y + h
-    horizontal = w * side_portion
-    vertical = h * side_portion
-    # clockwise
-    # left side, top, line
-    yield ((x, y + vertical), (x, y))
-    # top side, left, line
-    yield ((x, y), (x + horizontal, y))
-    # top side, right, line
-    yield ((r - horizontal, y), (r, y))
-    # right side, top, line
-    yield ((r, y), (r, y + vertical))
-    # right side, bottom, line
-    yield ((r, b - vertical), (r, b))
-    # bottom side, right, line
-    yield ((r, b), (r - horizontal, b))
-    # bottom side, left, line
-    yield ((x + horizontal, b), (x, b))
-    # left side, bottom, line
-    yield ((x, b), (x, b - vertical))
-
-def corner_border(pen, portion, horizontal, vertical):
+def corner_border(pen, rect, portion):
+    horizontal, vertical = rect.size
     for side_length in [horizontal, vertical, horizontal, vertical]:
         # starting in a corner
         p1 = pen.copy()
@@ -73,12 +54,12 @@ def corner_border(pen, portion, horizontal, vertical):
         p2 = pen.copy()
         yield (p1, p2)
 
-        # turn right
-        pen.turn(-90)
+        pen.right()
 
-def inner_corner_border(pen, portion, horizontal, vertical):
-    # TODO
-    # - a min and max width so that little and big rects look good
+def inner_corner_border(pen, rect, portion):
+    # inverted brackets around a rect's corners
+    horizontal, vertical = rect.size
+
     # starting topleft facing right
     pen.move(horizontal * portion)
     for side in [horizontal, vertical, horizontal, vertical]:
@@ -110,19 +91,19 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     window = pygame.Rect(0, 0, *args.display_size)
-    shrink = 0.90
+    shrink = 0.50
     rect = window.inflate(-shrink * window.width, -shrink * window.height)
 
     horizontal = rect.width - 1
     vertical = rect.height - 1
 
     pen = Pen(position=rect.topleft)
-    portion = 0.15
+    portion = 0.40
 
     # TODO
     # - interactively create lines
 
-    lines = list(inner_corner_border(pen, portion, horizontal, vertical))
+    lines = list(inner_corner_border(pen, rect, portion))
 
     colors = (
         'red',
