@@ -1,3 +1,4 @@
+import itertools as it
 import math
 
 import pygamelib
@@ -63,21 +64,21 @@ def inner_corner_border(pen, rect, portion):
     # starting topleft facing right
     pen.move(horizontal * portion)
     for side in [horizontal, vertical, horizontal, vertical]:
-        p1 = pen.copy()
+        points = []
+
         pen.move(side - portion * side * 2)
-        p2 = pen.copy()
-        yield (p1, p2)
+        points.append(pen.copy())
 
         p1 = pen.copy()
         pen.right()
         pen.move(side * portion)
-        p2 = pen.copy()
-        yield (p1, p2)
+        points.append(pen.copy())
 
         pen.left()
         pen.move(side * portion)
-        p3 = pen.copy()
-        yield (p2, p3)
+        points.append(pen.copy())
+
+        yield points
 
         pen.right()
 
@@ -90,6 +91,7 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
+    font = pygamelib.monospace_font(20)
     window = pygame.Rect(0, 0, *args.display_size)
     shrink = 0.50
     rect = window.inflate(-shrink * window.width, -shrink * window.height)
@@ -98,12 +100,12 @@ def main(argv=None):
     vertical = rect.height - 1
 
     pen = Pen(position=rect.topleft)
-    portion = 0.40
+    portion = 0.10
 
     # TODO
     # - interactively create lines
 
-    lines = list(inner_corner_border(pen, rect, portion))
+    list_of_lines = list(inner_corner_border(pen, rect, portion))
 
     colors = (
         'red',
@@ -131,8 +133,8 @@ def main(argv=None):
                     pygamelib.post_quit()
         screen.fill('black')
         pygame.draw.rect(screen, 'grey10', rect, 1)
-        for (p1, p2), color in zip(lines, colors):
-            pygame.draw.line(screen, color, p1, p2)
+        for points, color in zip(list_of_lines, colors):
+            pygame.draw.lines(screen, color, False, points)
         pygame.display.flip()
 
 if __name__ == '__main__':

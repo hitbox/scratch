@@ -23,9 +23,10 @@ class TestLSystem(unittest.TestCase):
 
 class LSystem:
 
-    def __init__(self, axiom, rules):
+    def __init__(self, axiom, rules, constants):
         self.axiom = axiom
         self.rules = rules
+        self.constants = constants
 
     def __call__(self, iterations):
         """
@@ -397,11 +398,40 @@ def simple_star(iterations, length):
     points_generator = PointGenerator(symbols, cursor_mapping, cursor)
     return points_generator
 
+def kolam(iterations, length):
+    generator = LSystem(
+        axiom = '-D--D',
+        rules = {
+            'A': 'F++FFFF--FFFF++F++FFFF--F',
+            'B': 'F--FFFF++F++FFFF--F--FFFF++F',
+            'C': 'BFA--BFA',
+            'D': 'CFC--CFC',
+        },
+        constants = {
+            'angle': 45,
+        },
+    )
+    sequence = generator(iterations)
+    cursor_mapping = CursorMapping({
+        'F': 'forward_one',
+        '+': 'left',
+        '-': 'right',
+        'A': None,
+        'B': None,
+        'C': None,
+        'D': None,
+    })
+    cursor = Cursor(turn_angle=45, length=length)
+    symbols = iter(sequence)
+    points_generator = PointGenerator(symbols, cursor_mapping, cursor)
+    return points_generator
+
 CURVES = {
     'snowflake': snowflake,
     'gosper': gosper,
     'moore': moore,
     'simple_star': simple_star,
+    'kolam': kolam,
 }
 
 def main(argv=None):
@@ -411,7 +441,12 @@ def main(argv=None):
         choices = list(CURVES),
     )
     parser.add_argument('iterations', type=int, default=0)
-    parser.add_argument('--line', type=int, default=1)
+    parser.add_argument(
+        '--line',
+        type = int,
+        default = 1,
+        help = 'Draw line length. %(default)s.',
+    )
     args = parser.parse_args(argv)
 
     curve = eval(args.curve)
@@ -427,3 +462,6 @@ if __name__ == '__main__':
 # https://en.wikipedia.org/wiki/Koch_snowflake
 # "Paged Out! #4" page 28 "Generate ASCII-Root-Art using formal grammar and randomness"
 # https://pagedout.institute/?page=issues.php
+
+# 2024-06-21 Fri.
+# http://www.paulbourke.net/fractals/lsys/
