@@ -33,3 +33,10 @@ if __name__ == '__main__':
 # - thinking a meter manager is needed
 # - something that randomly generates various rates and events that increase or
 #   decrease meters.
+
+# 2024-06-23 Sun.
+# - The "Rabbit and Steel" demo has something like what I'm after.
+#   https://store.steampowered.com/app/2132850/Rabbit_and_Steel/
+# - another thing to create: lines of code scrolling past, doesn't need text,
+#   could be colored rects scrolling up and down. give the impression of some
+#   developer's screen.
