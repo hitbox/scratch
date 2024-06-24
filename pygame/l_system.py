@@ -524,9 +524,6 @@ def kolam(iterations, length):
             'C': 'BFA--BFA',
             'D': 'CFC--CFC',
         },
-        constants = {
-            'angle': 45,
-        },
     )
     sequence = generator(iterations)
     cursor_mapping = CursorMapping({
