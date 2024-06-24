@@ -1,13 +1,18 @@
+import abc
 import argparse
 import contextlib
 import itertools as it
 import math
+import operator as op
 import os
 import turtle
 import unittest
 
-with contextlib.redirect_stdout(open(os.devnull, 'w')):
-    import pygame
+import pygamelib
+
+from pygamelib import pygame
+
+EVENT_NEWPOINT = pygame.event.custom_type()
 
 class TestLSystem(unittest.TestCase):
 
@@ -23,10 +28,9 @@ class TestLSystem(unittest.TestCase):
 
 class LSystem:
 
-    def __init__(self, axiom, rules, constants):
+    def __init__(self, axiom, rules):
         self.axiom = axiom
         self.rules = rules
-        self.constants = constants
 
     def __call__(self, iterations):
         """
@@ -64,6 +68,113 @@ class KochSnowflake:
         for i in range(3):
             self.subloop(length, i=3)
             self.right(120)
+
+
+class Engine:
+
+    def __init__(self):
+        self.running = False
+
+    def run(self, state):
+        state.start()
+        self.running = True
+        while self.running:
+            state.update()
+
+
+class EventHandler:
+
+    def __init__(self):
+        self.cache = {}
+        self.ignore = set()
+
+    def do(self, state, event):
+        if event.type in self.ignore:
+            return
+
+        if event.type not in self.cache:
+            name = pygame.event.event_name(event.type).lower()
+            attr = 'do_' + name
+            try:
+                method = getattr(self, attr)
+            except AttributeError:
+                self.ignore.add(event.type)
+                return
+            else:
+                self.cache[event.type] = method
+
+        return self.cache[event.type](state, event)
+
+
+class BasicHandler(EventHandler):
+
+    def do_keydown(self, state, event):
+        if event.key in (pygame.K_ESCAPE, pygame.K_q):
+            pygamelib.post_quit()
+
+    def do_mousemotion(self, state, event):
+        if event.buttons[0]:
+            state.render.offset += event.rel
+
+    def do_userevent(self, state, event):
+        if event.type == EVENT_NEWPOINT:
+            # append new points from curve, points generator
+            for point in state.curve:
+                if point:
+                    state.points.append(point.copy())
+                    break
+
+
+class StateBase(abc.ABC):
+
+    @abc.abstractmethod
+    def start(self):
+        pass
+
+    @abc.abstractmethod
+    def update(self):
+        pass
+
+
+class CurveRenderer:
+
+    def __init__(self, points, offset=None, closed=False):
+        self.points = points
+        if offset is None:
+            offset = (0,0)
+        self.offset = pygame.Vector2(offset)
+        self.closed = closed
+
+    def draw(self, surf):
+        points = [self.offset + point for point in self.points]
+        pygame.draw.lines(surf, 'white', self.closed, points)
+
+
+class MainState(StateBase):
+
+    def __init__(self, engine, event_handler, render, curve, points):
+        self.engine = engine
+        self.event_handler = event_handler
+        self.render = render
+        self.curve = curve
+        self.points = points
+        self.clock = pygame.time.Clock()
+        self.elapsed = 0
+
+    def start(self):
+        self.screen = pygame.display.get_surface()
+        pygame.time.set_timer(EVENT_NEWPOINT, 100)
+
+    def update(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.engine.running = False
+            else:
+                self.event_handler.do(self, event)
+        self.screen.fill('black')
+        self.render.draw(self.screen)
+        pygame.display.flip()
+        self.elapsed = self.clock.tick()
 
 
 class Cursor:
@@ -120,6 +231,12 @@ class PointGenerator:
         pos = self.cursor_mapping(symbol, self.cursor)
         return pos
 
+
+def first(iterable):
+    for obj in it.takewhile(op.not_, iterable):
+        print(obj)
+        return obj
+    return next(iterable)
 
 def wrap_points(points):
     xs, ys = zip(*points)
@@ -449,8 +566,32 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
-    curve = eval(args.curve)
-    run_engine(curve(args.iterations, args.line))
+    curve_func = eval(args.curve)
+    curve = curve_func(args.iterations, args.line)
+
+    engine = Engine()
+    basic_events = BasicHandler()
+
+    points = [pygame.Vector2()]
+    for point in curve:
+        if point:
+            points.append(point.copy())
+            break
+
+    renderer = CurveRenderer(points, offset=(100,100))
+
+    state = MainState(engine, basic_events, renderer, curve, points)
+
+    # display window late as possible
+    pygame.display.init()
+    desktop_size = pygame.display.get_desktop_sizes()[0]
+    desktop_size = tuple(map(lambda value: 0.80 * value, desktop_size))
+    window = pygame.Rect((0,0), desktop_size)
+    pygame.display.set_mode(window.size)
+
+    engine.run(state)
+
+    #run_engine(curve(args.iterations, args.line))
 
 if __name__ == '__main__':
     main()
