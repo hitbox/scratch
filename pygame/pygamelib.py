@@ -1835,7 +1835,7 @@ def add_background_color_option(parser, name='--background', **kwargs):
 
 def add_framerate_option(parser, name='--framerate', **kwargs):
     kwargs.setdefault('type', int)
-    kwargs.setdefault('default', 60)
+    kwargs.setdefault('default', 0)
     kwargs.setdefault('help', 'Frames per second.')
     parser.add_argument(name, **kwargs)
 
