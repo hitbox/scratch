@@ -200,7 +200,7 @@ def system_from_xml(xml):
     root = tree.getroot()
 
     engine_element = root.find('engine')
-    if engine_element:
+    if engine_element is not None:
         offset = int_tuple(engine_element.find('offset').attrib.values())
     offset = pygame.Vector2(offset)
 
