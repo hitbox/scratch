@@ -1,4 +1,7 @@
 import math
+import os
+
+from collections import deque
 
 import pygamelib
 
@@ -30,9 +33,8 @@ def lerp_rects(time, r1, r2):
 def ease_in_out_quad(t):
     return t * t * (3 - 2 * t)
 
-def sine_easing(t, period=1000):
-    normalized_t = t / period
-    return (math.sin(math.tau * normalized_t) + 1) / 2
+def sine_easing(t):
+    return (math.sin(math.tau * t) + 1) / 2
 
 def back_ease_out(t):
     p = 1 - t
@@ -66,16 +68,30 @@ def bounce_ease_in_out(t):
 
 def main(argv=None):
     parser = pygamelib.command_line_parser()
+    parser.add_argument(
+        '--frames',
+        help = 'Directory containing animation frames.',
+    )
     args = parser.parse_args(argv)
 
     framerate = args.framerate
     window = pygame.Rect((0,0), args.display_size)
+    window_frame = window.inflate(-0.10 * window.width, -0.10 * window.height)
+
+    frames = []
+    if args.frames:
+        filenames = sorted(os.listdir(args.frames))
+        paths = (os.path.join(args.frames, fn) for fn in filenames)
+        images = list(map(pygame.image.load, paths))
+        rects = [image.get_rect() for image in images]
+        for rect in rects:
+            rect.center = window.center
 
     rect1 = pygame.Rect(0, 0, 100, 100)
-    rect1.center = window.center
+    rect1.bottomright = window_frame.bottomright
 
-    rect2 = pygame.Rect(0, 0, rect1.width * 3, rect1.height * 5)
-    rect2.center = window.center
+    rect2 = pygame.Rect(0, 0, rect1.width * 2, rect1.height * 3)
+    rect2.bottomright = window_frame.bottomright
 
     color1 = pygame.Color('darkorange4')
     color2 = pygame.Color('purple')
@@ -84,6 +100,7 @@ def main(argv=None):
     ease = sine_easing
 
     clock = pygame.time.Clock()
+    fps_queue = deque(maxlen=100)
     elapsed = 0
 
     font_printer = pygamelib.FontPrinter(pygamelib.monospace_font(20), 'azure')
@@ -98,15 +115,25 @@ def main(argv=None):
                     pygamelib.post_quit()
         # update
         timer.update(elapsed)
+        fps_queue.append(clock.get_fps())
         # draw
         screen.fill('black')
-        color = color1.lerp(color2, timer.normalized())
-        time = ease(timer.normalized())
-        rect = lerp_rects(time, rect1, rect2)
+        time = timer.normalized()
+        eased_time = ease(time)
+        color = color1.lerp(color2, time)
+        if images:
+            index = int(time * len(images)) % len(images)
+            image = images[index]
+            rect = rects[index]
+            screen.blit(image, rect)
+        rect = lerp_rects(eased_time, rect1, rect2)
         pygame.draw.rect(screen, color, rect)
+        avg_fps = sum(fps_queue) / len(fps_queue)
         lines = [
-            f'{clock.get_fps()=:.0f}',
+            f'{avg_fps=:.0f}',
             f'{timer.count=}',
+            f'{time=:.04f}',
+            f'{eased_time=:.04f}',
         ]
         screen.blit(font_printer(lines), (0,0))
         pygame.display.flip()
