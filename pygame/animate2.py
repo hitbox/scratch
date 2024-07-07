@@ -79,7 +79,9 @@ def main(argv=None):
     window_frame = window.inflate(-0.10 * window.width, -0.10 * window.height)
 
     frames = []
-    if args.frames:
+    if not args.frames:
+        images = None
+    else:
         filenames = sorted(os.listdir(args.frames))
         paths = (os.path.join(args.frames, fn) for fn in filenames)
         images = list(map(pygame.image.load, paths))
@@ -100,10 +102,11 @@ def main(argv=None):
     ease = sine_easing
 
     clock = pygame.time.Clock()
-    fps_queue = deque(maxlen=100)
+    fps_queue = deque(maxlen=1_000_000)
     elapsed = 0
 
-    font_printer = pygamelib.FontPrinter(pygamelib.monospace_font(20), 'azure')
+    font = pygamelib.monospace_font(20)
+    font_printer = pygamelib.FontPrinter(font, 'azure')
     screen = pygame.display.set_mode(window.size)
     running = True
     while running:
@@ -115,7 +118,8 @@ def main(argv=None):
                     pygamelib.post_quit()
         # update
         timer.update(elapsed)
-        fps_queue.append(clock.get_fps())
+        frame_fps = clock.get_fps()
+        fps_queue.append(frame_fps)
         # draw
         screen.fill('black')
         time = timer.normalized()
@@ -130,6 +134,7 @@ def main(argv=None):
         pygame.draw.rect(screen, color, rect)
         avg_fps = sum(fps_queue) / len(fps_queue)
         lines = [
+            f'{frame_fps=:.0f}',
             f'{avg_fps=:.0f}',
             f'{timer.count=}',
             f'{time=:.04f}',
