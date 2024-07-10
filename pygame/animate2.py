@@ -20,6 +20,33 @@ class Timer:
         return self.count / self.wrap
 
 
+def bezier(t, p0, p1, p2, p3):
+    """
+    Compute the Bezier value at time t using control points p0, p1, p2, p3.
+    """
+    t_squared = t*t
+    t_cubed = t*t*t
+    u = 1 - t
+    u_squared = u*u
+    u_cubed = u*u*u
+    x = (u_cubed * p0[0]
+         + 3 * u_squared * t * p1[0]
+         + 3 * u * t_squared * p2[0]
+         + t_cubed * p3[0])
+    y = (u_cubed * p0[1]
+         + 3 * u_squared * t * p1[1]
+         + 3 * u * t_squared * p2[1]
+         + t_cubed * p3[1])
+    return (x, y)
+
+def ease_in_out(t):
+    p0 = (0.0, 0.0)
+    p1 = (0.5 - 0.2, 0.0 - 1)
+    p2 = (0.5 + 0.2, 1.0 + 1)
+    p3 = (1.0, 1.0)
+    x, y = bezier(t, p0, p1, p2, p3)
+    return y
+
 def lerp_rects(time, r1, r2):
     x1, y1, w1, h1 = r1
     x2, y2, w2, h2 = r2
@@ -66,14 +93,11 @@ def bounce_ease_in_out(t):
         return 0.5 * bounce_ease_in(t * 2)
     return 0.5 * bounce_ease_out(t * 2 - 1) + 0.5
 
-def main(argv=None):
-    parser = pygamelib.command_line_parser()
-    parser.add_argument(
-        '--frames',
-        help = 'Directory containing animation frames.',
-    )
-    args = parser.parse_args(argv)
+def parametric(t, alpha=2):
+    t_squared = t * t
+    return  t_squared / (alpha * (t_squared - t) + 1)
 
+def run_original(args):
     framerate = args.framerate
     window = pygame.Rect((0,0), args.display_size)
     window_frame = window.inflate(-0.10 * window.width, -0.10 * window.height)
@@ -144,6 +168,69 @@ def main(argv=None):
         pygame.display.flip()
         #
         elapsed = clock.tick(framerate)
+
+def run_rect_grid(args):
+    framerate = args.framerate
+    window = pygame.Rect((0,0), args.display_size)
+
+    window_frame = window.inflate(-0.10 * window.width, -0.10 * window.height)
+    graph_frame = window_frame.copy()
+    graph_surf = pygame.Surface(graph_frame.size, pygame.SRCALPHA)
+
+    nx = 1
+    ny = 1
+    rect_width = window_frame.width // nx
+    rect_height = window_frame.height // ny
+    xs = list(range(window_frame.x, window_frame.right, rect_width))
+    ys = list(range(window_frame.y, window_frame.bottom, rect_height))
+    rects = [pygame.Rect(x, y, 0, 0) for x in xs for y in ys]
+
+    clock = pygame.time.Clock()
+    time = Timer(wrap=2000)
+
+    def _get_time():
+        return sine_easing(time.normalized())
+
+    screen = pygame.display.set_mode(window.size)
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    pygamelib.post_quit()
+        screen.fill('black')
+        _time = _get_time()
+        # update rect sizes and draw
+        for rect in rects:
+            rect.width = pygamelib.lerp(_time, 0, rect_width)
+            rect.height = pygamelib.lerp(_time, 0, rect_height)
+            _rect = rect.copy()
+            _rect.normalize()
+            pygame.draw.rect(screen, 'darkorange4', _rect, 0)
+            pygame.draw.rect(screen, 'darkred', _rect, 1)
+        # draw time graph
+        # TODO
+        # - fix plot coming out linear
+        # - also need bigger surface to plot past zero and one
+        graph_x = pygamelib.lerp(_time, graph_frame.left, graph_frame.right)
+        graph_y = pygamelib.lerp(_time, graph_frame.bottom, graph_frame.top)
+        pygame.draw.circle(graph_surf, 'darkgreen', (graph_x, graph_y), 5)
+        screen.blit(graph_surf, graph_frame)
+        pygame.display.flip()
+        # update clock and timer
+        elapsed = clock.tick(framerate)
+        time.update(elapsed)
+
+def main(argv=None):
+    parser = pygamelib.command_line_parser()
+    parser.add_argument(
+        '--frames',
+        help = 'Directory containing animation frames.',
+    )
+    args = parser.parse_args(argv)
+    run_rect_grid(args)
 
 if __name__ == '__main__':
     main()
