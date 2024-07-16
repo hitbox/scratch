@@ -14,6 +14,11 @@ NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 # frequency of the sine wave (A4 note)
 A4_frequency = 440.0
 
+beeps = {
+    'beep1': 'T999 L9 C',
+    'beep2': 'T999 L9 C#',
+}
+
 def parse_mml(mml, octave=4, length=0.25, tempo=120):
     """
     :param octave:
@@ -40,7 +45,8 @@ def parse_mml(mml, octave=4, length=0.25, tempo=120):
             if i+1 < len(mml) and mml[i+1] == '#':
                 note_name += '#'
                 i += 1
-            notes.append((note_name, octave, length * 60 / tempo))
+            duration = length * 60 / tempo
+            notes.append((note_name, octave, duration))
         i += 1
     return notes
 
@@ -54,12 +60,11 @@ def calculate_frequency(note_name, octave):
 def sine_sample(amplitude, frequency, n, sample_rate):
     return amplitude * math.sin(math.tau * frequency * n / sample_rate)
 
-def generate_wav(sound_sequence, sample_func, sample_rate):
+def generate_wav(sound_sequence, sample_func, sample_rate, amplitude=32767):
     data = bytearray()
     for note, octave, duration in sound_sequence:
         frequency = calculate_frequency(note, octave)
         num_samples = int(sample_rate * duration)
-        amplitude = 32767
         for n in range(num_samples):
             sample = sample_func(amplitude, frequency, n, sample_rate)
             data.extend(struct.pack('<h', int(sample)))
@@ -74,13 +79,23 @@ def generate_wav(sound_sequence, sample_func, sample_rate):
     wav_buffer.seek(0)
     return wav_buffer
 
-def run(notes, args):
+def run(notes_list, args):
     pygame.mixer.init()
 
-    wav_buffer = generate_wav(notes, sine_sample, args.sample_rate)
-    sound = pygame.mixer.Sound(wav_buffer)
+    sounds = []
+    for notes in notes_list:
+        wav_buffer = generate_wav(notes, sine_sample, args.sample_rate)
+        sound = pygame.mixer.Sound(wav_buffer)
+        sounds.append(sound)
 
     screen = pygame.display.set_mode((800,)*2)
+
+    font = pygamelib.monospace_font(20)
+    printer = pygamelib.FontPrinter(font, 'azure')
+    lines = [f'{key}: {beeps[key]}' for key in sorted(beeps)]
+    surf = printer(lines)
+    screen.blit(screen, (0,0))
+
     running = True
     while running:
         for event in pygame.event.get():
@@ -90,12 +105,15 @@ def run(notes, args):
                 if event.key in (pygame.K_ESCAPE, pygame.K_q):
                     pygamelib.post_quit()
                 elif event.key == pygame.K_SPACE:
-                    sound.play()
+                    for sound in sounds:
+                        sound.play()
+        pygame.display.flip()
 
 def argument_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--mml',
+        action = 'append',
     )
     parser.add_argument(
         '--duration',
@@ -113,10 +131,8 @@ def main(argv=None):
     parser = argument_parser()
     args = parser.parse_args(argv)
     if args.mml:
-        notes = parse_mml(args.mml)
-        print(notes)
-        return
-        run(notes, args)
+        notes_list = [parse_mml(mml) for mml in args.mml]
+        run(notes_list, args)
 
 if __name__ == '__main__':
     main()
