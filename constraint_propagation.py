@@ -28,33 +28,36 @@ Implementation
 Here's the implementation of constraint propagation using the AC-3 algorithm
 for solving Sudoku:
 """
+import argparse
+
+class CSP:
+
+    def __init__(self, variables, domains, neighbors, constraints):
+        self.variables = variables
+        self.domains = domains
+        self.neighbors = neighbors
+        self.constraints = constraints
+
+    def revise(self, xi, xj):
+        revised = False
+        for x in self.domains[xi]:
+            if not any(y in self.domains[xj] for y in self.constraints[xi, xj](x)):
+                self.domains[xi].remove(x)
+                revised = True
+        return revised
+
 
 def AC3(csp):
     queue = [(xi, xj) for xi in csp.variables for xj in csp.neighbors[xi]]
     while queue:
         (xi, xj) = queue.pop(0)
-        if revise(csp, xi, xj):
+        if csp.revise(xi, xj):
             if not csp.domains[xi]:
                 return False
             for xk in csp.neighbors[xi]:
                 if xk != xj:
                     queue.append((xk, xi))
     return True
-
-def revise(csp, xi, xj):
-    revised = False
-    for x in csp.domains[xi]:
-        if not any(y in csp.domains[xj] for y in csp.constraints[xi, xj](x)):
-            csp.domains[xi].remove(x)
-            revised = True
-    return revised
-
-class CSP:
-    def __init__(self, variables, domains, neighbors, constraints):
-        self.variables = variables
-        self.domains = domains
-        self.neighbors = neighbors
-        self.constraints = constraints
 
 def sudoku_csp(puzzle):
     variables = [(r, c) for r in range(9) for c in range(9)]
@@ -67,32 +70,51 @@ def sudoku_csp(puzzle):
     constraints = {(var1, var2): lambda x: [x] for var1 in variables for var2 in neighbors[var1]}
     return CSP(variables, domains, neighbors, constraints)
 
-# Example Sudoku puzzle
-puzzle = [
-    [5, 3, 0, 0, 7, 0, 0, 0, 0],
-    [6, 0, 0, 1, 9, 5, 0, 0, 0],
-    [0, 9, 8, 0, 0, 0, 0, 6, 0],
-    [8, 0, 0, 0, 6, 0, 0, 0, 3],
-    [4, 0, 0, 8, 0, 3, 0, 0, 1],
-    [7, 0, 0, 0, 2, 0, 0, 0, 6],
-    [0, 6, 0, 0, 0, 0, 2, 8, 0],
-    [0, 0, 0, 4, 1, 9, 0, 0, 5],
-    [0, 0, 0, 0, 8, 0, 0, 7, 9]
-]
+def parse_sudoku_line(line):
+    numbers = list(map(int, line))
+    puzzle = [numbers[i:i+9] for i in range(0, 9*9, 9)]
+    assert len(puzzle) == 9
+    for row in puzzle:
+        assert len(row) == 9
+    return puzzle
 
-# Solve the Sudoku puzzle
-csp = sudoku_csp(puzzle)
-if AC3(csp):
-    print("Sudoku puzzle solved:")
-    for r in range(9):
-        def _(c):
-            if len(csp.domains[(r, c)]) == 1:
-                return csp.domains[(r, c)][0]
-            else:
-                return 0
-        print([_(c) for c in range(9)])
-else:
-    print("No solution found.")
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--sudoku')
+    args = parser.parse_args(argv)
+
+    # chatgpt's code doesn't solve its own puzzle or sudoku1.txt
+    puzzle = parse_sudoku_line(args.sudoku)
+    csp = sudoku_csp(puzzle)
+    print(AC3(csp))
+
+def old():
+    # Example Sudoku puzzle
+    puzzle = [
+        [5, 3, 0, 0, 7, 0, 0, 0, 0],
+        [6, 0, 0, 1, 9, 5, 0, 0, 0],
+        [0, 9, 8, 0, 0, 0, 0, 6, 0],
+        [8, 0, 0, 0, 6, 0, 0, 0, 3],
+        [4, 0, 0, 8, 0, 3, 0, 0, 1],
+        [7, 0, 0, 0, 2, 0, 0, 0, 6],
+        [0, 6, 0, 0, 0, 0, 2, 8, 0],
+        [0, 0, 0, 4, 1, 9, 0, 0, 5],
+        [0, 0, 0, 0, 8, 0, 0, 7, 9]
+    ]
+
+    # Solve the Sudoku puzzle
+    csp = sudoku_csp(puzzle)
+    if AC3(csp):
+        print("Sudoku puzzle solved:")
+        for r in range(9):
+            def _(c):
+                if len(csp.domains[(r, c)]) == 1:
+                    return csp.domains[(r, c)][0]
+                else:
+                    return 0
+            print([_(c) for c in range(9)])
+    else:
+        print("No solution found.")
 
 """
 Breakdown
@@ -114,3 +136,6 @@ Breakdown
 This code sets up the Sudoku puzzle, applies the AC-3 algorithm for constraint
 propagation, and prints the solved puzzle if a solution is found.
 """
+
+if __name__ == '__main__':
+    main()
