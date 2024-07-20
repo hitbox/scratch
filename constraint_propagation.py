@@ -47,7 +47,7 @@ class CSP:
         return revised
 
 
-def AC3(csp):
+def ac3(csp):
     queue = [(xi, xj) for xi in csp.variables for xj in csp.neighbors[xi]]
     while queue:
         (xi, xj) = queue.pop(0)
@@ -61,13 +61,28 @@ def AC3(csp):
 
 def sudoku_csp(puzzle):
     variables = [(r, c) for r in range(9) for c in range(9)]
-    domains = {(r, c): list(range(1, 10)) if puzzle[r][c] == 0 else [puzzle[r][c]] for r in range(9) for c in range(9)}
-    neighbors = {
-        (r, c): [(r, j) for j in range(9) if j != c] + [(i, c) for i in range(9) if i != r] +
-                [(r//3*3 + i, c//3*3 + j) for i in range(3) for j in range(3) if (r//3*3 + i, c//3*3 + j) != (r, c)]
-                for r in range(9) for c in range(9)
+    domains = {
+        (r, c):
+            list(range(1, 10)) if puzzle[r][c] == 0
+            else
+            [puzzle[r][c]] for r in range(9) for c in range(9)
     }
-    constraints = {(var1, var2): lambda x: [x] for var1 in variables for var2 in neighbors[var1]}
+    neighbors = {
+        (r, c):
+            [(r, j) for j in range(9) if j != c]
+            + [(i, c) for i in range(9) if i != r]
+            + [
+                (r//3*3 + i, c//3*3 + j)
+                for i in range(3)
+                for j in range(3)
+                if (r//3*3 + i, c//3*3 + j) != (r, c)
+            ]
+            for r in range(9)
+            for c in range(9)
+    }
+    constraints = {
+        (var1, var2):
+            lambda x: [x] for var1 in variables for var2 in neighbors[var1]}
     return CSP(variables, domains, neighbors, constraints)
 
 def parse_sudoku_line(line):
@@ -86,7 +101,7 @@ def main(argv=None):
     # chatgpt's code doesn't solve its own puzzle or sudoku1.txt
     puzzle = parse_sudoku_line(args.sudoku)
     csp = sudoku_csp(puzzle)
-    print(AC3(csp))
+    print(ac3(csp))
 
 def old():
     # Example Sudoku puzzle
@@ -104,7 +119,7 @@ def old():
 
     # Solve the Sudoku puzzle
     csp = sudoku_csp(puzzle)
-    if AC3(csp):
+    if ac3(csp):
         print("Sudoku puzzle solved:")
         for r in range(9):
             def _(c):
@@ -119,7 +134,7 @@ def old():
 """
 Breakdown
 
-    AC3 Function:
+    ac3 Function:
         This function maintains a queue of arcs and makes each arc consistent.
         If any domain becomes empty, it returns False, indicating that the
         problem is unsolvable.
