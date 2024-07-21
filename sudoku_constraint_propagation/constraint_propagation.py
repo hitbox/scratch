@@ -30,6 +30,8 @@ for solving Sudoku:
 """
 import argparse
 
+from pprint import pprint
+
 class CSP:
 
     def __init__(self, variables, domains, neighbors, constraints):
@@ -38,20 +40,32 @@ class CSP:
         self.neighbors = neighbors
         self.constraints = constraints
 
-    def revise(self, xi, xj):
-        revised = False
-        for x in self.domains[xi]:
-            if not any(y in self.domains[xj] for y in self.constraints[xi, xj](x)):
-                self.domains[xi].remove(x)
-                revised = True
-        return revised
 
+def print_domains(domains):
+    pprint(domains.items())
+
+def print_sudoku(puzzle):
+    for row in puzzle:
+        print(''.join('_' if d == 0 else str(d) for d in row))
+
+def constraints_domains(csp, xi, xj, x):
+    for y in csp.constraints[(xi, xj)](x):
+        yield (y in csp.domains[xj])
+
+def revise(csp, xi, xj):
+    revised = False
+    for x in csp.domains[xi]:
+        #if not any(y in csp.domains[xj] for y in csp.constraints[xi, xj](x)):
+        if not any(constraints_domains(csp, xi, xj, x)):
+            csp.domains[xi].remove(x)
+            revised = True
+    return revised
 
 def ac3(csp):
     queue = [(xi, xj) for xi in csp.variables for xj in csp.neighbors[xi]]
     while queue:
         (xi, xj) = queue.pop(0)
-        if csp.revise(xi, xj):
+        if revise(csp, xi, xj):
             if not csp.domains[xi]:
                 return False
             for xk in csp.neighbors[xi]:
@@ -59,30 +73,34 @@ def ac3(csp):
                     queue.append((xk, xi))
     return True
 
+def sudoku_domain(initial_value):
+    if initial_value == 0:
+        return list(range(1, 10))
+    else:
+        return [initial_value]
+
 def sudoku_csp(puzzle):
     variables = [(r, c) for r in range(9) for c in range(9)]
     domains = {
-        (r, c):
-            list(range(1, 10)) if puzzle[r][c] == 0
-            else
-            [puzzle[r][c]] for r in range(9) for c in range(9)
+        (r, c): sudoku_domain(puzzle[r][c]) for r in range(9) for c in range(9)
     }
     neighbors = {
         (r, c):
             [(r, j) for j in range(9) if j != c]
             + [(i, c) for i in range(9) if i != r]
             + [
-                (r//3*3 + i, c//3*3 + j)
+                cell
                 for i in range(3)
                 for j in range(3)
-                if (r//3*3 + i, c//3*3 + j) != (r, c)
+                if (cell := (r//3*3 + i, c//3*3 + j)) != (r, c)
             ]
             for r in range(9)
             for c in range(9)
     }
     constraints = {
         (var1, var2):
-            lambda x: [x] for var1 in variables for var2 in neighbors[var1]}
+            lambda x: [x] for var1 in variables for var2 in neighbors[var1]
+    }
     return CSP(variables, domains, neighbors, constraints)
 
 def parse_sudoku_line(line):
@@ -101,35 +119,12 @@ def main(argv=None):
     # chatgpt's code doesn't solve its own puzzle or sudoku1.txt
     puzzle = parse_sudoku_line(args.sudoku)
     csp = sudoku_csp(puzzle)
+    pprint(csp.neighbors[(0,0)])
+    return
     print(ac3(csp))
 
-def old():
-    # Example Sudoku puzzle
-    puzzle = [
-        [5, 3, 0, 0, 7, 0, 0, 0, 0],
-        [6, 0, 0, 1, 9, 5, 0, 0, 0],
-        [0, 9, 8, 0, 0, 0, 0, 6, 0],
-        [8, 0, 0, 0, 6, 0, 0, 0, 3],
-        [4, 0, 0, 8, 0, 3, 0, 0, 1],
-        [7, 0, 0, 0, 2, 0, 0, 0, 6],
-        [0, 6, 0, 0, 0, 0, 2, 8, 0],
-        [0, 0, 0, 4, 1, 9, 0, 0, 5],
-        [0, 0, 0, 0, 8, 0, 0, 7, 9]
-    ]
-
-    # Solve the Sudoku puzzle
-    csp = sudoku_csp(puzzle)
-    if ac3(csp):
-        print("Sudoku puzzle solved:")
-        for r in range(9):
-            def _(c):
-                if len(csp.domains[(r, c)]) == 1:
-                    return csp.domains[(r, c)][0]
-                else:
-                    return 0
-            print([_(c) for c in range(9)])
-    else:
-        print("No solution found.")
+if __name__ == '__main__':
+    main()
 
 """
 Breakdown
@@ -151,6 +146,3 @@ Breakdown
 This code sets up the Sudoku puzzle, applies the AC-3 algorithm for constraint
 propagation, and prints the solved puzzle if a solution is found.
 """
-
-if __name__ == '__main__':
-    main()
