@@ -1,4 +1,5 @@
 import argparse
+import logging
 
 class TrieNode:
 
@@ -22,7 +23,9 @@ class Trie:
 
 
 def trie_to_regex(node):
+    logger = logging.getLogger('trie_to_regex')
     if not node.children:
+        logger.info('no children')
         return ''
 
     alternatives = []
@@ -35,6 +38,7 @@ def trie_to_regex(node):
                 alternatives.append(char)
         else:
             alternatives.append(char + sub_regex)
+        logger.info('%r', alternatives)
 
     if len(alternatives) == 1:
         return alternatives[0]
@@ -42,10 +46,12 @@ def trie_to_regex(node):
         return '(?:' + '|'.join(alternatives) + ')'
 
 def build_regex_from_list(strings):
+    logger = logging.getLogger('trie_to_regex')
     trie = Trie()
     for string in strings:
         trie.insert(string)
 
+    logger.info('%r', trie.root.children)
     regex = trie_to_regex(trie.root)
     return '^' + regex + '$'
 
@@ -62,6 +68,8 @@ def main(argv=None):
         nargs = '+',
     )
     args = parser.parse_args(argv)
+
+    logging.basicConfig(level=logging.INFO)
 
     pattern = build_regex_from_list(args.strings)
     print(pattern)
