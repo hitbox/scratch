@@ -3,7 +3,7 @@ import argparse
 from pprint import pprint
 
 def parse_sudoku_line(line):
-    numbers = list(map(int, line))
+    numbers = list(map(int, line.strip()))
     rows = [numbers[i:i+9] for i in range(0, 9*9, 9)]
     assert len(rows) == 9
     for row in rows:
