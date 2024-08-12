@@ -1,5 +1,6 @@
 import argparse
 import logging
+import re
 
 class TrieNode:
 
@@ -14,6 +15,9 @@ class Trie:
         self.root = TrieNode()
 
     def insert(self, word):
+        """
+        Walk down from root node adding the characters of `word` as nodes.
+        """
         node = self.root
         for char in word:
             if char not in node.children:
@@ -23,35 +27,39 @@ class Trie:
 
 
 def trie_to_regex(node):
-    logger = logging.getLogger('trie_to_regex')
+    logger = logging.getLogger('trie_to_regex.trie_to_regex')
+    logger.debug(
+        'node=%r, node.children=%r, node.is_end_of_word=%r',
+        node, node.children.keys(), node.is_end_of_word)
+
     if not node.children:
-        logger.info('no children')
+        logger.debug('no children')
         return ''
 
     alternatives = []
-    for char, child in node.children.items():
-        sub_regex = trie_to_regex(child)
-        if child.is_end_of_word:
-            if sub_regex:
-                alternatives.append(char + sub_regex + '?')
-            else:
-                alternatives.append(char)
-        else:
+    for char, child_node in node.children.items():
+        sub_regex = trie_to_regex(child_node)
+        if sub_regex:
+            breakpoint()
+            if child_node.is_end_of_word and not sub_regex.endswith('?'):
+                sub_regex += '?'
             alternatives.append(char + sub_regex)
-        logger.info('%r', alternatives)
+        else:
+            # no children in child node
+            alternatives.append(char)
+    logger.debug('alternatives=%r', alternatives)
 
     if len(alternatives) == 1:
         return alternatives[0]
     else:
+        # non-capturing group matching any of the alternatives
         return '(?:' + '|'.join(alternatives) + ')'
 
 def build_regex_from_list(strings):
-    logger = logging.getLogger('trie_to_regex')
     trie = Trie()
     for string in strings:
         trie.insert(string)
 
-    logger.info('%r', trie.root.children)
     regex = trie_to_regex(trie.root)
     return '^' + regex + '$'
 
@@ -67,12 +75,24 @@ def main(argv=None):
         'strings',
         nargs = '+',
     )
+    parser.add_argument(
+        '--logging',
+        choices = [name.lower() for name in logging._nameToLevel],
+        help = 'Debugging output.',
+    )
     args = parser.parse_args(argv)
 
-    logging.basicConfig(level=logging.INFO)
+    if args.logging:
+        logging.basicConfig(level=args.logging.upper())
 
-    pattern = build_regex_from_list(args.strings)
-    print(pattern)
+    strings = sorted(args.strings)
+    pattern = build_regex_from_list(strings)
+    logger = logging.getLogger('trie_regex')
+    logger.debug('pattern=%r', pattern)
+    regex = re.compile(pattern)
+    for string in strings:
+        assert regex.match(string), f'{string=} does not match.'
+    logger.debug('regex confirmed')
 
 if __name__ == '__main__':
     main()
