@@ -67,9 +67,8 @@ def trie_to_regex(node):
     for char, child_node in node.children.items():
         sub_regex = trie_to_regex(child_node)
         if sub_regex:
-            breakpoint()
             if child_node.is_end_of_word and not sub_regex.endswith('?'):
-                sub_regex += '?'
+                sub_regex = '(?:' + sub_regex + ')?'
             alternatives.append(char + sub_regex)
         else:
             # no children in child node
