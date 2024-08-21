@@ -1,6 +1,33 @@
 import argparse
 import logging
 import re
+import unittest
+
+class TestTrieRegex(unittest.TestCase):
+
+    def check(self, words, pattern):
+        self.assertEqual(build_regex_from_list(words), pattern)
+        for word in words:
+            self.assertTrue(re.match(pattern, word))
+
+    def test_empty_string(self):
+        self.check([''], '^$')
+
+    def test_single_word(self):
+        self.check(['cat'], '^cat$')
+
+    def test_short_same_length(self):
+        self.check(['cat', 'car', 'can'], '^ca(?:t|r|n)$')
+
+    def test_multi_char_end_of_word(self):
+        self.check(['dow', 'dowel'], '^dow(?:el)?$')
+        self.check(['car', 'cartoon'], '^car(?:toon)?$')
+
+    def test_highly_nested(self):
+        words = ['dan', 'dog', 'door', 'dock', 'dope', 'dork', 'dorm', 'dow', 'dowel']
+        pattern = '^d(?:an|o(?:g|or|ck|pe|r(?:k|m)|w(?:el)?))$'
+        self.check(words, pattern)
+
 
 class TrieNode:
 
@@ -40,9 +67,8 @@ def trie_to_regex(node):
     for char, child_node in node.children.items():
         sub_regex = trie_to_regex(child_node)
         if sub_regex:
-            breakpoint()
             if child_node.is_end_of_word and not sub_regex.endswith('?'):
-                sub_regex += '?'
+                sub_regex = '(?:' + sub_regex + ')?'
             alternatives.append(char + sub_regex)
         else:
             # no children in child node
