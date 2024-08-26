@@ -4,15 +4,25 @@ from dataclasses import dataclass
 
 class TestPretty(unittest.TestCase):
 
-    def test_pretty_subtract(self):
+    def test_constant(self):
+        self.assertEqual(pretty(Const(1)), '1')
+
+    def test_subtract(self):
         expr = Sub(Sub(Const(1), Const(2)), Const(3))
         self.assertEqual(pretty(expr), '1-2-3')
 
-    def test_pretty_addition(self):
+    def test_addition(self):
         expr = Mul(Add(Const(1), Const(2)), Const(3))
         self.assertEqual(pretty(expr), '(1+2)*3')
 
-    def test_pretty_exponentiation(self):
+    def test_division(self):
+        expr = Div(Const(1),Sub(Const(1), Const(2)))
+        self.assertEqual(pretty(expr), '1/(1-2)')
+
+    def test_exponentiation(self):
+        expr = Pow(Add(Const(1), Const(2)), Const(3))
+        self.assertEqual(pretty(expr), '(1+2)^3')
+
         expr = Add(Const(7), Add(Mul(Const(6), Pow(Const(5), Const(2))), Const(3)))
         self.assertEqual(pretty(expr), '7+(6*5^2+3)')
 
