@@ -1,5 +1,6 @@
 *.pickle
 *.session
 __pycache__
+instance
 pygame/assets
 venv
