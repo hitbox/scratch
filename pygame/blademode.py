@@ -99,7 +99,8 @@ class DemoTimers(BaseState):
 
 class Slicing:
 
-    def __init__(self):
+    def __init__(self, max_angle_change=math.pi):
+        self.max_angle_change = max_angle_change
         self.points = []
 
     def __bool__(self):
@@ -110,6 +111,17 @@ class Slicing:
 
     def __len__(self):
         return len(self.points)
+
+    def test_append(self, point):
+        if not self.points:
+            return True
+
+        prev_point = self.points[-1]
+        dy = prev_point[1] - point[1]
+        dx = prev_point[0] - point[0]
+        angle = math.atan2(dy, dx)
+
+        return abs(angle) < self.max_angle_change
 
     def append(self, point):
         self.points.append(point)
@@ -130,6 +142,9 @@ class Slicing:
 
 
 class SuccessManager:
+    """
+    Manage a list of success objects.
+    """
 
     def __init__(self):
         self.successes = []
@@ -168,9 +183,16 @@ class Success:
 
 class TatamiOmoteManager:
 
-    def __init__(self, font):
-        self.rects = []
+    def __init__(
+        self,
+        font,
+        min_endpoint_distance = 200,
+        max_endpoint_distance = 300,
+    ):
         self.font = font
+        self.min_endpoint_distance = min_endpoint_distance
+        self.max_endpoint_distance = max_endpoint_distance
+        self.rects = []
 
     def __bool__(self):
         return bool(self.rects)
@@ -184,14 +206,19 @@ class TatamiOmoteManager:
             image = self.font.render(str(order), True, 'azure')
             surf.blit(image, image.get_rect(center=rect.center))
 
+    def valid_distance(self, p1, p2):
+        distance = math.dist(p1, p2)
+        return self.min_endpoint_distance < distance < self.max_endpoint_distance
+
     def spawn(self, inside):
         tatami_width = 50
         tatami_height = 50
 
+        # find two points within the constraints
         while True:
             x1, y1 = random_point(inside)
             x3, y3 = random_point(inside)
-            if 200 < math.dist((x1,y1), (x3,y3)) < 300:
+            if self.valid_distance((x1, y1), (x3, y3)):
                 break
 
         # midpoint between p1 and p3
@@ -203,19 +230,24 @@ class TatamiOmoteManager:
             pygame.Rect(x3, y3, tatami_width, tatami_height),
         ])
 
-    def test_slice(self, points):
+    def test_slice(self, slice_points):
+
+        return test_blade_slice(self.rects, slice_points)
+
         # the slice lines go throught the tatami omote in order
-        success = True
-        slice_lines = it.pairwise(points)
+        #slice_lines = it.pairwise(slice_points)
+        sliced_order = []
         for rect in self.rects:
-            for line in slice_lines:
+            for slice_line in it.pairwise(slice_points):
                 rect_as_line = (rect.bottomleft, rect.topright)
-                if is_line_intersecting_rect(line, rect_as_line):
+                if is_line_intersecting_rect(slice_line, rect_as_line):
+                    # break to test next rect
+                    sliced_order.append(rect)
                     break
             else:
                 # one rect not sliced, fail
                 return False
-        return success
+        return sliced_order == self.rects
 
 
 def on_segment(p, q, r):
@@ -304,12 +336,13 @@ def is_line_intersecting_rect(line, rect):
     """
     Determine if a line intersects a rectangle.
 
-    Args:
-    line (tuple): A tuple containing two points that define the line,
-                  each represented as a tuple (x, y).
-    rect (tuple): A tuple containing two points that define the rectangle:
-                  the bottom-left corner and the top-right corner,
-                  each represented as a tuple (x, y).
+    :param line:
+        A tuple containing two points that define the line, each represented as
+        a tuple (x, y).
+    :param rect:
+        A tuple containing two points that define the rectangle:
+        the bottom-left corner and the top-right corner, each represented as a
+        tuple (x, y).
 
     Returns:
     bool: True if the line intersects the rectangle, False otherwise.
@@ -348,24 +381,32 @@ def random_point(rect):
     return (x, y)
 
 def test_blade_slice(tatami_omote_rects, slice_points):
+    """
+    Test that the points of a slice line collide each rect, in order.
+    """
     # copy for stacks
     rects = collections.deque(tatami_omote_rects)
-    lines = collections.deque(it.pairwise(slice_points))
+    slice_lines = collections.deque(it.pairwise(slice_points))
 
-    # popleft line and rect
+    # popleft slice_line and rect
     # line hits rect, yield line and rect, put line back in stack and leave rect off
     # line does not hit rect, continue to next line
-    while lines and rects:
+    while slice_lines and rects:
         rect = rects.popleft()
-        line = lines.popleft()
-        is_intersecting = is_line_intersecting_rect(line, rect)
+        slice_line = slice_lines.popleft()
+        is_intersecting = is_line_intersecting_rect(
+            slice_line,
+            (rect.bottomleft, rect.topright)
+        )
         if is_intersecting:
-            yield (rect, line)
             # keep line, lose rect
-            lines.appendleft(line)
+            slice_lines.appendleft(slice_line)
         else:
             # keep rect and test next line
             rects.appendleft(rect)
+
+    # success for no remaining rects
+    return not bool(rects)
 
 def render_font_lines(font, color, lines, antialias=True):
     for line in lines:
@@ -432,14 +473,10 @@ def blade_mode(display_size):
     background = screen.copy()
     window = screen.get_rect()
     font = pygame.font.SysFont(None, 50)
+    printer = pygamelib.FontPrinter(font, color='azure')
 
-    lines = [
-        'Click and drag through rects, in order',
-    ]
-    images = list(render_font_lines(font, 'azure', lines))
-    rects = [image.get_rect() for image in images]
-    align_top_bottom(rects)
-    background.blits(list(zip(images, rects)))
+    image = printer(['Click and drag through rects, in order'])
+    background.blit(image, (0,0))
 
     spawn_rect = window.copy()
     spawn_rect.size = (300, 300)
@@ -449,11 +486,15 @@ def blade_mode(display_size):
     pygame.mouse.set_visible(False)
 
     # objects to slice
-    tatami_omote_manager = TatamiOmoteManager(font)
+    tatami_omote_manager = TatamiOmoteManager(
+        font,
+    )
     tatami_spawn_timer = 0
 
     elapsed = 0
-    slicing = Slicing()
+    slicing = Slicing(
+        max_angle_change = math.pi / 2
+    )
     success_manager = SuccessManager()
     running = True
     while running:
@@ -472,12 +513,13 @@ def blade_mode(display_size):
         if mouse1:
             slicing.append(mouse_position)
         elif slicing:
-            # end slicing
+            # mouse1 up, end slicing
             slicing.clear()
 
         if (
             slicing
             and tatami_omote_manager.rects
+            and len(slicing.points) > 1
             and tatami_omote_manager.test_slice(slicing.points)
         ):
             slice_success = Success(
