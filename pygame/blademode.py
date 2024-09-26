@@ -1,5 +1,6 @@
 import abc
 import collections
+import contextvars
 import enum
 import itertools as it
 import math
@@ -8,6 +9,8 @@ import random
 import pygamelib
 
 from pygamelib import pygame
+
+engine_var = contextvars.ContextVar('engine')
 
 class Orientation(enum.Enum):
 
@@ -18,14 +21,17 @@ class Orientation(enum.Enum):
 
 class Engine:
 
-    def __init__(self, clock):
+    def __init__(self, clock=None):
+        if clock is None:
+            clock = pygame.time.Clock()
         self.clock = clock
         self.running = False
         self.state = None
 
-    def run(self):
-        self.running = True
+    def run(self, state=None):
+        self.state = state or self.state
         elapsed = 0
+        self.running = True
         while self.running:
             self.state.update(elapsed)
             elapsed = self.clock.tick()
@@ -250,6 +256,65 @@ class TatamiOmoteManager:
         return sliced_order == self.rects
 
 
+class Animation:
+
+    def __init__(self, a, b, duration):
+        self.a = a
+        self.b = b
+        self.duration = duration
+        self.time = 0
+
+    def update(self, elapsed):
+        if self.time == self.duration:
+            return
+
+        if self.time + elapsed >= self.duration:
+            self.time = self.duration
+        else:
+            self.time += elapsed
+
+    def value(self):
+        norm_time = pygamelib.remap(self.time, 0, self.duration, 0, 1)
+        value = pygamelib.lerp(norm_time, self.a, self.b)
+        return value
+
+
+class BladeMode:
+
+    def __init__(self):
+        self.font = pygamelib.monospace_font(24)
+        self.printer = pygamelib.FontPrinter(self.font, 'azure')
+        self.screen = pygame.display.get_surface()
+        self.rect = pygame.Rect(100, 300, 300, 300)
+        self.animation = Animation(
+            pygame.Vector2(self.rect.center),
+            pygame.Vector2(self.rect.move(300, 0).center),
+            1000
+        )
+        self.events = []
+
+    def draw(self):
+        self.screen.fill('black')
+        pygame.draw.rect(self.screen, 'azure', self.rect)
+        lines = [f'{self.rect}']
+        image = self.printer(lines)
+        self.screen.blit(image, (0,0))
+        pygame.display.flip()
+
+    def update(self, elapsed):
+        self.events = pygame.event.get()
+        for event in self.events:
+            if event.type == pygame.QUIT:
+                engine = engine_var.get()
+                engine.stop()
+            elif event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    pygamelib.post_quit()
+        self.animation.update(elapsed)
+        self.rect.center = self.animation.value()
+        self.draw()
+
+
 def on_segment(p, q, r):
     """
     Check if point q lies on the line segment pr.
@@ -423,7 +488,7 @@ def main(argv=None):
     # aka: tameshigiri
     parser = pygamelib.command_line_parser()
     args = parser.parse_args(argv)
-    blade_mode(args.display_size)
+    blade_mode_unlimited_framerate(args.display_size)
 
 def timer_demo():
     # thinking of having a timer driven state
@@ -545,6 +610,19 @@ def blade_mode(display_size):
         pygame.display.flip()
 
         elapsed = clock.tick(framerate)
+
+def blade_mode_unlimited_framerate(display_size):
+    pygame.font.init()
+    clock = pygame.time.Clock()
+    screen = pygame.display.set_mode(display_size)
+
+    engine = Engine()
+    engine_token = engine_var.set(engine)
+
+    state = BladeMode()
+    engine.run(state)
+
+    engine_var.reset(engine_token)
 
 if __name__ == '__main__':
     main()
