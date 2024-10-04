@@ -4204,6 +4204,17 @@ def contains_point(rect, point):
     if point not in ((x,y), (r,y), (r,b), (x,b)):
         return pygame.Rect(rect).collidepoint(point)
 
+def deltas_for_size(side_size):
+
+    half_side_size = side_size // 2
+
+    def _delta(index):
+        values = divmod(index, side_size)
+        return tuple(v - half_side_size for v in values)
+
+    deltas = set(map(_delta, range(side_size*side_size)))
+    return deltas
+
 # clockwise ordered rect side attribute names mapped with their opposites
 SIDENAMES = ['top', 'right', 'bottom', 'left']
 SIDES = dict(opposite_items(SIDENAMES))
@@ -4263,5 +4274,5 @@ nearest_for_side = {
 # rect with no effect on wrap
 NORECT = (math.inf, math.inf, -math.inf, -math.inf)
 
-DELTAS = set(tuple(v-1 for v in divmod(i, 3)) for i in range(9))
+DELTAS = set(tuple(v - 1 for v in divmod(i, 3)) for i in range(9))
 DELTAS.remove((0,0))
