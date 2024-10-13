@@ -98,9 +98,9 @@ def demo_all_functions():
     print("Path found (functional):", path_functional)
 
     path_dfs = find_path_dfs(graph, 'A', 'E')
-    path_bfs = find_path_bfs(graph, 'A', 'E')
-
     print("Path found (DFS):", path_dfs)
+
+    path_bfs = find_path_bfs(graph, 'A', 'E')
     print("Path found (BFS):", path_bfs)
 
 def main(argv=None):
