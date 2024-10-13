@@ -45,7 +45,6 @@ def find_path_backtracking(graph, start, end, path=None):
             new_path = find_path_backtracking(graph, node, end, path + [node])
             if new_path:
                 return new_path
-    return None
 
 def find_path_functional(graph, start, end):
     def helper(current, path):
@@ -56,7 +55,6 @@ def find_path_functional(graph, start, end):
                 result = helper(node, path + [node])
                 if result:
                     return result
-        return None
 
     return helper(start, [start])
 
@@ -69,7 +67,6 @@ def find_path_dfs(graph, start, end):
         for node in graph.get(current, []):
             if node not in path:
                 stack.append((node, path + [node]))
-    return None
 
 def find_path_bfs(graph, start, end):
     queue = deque([(start, [start])])
@@ -80,7 +77,6 @@ def find_path_bfs(graph, start, end):
         for node in graph.get(current, []):
             if node not in path:
                 queue.append((node, path + [node]))
-    return None
 
 def demo_all_functions():
     """
