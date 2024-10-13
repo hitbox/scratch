@@ -83,6 +83,9 @@ def find_path_bfs(graph, start, end):
     return None
 
 def demo_all_functions():
+    """
+    Demonstrate several methods of path searching.
+    """
     graph = {
         'A': ['B', 'C'],
         'B': ['D'],
