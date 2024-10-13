@@ -1,6 +1,39 @@
 import argparse
+import unittest
 
 from collections import deque
+
+class TestSearch(unittest.TestCase):
+
+    def setUp(self):
+        self.graph = {
+            'A': ['B', 'C'],
+            'B': ['D'],
+            'C': ['D'],
+            'D': ['E'],
+            'E': []
+        }
+
+    def test_backtracking(self):
+        a = find_path_backtracking(self.graph, 'A', 'E')
+        b = ['A', 'B', 'D', 'E']
+        self.assertEqual(a, b)
+
+    def test_functional(self):
+        a = find_path_functional(self.graph, 'A', 'E')
+        b = ['A', 'B', 'D', 'E']
+        self.assertEqual(a, b)
+
+    def test_dfs(self):
+        a = find_path_dfs(self.graph, 'A', 'E')
+        b = ['A', 'C', 'D', 'E']
+        self.assertEqual(a, b)
+
+    def test_bfs(self):
+        a = find_path_bfs(self.graph, 'A', 'E')
+        b = ['A', 'B', 'D', 'E']
+        self.assertEqual(a, b)
+
 
 def find_path_backtracking(graph, start, end, path=None):
     if path is None:
