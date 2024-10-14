@@ -1695,6 +1695,22 @@ def mix(time, a, b):
 
 lerp = mix
 
+def inverse_lerp(a, b, p):
+    return (p - a) / (b - a)
+
+def inverse_lerp(a, b, p):
+    ab = b - a  # Vector from a to b
+    ap = p - a  # Vector from a to p
+    
+    # Calculate the length of the projection of ap onto ab
+    ab_length_squared = ab.length_squared()
+    if ab_length_squared == 0:
+        raise ValueError("The points a and b must be different for interpolation.")
+    
+    # Use dot product to find the projection of ap onto ab
+    t = ap.dot(ab) / ab_length_squared
+    return t
+
 def mixiters(time, iter1, iter2):
     return tuple(mix(time, a, b) for a, b in zip(iter1, iter2))
 
