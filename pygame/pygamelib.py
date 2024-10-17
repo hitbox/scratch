@@ -1695,18 +1695,41 @@ def mix(time, a, b):
 
 lerp = mix
 
+def segmented_lerp(points, time, closed=False):
+    if closed:
+        points += [points[0]]
+
+    lengths = [math.dist(p1, p2) for p1, p2 in zip(points, points[1:])]
+    total_length = sum(lengths)
+
+    travelled = time * total_length
+
+    accumulated_length = 0
+    for i, length in enumerate(lengths):
+        if accumulated_length + length >= travelled:
+            segment_t = (travelled - accumulated_length) / length
+            p1 = points[i+0]
+            p2 = points[i+1]
+            x = lerp(segment_t, p1[0], p2[0])
+            y = lerp(segment_t, p1[1], p2[1])
+            return (x, y)
+
+        accumulated_length += length
+
+    return points[-1]
+
 def inverse_lerp(a, b, p):
     return (p - a) / (b - a)
 
 def inverse_lerp(a, b, p):
     ab = b - a  # Vector from a to b
     ap = p - a  # Vector from a to p
-    
+
     # Calculate the length of the projection of ap onto ab
     ab_length_squared = ab.length_squared()
     if ab_length_squared == 0:
         raise ValueError("The points a and b must be different for interpolation.")
-    
+
     # Use dot product to find the projection of ap onto ab
     t = ap.dot(ab) / ab_length_squared
     return t
