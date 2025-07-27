@@ -3,6 +3,12 @@ import argparse
 from collections import deque
 from itertools import tee
 
+# Motivations:
+# - https://log.pfad.fr/2025/optimi-zig-sudoku-solving/
+# - https://en.wikipedia.org/wiki/Dancing_Links
+# I was reading those and tore off on polyominoes generation, inspired by the
+# animation on the wikipedia page.
+
 # 1. Initial shape: [(0,0)]
 # 2. For each square in shape, choose all valid side-connected squares.
 # 3. Add new squares to shape until length is satisfied.
