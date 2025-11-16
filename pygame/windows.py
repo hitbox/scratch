@@ -1,6 +1,7 @@
 import argparse
 import contextlib
 import itertools as it
+import math
 import operator
 import os
 
@@ -11,47 +12,409 @@ from types import SimpleNamespace
 with contextlib.redirect_stdout(open(os.devnull, 'w')):
     import pygame
 
-class pressed_move:
-    """
-    Return tuple of scaled values from pressed keys.
-    """
+class assets:
 
-    def __init__(self, yneg, xpos, ypos, xneg):
-        # arguments in clockwise order
-        self.posneg_x = operator.itemgetter(xpos, xneg)
-        self.posneg_y = operator.itemgetter(ypos, yneg)
-        self.starmul = partial(it.starmap, operator.mul)
+    def __init__(self, basepath, scale=1):
+        self.basepath = basepath
+        self.scale = scale
+        self.cache = {}
 
-    def __call__(self, is_pressed, speed):
-        speed_dir = [speed, -speed]
-        # leaving a note because this is quick obscure
-        # vel = sum(it.starmap(operator.mul, zip(arrow_rightleft(is_pressed),speed_dir)))
-        vx = sum(self.starmul(zip(self.posneg_x(is_pressed),speed_dir)))
-        vy = sum(self.starmul(zip(self.posneg_y(is_pressed),speed_dir)))
-        return (vx, vy)
+    def image(self, filename):
+        if filename not in self.cache:
+            image = pygame.image.load(os.path.join(self.basepath, filename))
+            if self.scale != 1:
+                size = image.get_size()
+                scaled = apply(operator.mul, self.scale, size)
+                image = pygame.transform.scale(image, scaled)
+            self.cache[filename] = image
+        return self.cache[filename]
+
+    def rect(self, filename):
+        return self.image(filename).get_rect()
 
 
-arrow_move = pressed_move(pygame.K_UP, pygame.K_RIGHT, pygame.K_DOWN, pygame.K_LEFT)
-wasd_move = pressed_move(pygame.K_w, pygame.K_d, pygame.K_s, pygame.K_a)
+class sizetype:
+
+    def __init__(self, separator=',', type=int, duplicate_size=2):
+        self.separator = separator
+        self.type = type
+        self.duplicate_size = duplicate_size
+
+    def __call__(self, string):
+        size = tuple(map(int, string.replace(',', ' ').split()))
+        while len(size) < self.duplicate_size:
+            size += size
+        return size
+
+
+class RectFill:
+
+    def __init__(self, color):
+        self.color = color
+
+    def draw(self, surf, rect):
+        pygame.draw.rect(surf, self.color, rect, 0)
+
+
+class RectBorder:
+
+    def __init__(self, color, size=1):
+        self.color = color
+        self.size = size
+
+    def draw(self, surf, rect):
+        pygame.draw.rect(surf, self.color, rect, self.size)
+
+
+class RectImageBorder:
+
+    def __init__(self, vertical, horizontal, topleft_corner):
+        self.vertical = vertical
+        self.horizontal = horizontal
+        self.topleft_corner = topleft_corner
+        self.topright_corner = pygame.transform.flip(topleft_corner, 1, 0)
+        self.bottomleft_corner = pygame.transform.flip(topleft_corner, 0, 1)
+        self.bottomright_corner = pygame.transform.flip(topleft_corner, 1, 1)
+
+    @classmethod
+    def slice_image(cls, image, thickness):
+        corner = slice_image(image, pygame.Rect((0,0), (thickness, thickness)))
+        vertical = slice_image(image, pygame.Rect((thickness,0), (thickness, thickness)))
+        horizontal = slice_image(image, pygame.Rect((0,thickness), (thickness, thickness)))
+        return cls(vertical, horizontal, corner)
+
+    def draw(self, surf, rect):
+        width_step = self.horizontal.get_rect().width
+        height_step = self.vertical.get_rect().height
+        # Draw corners
+        surf.blit(self.topleft_corner, rect)
+        surf.blit(self.topright_corner, copyat(rect, topright=rect.topright))
+        surf.blit(self.bottomleft_corner, copyat(rect, bottomleft=rect.bottomleft))
+        surf.blit(self.bottomright_corner, copyat(rect, bottomright=rect.bottomright))
+        # Draw top and bottom
+        for x in range(rect.left + width_step, rect.right, width_step):
+            surf.blit(self.vertical, (x, rect.top))
+            surf.blit(self.vertical, (x, rect.bottom - height_step))
+        # Draw left and right
+        for y in range(rect.top, rect.bottom, height_step):
+            surf.blit(self.horizontal, (rect.left, y))
+            surf.blit(self.horizontal, (rect.right - width_step, y))
+
+
+def slice_image(source, rect):
+    new = pygame.Surface(rect.size, flags=pygame.SRCALPHA)
+    new.blit(source, (0,0), rect)
+    return new
+
+def copyat(rect, **kwargs):
+    new = rect.copy()
+    for key, val in kwargs.items():
+        setattr(new, key, val)
+    return new
+
+class RectStyle:
+
+    def __init__(self, fill=None, border=None):
+        self.fill = fill
+        self.border = border
+
+    def draw(self, surf, rect):
+        if self.fill:
+            self.fill.draw(surf, rect)
+        if self.border:
+            self.border.draw(surf, rect)
+
+
+class ResizeStyle:
+
+    def __init__(self, color, spacing=4, direction='topright-bottomleft'):
+        self.color = color
+        self.spacing = spacing
+        self.direction = direction
+
+    def draw(self, surf, rect):
+        for start, end in diagonal_lines(rect, spacing=self.spacing, direction=self.direction):
+            pygame.draw.line(surf, self.color, start, end, 1)
+
+
+class CloseStyle:
+
+    def __init__(self, color):
+        self.color = color
+
+    def draw(self, surf, rect):
+        pygame.draw.line(surf, self.color, rect.topleft, rect.bottomright, 1)
+        pygame.draw.line(surf, self.color, rect.topright, rect.bottomleft, 1)
+
+
+class ImageStyle:
+
+    def __init__(self, image):
+        self.image = image
+
+    @classmethod
+    def from_path(cls, filename):
+        image = pygame.image.load(filename)
+        return cls(image=image)
+
+    def draw(self, surf, rect):
+        surf.blit(self.image, rect)
+
+
+class WindowStyle:
+
+    def __init__(self, frame, title, resize, border, close):
+        self.frame = frame
+        self.title = title
+        self.resize = resize
+        self.border = border
+        self.close = close
+
+    def draw(self, surf, window):
+        self.frame.draw(surf, window.frame)
+        self.title.draw(surf, window.titlebar)
+        self.resize.draw(surf, window.resizebar)
+        self.border.draw(surf, window.frame)
+        self.close.draw(surf, window.closebutton)
+
 
 class Window:
 
-    def __init__(self, title, frame, camera):
-        self.title = title
-        self.frame = frame
-        self.camera = camera
-        self.surf = pygame.Surface(self.camera.size, flags=pygame.SRCALPHA)
+    def __init__(self, size, closebutton=None):
+        self.frame = pygame.Rect((0,0), size)
+        self.titlebar = self.frame.copy()
+        self.titlebar.height = min(10, self.titlebar.height * 0.2)
+        self.resizebar = self.frame.copy()
+        self.resizebar.height = min(10, self.resizebar.height * 0.2)
+        self.resizebar.width = min(10, self.resizebar.width * 0.2)
+        self.resizebar.bottomright = self.frame.bottomright
+        if closebutton is None:
+            closebutton = pygame.Rect(0, 0, 10, 10)
+        self.closebutton = closebutton
+        self.closebutton.topright = self.frame.topright
 
-    def render(self, sprites):
-        self.surf.fill('black')
-        cx, cy = self.camera.topleft
-        for sprite in sprites:
-            x = sprite.rect.x - cx
-            y = sprite.rect.y - cy
-            rect = get_rect(sprite.rect, x=x, y=y)
-            self.surf.blit(sprite.image, rect)
-        return self.surf
+    def move(self, rel):
+        self.frame.move_ip(rel)
+        self.titlebar.move_ip(rel)
+        self.resizebar.bottomright = self.frame.bottomright
+        self.closebutton.topright = self.frame.topright
 
+    def resize(self, rel):
+        self.frame.width += rel[0]
+        self.frame.height += rel[1]
+        self.titlebar.width = self.frame.width
+        self.resizebar.bottomright = self.frame.bottomright
+        self.closebutton.topright = self.frame.topright
+
+
+class Display:
+
+    def __init__(self, size, scale=1):
+        self.size = size
+        self.scale = scale
+        self.buffer = pygame.Surface(self.size)
+        self.windowsize = tuple(dim * self.scale for dim in self.size)
+
+    def clear(self):
+        self.buffer.fill('black')
+
+    def init(self):
+        self.window = pygame.display.set_mode(self.windowsize)
+
+    def update(self):
+        pygame.transform.scale(self.buffer, self.windowsize, self.window)
+        pygame.display.update()
+
+
+class WindowManager:
+
+    def __init__(self, windows, styles, scale=1):
+        self.windows = windows
+        self.styles = styles
+        self.scale = scale
+        self.dragging = None
+        self.hovering = None
+        self.resizing = None
+        self.closing = None
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEMOTION:
+            self.handle_mousemotion(event)
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            self.handle_mousebuttondown(event)
+        elif event.type == pygame.MOUSEBUTTONUP:
+            self.dragging = None
+            self.resizing = None
+
+    def lift_top(self, window, style):
+        self.windows.remove(window)
+        self.windows.append(window)
+        self.styles.remove(style)
+        self.styles.append(style)
+
+    def handle_mousebuttondown(self, event):
+        pos = apply(operator.truediv, self.scale, event.pos)
+        for window, style in zip(self.windows, self.styles):
+            if window.closebutton.collidepoint(pos):
+                window.particle = Particle(window.frame.topleft, (0,0), (0,1))
+                self.closing = window
+                break
+            elif window.titlebar.collidepoint(pos):
+                self.dragging = window
+                self.lift_top(window, style)
+                break
+            elif window.resizebar.collidepoint(pos):
+                self.resizing = window
+                self.lift_top(window, style)
+                break
+        else:
+            self.hovering = None
+            self.resizing = None
+
+    def handle_mousemotion(self, event):
+        if self.dragging:
+            rel = apply(operator.truediv, self.scale, event.rel)
+            self.dragging.move(rel)
+        elif self.resizing:
+            rel = apply(operator.truediv, self.scale, event.rel)
+            self.resizing.resize(rel)
+
+    def update(self, elapsed):
+        if self.closing:
+            self.closing.particle.update(elapsed)
+            rel = self.closing.particle.position - self.closing.frame.topleft
+            self.closing.move(rel)
+
+
+class Particle:
+
+    def __init__(self, position, velocity, acceleration):
+        self.position = pygame.Vector2(position)
+        self.velocity = pygame.Vector2(velocity)
+        self.acceleration = pygame.Vector2(acceleration)
+
+    def update(self, elapsed):
+        self.velocity += self.acceleration
+        self.position += self.velocity
+
+
+def diagonal_lines(rect, spacing=10, direction='topleft-bottomright'):
+    """
+    Draw parallel diagonal lines inside a rect at the slope of its corners.
+
+    :param rect: pygame.Rect to fill with lines
+    :param spacing: distance between parallel lines
+    :param direction: 'topleft-bottomright' or 'topright-bottomleft'
+    """
+    diagonal = math.sqrt(rect.width**2 + rect.height**2)
+    if direction == 'topleft-bottomright':
+        # Lines go from top-left to bottom-right (positive slope)
+        # We'll start lines from the left edge and top edge
+
+        # Calculate the diagonal length to know how many lines we need
+
+        # Start from top-left corner, move perpendicular to the diagonal
+        # The perpendicular direction for positive slope diagonal
+        perp_angle = math.atan2(rect.height, rect.width) + math.pi/2
+        dx = math.cos(perp_angle) * spacing
+        dy = math.sin(perp_angle) * spacing
+
+        # Generate starting points along the perpendicular
+        num_lines = int(diagonal / spacing) + 2
+
+        for i in range(-num_lines, num_lines):
+            # Start point moves perpendicular to diagonal
+            start_x = rect.left + i * dx
+            start_y = rect.top + i * dy
+
+            # End point is along the diagonal direction
+            end_x = start_x + rect.width
+            end_y = start_y + rect.height
+
+            # Clip line to rectangle bounds
+            if clip_line_to_rect(start_x, start_y, end_x, end_y, rect):
+                start, end = clip_line_to_rect(start_x, start_y, end_x, end_y, rect)
+                yield (start, end)
+
+    else:
+        # topright-bottomleft
+        perp_angle = math.atan2(rect.height, -rect.width) + math.pi/2
+        dx = math.cos(perp_angle) * spacing
+        dy = math.sin(perp_angle) * spacing
+
+        num_lines = int(diagonal / spacing) + 2
+
+        for i in range(-num_lines, num_lines):
+            start_x = rect.right + i * dx
+            start_y = rect.top + i * dy
+
+            end_x = start_x - rect.width
+            end_y = start_y + rect.height
+
+            if clip_line_to_rect(start_x, start_y, end_x, end_y, rect):
+                start, end = clip_line_to_rect(start_x, start_y, end_x, end_y, rect)
+                yield (start, end)
+
+def clip_line_to_rect(x1, y1, x2, y2, rect):
+    """
+    Clip a line to rectangle bounds using Cohen-Sutherland algorithm.
+    Returns tuple of (start_point, end_point) or None if line is outside rect.
+    """
+    # Region codes
+    INSIDE = 0  # 0000
+    LEFT = 1    # 0001
+    RIGHT = 2   # 0010
+    BOTTOM = 4  # 0100
+    TOP = 8     # 1000
+
+    def compute_code(x, y):
+        code = INSIDE
+        if x < rect.left:
+            code |= LEFT
+        elif x > rect.right:
+            code |= RIGHT
+        if y < rect.top:
+            code |= TOP
+        elif y > rect.bottom:
+            code |= BOTTOM
+        return code
+
+    code1 = compute_code(x1, y1)
+    code2 = compute_code(x2, y2)
+
+    while True:
+        # Both points inside
+        if code1 == 0 and code2 == 0:
+            return ((int(x1), int(y1)), (int(x2), int(y2)))
+
+        # Both points outside in same region
+        if code1 & code2 != 0:
+            return None
+
+        # At least one point outside, clip it
+        code_out = code1 if code1 != 0 else code2
+
+        # Find intersection point
+        if code_out & TOP:
+            x = x1 + (x2 - x1) * (rect.top - y1) / (y2 - y1)
+            y = rect.top
+        elif code_out & BOTTOM:
+            x = x1 + (x2 - x1) * (rect.bottom - y1) / (y2 - y1)
+            y = rect.bottom
+        elif code_out & RIGHT:
+            y = y1 + (y2 - y1) * (rect.right - x1) / (x2 - x1)
+            x = rect.right
+        elif code_out & LEFT:
+            y = y1 + (y2 - y1) * (rect.left - x1) / (x2 - x1)
+            x = rect.left
+
+        # Update point and code
+        if code_out == code1:
+            x1, y1 = x, y
+            code1 = compute_code(x1, y1)
+        else:
+            x2, y2 = x, y
+            code2 = compute_code(x2, y2)
 
 def get_rect(*args, **kwargs):
     """
@@ -70,6 +433,10 @@ def get_rect(*args, **kwargs):
         setattr(result, key, val)
     return result
 
+def apply(op, value, container):
+    class_ = type(container)
+    return class_(op(dim, value) for dim in container)
+
 def simple_sprite(rect, color):
     image = pygame.Surface(rect.size)
     image.fill(color)
@@ -77,128 +444,6 @@ def simple_sprite(rect, color):
         image = image,
         rect = rect,
     )
-
-def run(
-    output_string = None,
-):
-    clock = pygame.time.Clock()
-    fps = 60
-    title_font = pygame.font.SysFont('monospace', 20)
-    screen = pygame.display.get_surface()
-    background = screen.copy()
-    frame = screen.get_rect()
-
-    help_images = [
-        title_font.render('WASD - move window', True, 'ghostwhite'),
-        title_font.render('Arrow - move green rect', True, 'ghostwhite'),
-        title_font.render("Shift+Arrow - move window's camera", True, 'ghostwhite'),
-    ]
-    help_rects = [image.get_rect() for image in help_images]
-    help_rects[0].topright = frame.inflate((-min(frame.size)*.2,)*2).topright
-    for r1, r2 in zip(help_rects, help_rects[1:]):
-        r2.topright = r1.bottomright
-    for image, rect in zip(help_images, help_rects):
-        background.blit(image, rect)
-
-    windows = [
-        Window(
-            'Window Title',
-            frame = pygame.Rect(100,200,300,400),
-            camera = pygame.Rect(0,0,300,400),
-        ),
-    ]
-
-    sprites = [
-        simple_sprite(pygame.Rect(0,0,40,40), 'red'),
-        simple_sprite(pygame.Rect(100,100,40,40), 'blue'),
-        simple_sprite(pygame.Rect(100,300,40,40), 'green'),
-    ]
-
-    handlers = {}
-
-    # should be in positive, negative order
-    arrow_rightleft = operator.itemgetter(pygame.K_RIGHT, pygame.K_LEFT)
-    arrow_downup = operator.itemgetter(pygame.K_DOWN, pygame.K_UP)
-
-    wasd_rightleft = operator.itemgetter(pygame.K_d, pygame.K_a)
-    wasd_downup = operator.itemgetter(pygame.K_s, pygame.K_w)
-
-    speed = 4
-    speed_dir = [speed, -speed]
-
-    frame_num = 0
-    frame_queue = deque()
-    running = True
-    while running:
-        # tick and frame saving
-        if output_string and frame_queue:
-            while frame_queue and clock.get_fps() > fps:
-                frame_image = frame_queue.popleft()
-                path = output_string.format(frame_num)
-                pygame.image.save(frame_image, path)
-                frame_num += 1
-        elapsed = clock.tick(fps)
-        # events
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                # stop main loop after this frame
-                running = False
-            elif event.type in handlers:
-                handlers[event.type](event)
-        # update
-        is_pressed = pygame.key.get_pressed()
-
-        if is_pressed[pygame.K_LSHIFT]:
-            target = windows[-1].camera
-        else:
-            target = sprites[-1].rect
-
-        vx, vy = arrow_move(is_pressed, speed)
-        target.x += vx
-        target.y += vy
-
-        vx, vy = wasd_move(is_pressed, speed)
-        windows[-1].frame.x += vx
-        windows[-1].frame.y += vy
-
-        # draw
-        screen.blit(background, (0,)*2)
-        # draw - windows contents
-        for window in windows:
-            surface = window.render(sprites)
-            screen.blit(surface, window.frame)
-        # draw - window decorations
-        for window in windows:
-            pygame.draw.rect(screen, 'ghostwhite', window.frame, 1)
-            title_image = title_font.render(window.title, True, 'ghostwhite')
-            title_rect = title_image.get_rect(bottomleft=window.frame.topleft)
-            # title background
-            title_frame = get_rect(title_rect, width=window.frame.width)
-            pygame.draw.rect(screen, 'black', title_frame, 0)
-            pygame.draw.rect(screen, 'ghostwhite', title_frame, 1)
-            # title text
-            screen.blit(title_image, title_rect)
-        pygame.display.flip()
-        if output_string:
-            frame_queue.append(screen.copy())
-
-def start(options):
-    """
-    Initialize and start run loop. Bridge between options and main loop.
-    """
-    pygame.font.init()
-    pygame.display.set_caption('pygame - inventory')
-    pygame.display.set_mode(options.size)
-    run(output_string=options.output)
-
-def sizetype(string):
-    """
-    Parse string into a tuple of integers.
-    """
-    size = tuple(map(int, string.replace(',', ' ').split()))
-    if len(size) == 1:
-        size += size
-    return size
 
 def cli():
     """
@@ -218,8 +463,14 @@ def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--size',
-        default = '800,800',
-        type = sizetype,
+        default = '400,400',
+        type = sizetype(),
+        help = 'Screen size. Default: %(default)s',
+    )
+    parser.add_argument(
+        '--scale',
+        default = 2,
+        type = int,
         help = 'Screen size. Default: %(default)s',
     )
     parser.add_argument(
@@ -227,7 +478,76 @@ def cli():
         help = 'Format string for frame output.',
     )
     args = parser.parse_args()
-    start(args)
+    display = Display(args.size, args.scale)
+    display.init()
+
+    clock = pygame.time.Clock()
+    framerate = 60
+
+    pygame.font.init()
+
+    kenney_game_assets = assets(
+        basepath = os.path.expanduser(
+            '~/Downloads/Kenney Game Assets/Kenney Game Assets All-in-1 3.1.0'
+            '/UI assets/UI Pack/PNG/Grey/Default/'
+        ),
+        scale = 2,
+    )
+
+    image_style = WindowStyle(
+        frame = RectFill(color='black'),
+        title = RectFill(color='grey'),
+        resize = ResizeStyle(color='grey', spacing=2),
+        border = RectImageBorder.slice_image(
+            kenney_game_assets.image('button_square_depth_border.png'),
+            thickness = 10,
+        ),
+        close = ImageStyle(
+            image = kenney_game_assets.image('icon_outline_cross.png'),
+        ),
+    )
+
+    color1_style = WindowStyle(
+        frame = RectFill(color='yellow'),
+        title = RectFill(color='red'),
+        resize = ResizeStyle(color='red', spacing=2),
+        border = RectBorder(color='red'),
+        close = CloseStyle(color='purple'),
+    )
+
+    wm = WindowManager([
+            Window(
+                size = (200, 300),
+                closebutton = kenney_game_assets.rect('icon_cross.png'),
+            ),
+        ],
+        styles = [
+            image_style,
+        ],
+        scale = args.scale,
+    )
+
+    running = True
+    elapsed = 0
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pygame.event.post(pygame.event.Event(pygame.QUIT))
+            wm.handle_event(event)
+        wm.update(elapsed)
+        display.clear()
+        for window, style in zip(wm.windows, wm.styles):
+            if window is wm.hovering:
+                color = 'yellow'
+            else:
+                color = 'red'
+            style.draw(display.buffer, window)
+
+        display.update()
+        elapsed = clock.tick(framerate)
 
 if __name__ == '__main__':
     cli()
